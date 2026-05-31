@@ -1,0 +1,27 @@
+package com.fusion.fusion.timeline;
+
+public enum TimelineEventType {
+
+    ALERT_OPENED,
+
+    ALERT_RESOLVED,
+
+    OCCURRENCE_CREATED,
+
+    OCCURRENCE_UPDATED,
+
+    STATUS_CHANGED,
+
+    COMMENT_ADDED,
+
+    COMMUNICATION_ONLINE,
+
+    COMMUNICATION_DELAYED,
+
+    COMMUNICATION_LOST,
+
+    LOW_BATTERY_DETECTED,
+
+    STALE_UPDATE_DETECTED
+
+}
