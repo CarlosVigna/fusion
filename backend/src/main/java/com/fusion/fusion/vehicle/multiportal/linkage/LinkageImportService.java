@@ -6,6 +6,7 @@ import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.device.Device;
 import com.fusion.fusion.vehicle.multiportal.device.DeviceRepository;
@@ -86,14 +87,25 @@ public class LinkageImportService {
                     continue;
                 }
 
-                Optional<Vehicle> optionalVehicle =
-                        vehicleRepository.findByPlate(plate);
+                String status =
+                        getCellValue(row.getCell(7));
 
-                if (optionalVehicle.isEmpty()) {
-                    continue;
+                if (!"Aberto".equalsIgnoreCase(status)) {
+                    continue; // ignora vínculo encerrado
                 }
 
-                Vehicle vehicle = optionalVehicle.get();
+                Vehicle vehicle =
+                        vehicleRepository.findByPlate(plate)
+                                .orElseGet(() ->
+                                        vehicleRepository.save(
+                                                Vehicle.builder()
+                                                        .plate(plate)
+                                                        .platform(
+                                                                VehiclePlatform.MULTIPORTAL
+                                                        )
+                                                        .build()
+                                        )
+                                );
 
                 linkedVehicles++;
 
@@ -116,15 +128,20 @@ public class LinkageImportService {
 
                 Device device = optionalDevice.get();
 
-                String status =
-                        getCellValue(row.getCell(7));
+                if (repository.findByVehicleAndDeviceAndActiveTrue(
+                        vehicle,
+                        device
+                ).isPresent()) {
 
-                boolean isActive =
-                        "Aberto".equalsIgnoreCase(status);
+                    continue; // vínculo ativo já registrado
 
-                if (isActive) {
-                    active++;
                 }
+
+                device.setVehicle(vehicle);
+
+                deviceRepository.save(device);
+
+                active++;
 
                 DeviceLinkage linkage =
                         DeviceLinkage.builder()
@@ -135,7 +152,7 @@ public class LinkageImportService {
                                                 row.getCell(6)
                                         )
                                 )
-                                .active(isActive)
+                                .active(true)
                                 .startAt(
                                         parseDate(
                                                 getCellValue(

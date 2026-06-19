@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Link } from "react-router-dom";
 
@@ -49,6 +49,60 @@ export default function Grid() {
 
   const [lastUpdate, setLastUpdate] =
     useState(null);
+
+  const [columnFilters, setColumnFilters] =
+    useState({
+      plate: "",
+      insuredName: "",
+      status: "",
+      operator: "",
+    });
+
+  function setColumnFilter(field, value) {
+
+    setColumnFilters((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+  }
+
+  const filteredVehicles = useMemo(() => {
+
+    return vehicles.filter((vehicle) => {
+
+      const matchesPlate =
+        !columnFilters.plate ||
+        vehicle.plate
+          ?.toLowerCase()
+          .includes(columnFilters.plate.toLowerCase());
+
+      const matchesInsuredName =
+        !columnFilters.insuredName ||
+        vehicle.insuredName
+          ?.toLowerCase()
+          .includes(columnFilters.insuredName.toLowerCase());
+
+      const matchesStatus =
+        !columnFilters.status ||
+        vehicle.status === columnFilters.status;
+
+      const matchesOperator =
+        !columnFilters.operator ||
+        vehicle.operator
+          ?.toLowerCase()
+          .includes(columnFilters.operator.toLowerCase());
+
+      return (
+        matchesPlate &&
+        matchesInsuredName &&
+        matchesStatus &&
+        matchesOperator
+      );
+
+    });
+
+  }, [vehicles, columnFilters]);
 
   useEffect(() => {
 
@@ -332,8 +386,105 @@ export default function Grid() {
                 </th>
 
                 <th className="px-4 py-4">
+                  Última Posição
+                </th>
+
+                <th className="px-4 py-4">
+                  Atraso
+                </th>
+
+                <th className="px-4 py-4">
                   Realtime
                 </th>
+
+              </tr>
+
+              <tr className="border-t border-zinc-800 bg-zinc-950/60 text-xs">
+
+                <th className="px-4 py-2">
+                  <select
+                    value={columnFilters.status}
+                    onChange={(e) =>
+                      setColumnFilter("status", e.target.value)
+                    }
+                    className="
+                      w-full rounded-lg border border-zinc-800
+                      bg-zinc-900 px-2 py-1.5 text-xs
+                      outline-none
+                    "
+                  >
+                    <option value="">Todos</option>
+                    <option value="ONLINE">ONLINE</option>
+                    <option value="OFFLINE">OFFLINE</option>
+                    <option value="STALE">STALE</option>
+                    <option value="LOW_BATTERY">LOW_BATTERY</option>
+                    <option value="MAINTENANCE">MAINTENANCE</option>
+                  </select>
+                </th>
+
+                <th className="px-4 py-2" />
+
+                <th className="sticky left-0 z-20 bg-zinc-950/60 px-4 py-2">
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    value={columnFilters.plate}
+                    onChange={(e) =>
+                      setColumnFilter("plate", e.target.value)
+                    }
+                    className="
+                      w-full rounded-lg border border-zinc-800
+                      bg-zinc-900 px-2 py-1.5 text-xs
+                      outline-none placeholder:text-zinc-600
+                    "
+                  />
+                </th>
+
+                <th className="px-4 py-2">
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    value={columnFilters.insuredName}
+                    onChange={(e) =>
+                      setColumnFilter("insuredName", e.target.value)
+                    }
+                    className="
+                      w-full rounded-lg border border-zinc-800
+                      bg-zinc-900 px-2 py-1.5 text-xs
+                      outline-none placeholder:text-zinc-600
+                    "
+                  />
+                </th>
+
+                <th className="px-4 py-2" />
+
+                <th className="px-4 py-2" />
+
+                <th className="px-4 py-2" />
+
+                <th className="px-4 py-2" />
+
+                <th className="px-4 py-2">
+                  <input
+                    type="text"
+                    placeholder="Filtrar..."
+                    value={columnFilters.operator}
+                    onChange={(e) =>
+                      setColumnFilter("operator", e.target.value)
+                    }
+                    className="
+                      w-full rounded-lg border border-zinc-800
+                      bg-zinc-900 px-2 py-1.5 text-xs
+                      outline-none placeholder:text-zinc-600
+                    "
+                  />
+                </th>
+
+                <th className="px-4 py-2" />
+
+                <th className="px-4 py-2" />
+
+                <th className="px-4 py-2" />
 
               </tr>
 
@@ -346,7 +497,7 @@ export default function Grid() {
                 <tr>
 
                   <td
-                    colSpan={10}
+                    colSpan={12}
                     className="
                       px-6 py-10 text-center
                       text-zinc-500
@@ -357,12 +508,12 @@ export default function Grid() {
 
                 </tr>
 
-              ) : vehicles.length === 0 ? (
+              ) : filteredVehicles.length === 0 ? (
 
                 <tr>
 
                   <td
-                    colSpan={10}
+                    colSpan={12}
                     className="
                       px-6 py-10 text-center
                       text-zinc-500
@@ -375,7 +526,7 @@ export default function Grid() {
 
               ) : (
 
-                vehicles.map((vehicle) => (
+                filteredVehicles.map((vehicle) => (
 
                   <tr
                     key={vehicle.plate}
@@ -427,7 +578,7 @@ export default function Grid() {
                     </td>
 
                     <td className="px-4 py-4">
-                      {vehicle.insuredName}
+                      {vehicle.insuredName || "--"}
                     </td>
 
                     <td className="px-4 py-4">
@@ -441,19 +592,33 @@ export default function Grid() {
                     </td>
 
                     <td className="px-4 py-4">
-                      {vehicle.batteryLevel}%
+                      {vehicle.batteryLevel != null
+                        ? `${vehicle.batteryLevel}%`
+                        : "--"}
                     </td>
 
                     <td className="px-4 py-4">
-                      {vehicle.activeDevice}
+                      {vehicle.activeDevice || "--"}
                     </td>
 
                     <td className="px-4 py-4">
-                      {vehicle.lineNumber}
+                      {vehicle.lineNumber || "--"}
                     </td>
 
                     <td className="px-4 py-4">
-                      {vehicle.operator}
+                      {vehicle.operator || "--"}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {vehicle.positionDate
+                        ? `${vehicle.positionDate} ${vehicle.positionTime ?? ""}`
+                        : "--"}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {vehicle.signalDelayMinutes != null
+                        ? `${vehicle.signalDelayMinutes} min`
+                        : "--"}
                     </td>
 
                     <td className="px-4 py-4">

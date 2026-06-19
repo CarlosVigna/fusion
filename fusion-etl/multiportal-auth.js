@@ -1,3 +1,15 @@
+const { chromium } = require('playwright');
+
+async function launchBrowser() {
+
+    return chromium.launch({
+        headless: process.env.ETL_HEADLESS !== 'false',
+        slowMo: 500,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+}
+
 async function loginMultiportal(page) {
 
     const url =
@@ -54,6 +66,7 @@ async function waitForFrame(
 }
 
 module.exports = {
+    launchBrowser,
     loginMultiportal,
     waitForFrame
 };

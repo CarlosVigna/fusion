@@ -6,7 +6,6 @@ import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
 import com.fusion.fusion.vehicle.Vehicle;
-import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
@@ -100,25 +99,13 @@ public class DeviceImportService {
                                 getCellValue(row.getCell(4))
                         );
 
-                if (plate != null && !plate.isBlank()) {
+                Optional<Vehicle> optionalVehicle =
+                        vehicleRepository.findByPlate(plate);
 
-                    Vehicle vehicle =
-                            vehicleRepository.findByPlate(plate)
-                                    .orElseGet(() ->
-                                            vehicleRepository.save(
-                                                    Vehicle.builder()
-                                                            .plate(plate)
-                                                            .platform(
-                                                                    VehiclePlatform.MULTIPORTAL
-                                                            )
-                                                            .build()
-                                            )
-                                    );
+                optionalVehicle.ifPresent(device::setVehicle);
 
-                    device.setVehicle(vehicle);
-
+                if (optionalVehicle.isPresent()) {
                     linked++;
-
                 }
 
                 device.setNumber(

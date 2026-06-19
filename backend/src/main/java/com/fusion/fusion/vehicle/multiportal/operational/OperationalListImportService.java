@@ -101,6 +101,19 @@ public class OperationalListImportService {
 
                 Vehicle vehicle = optionalVehicle.get();
 
+                String insuredName =
+                        getCellValue(row.getCell(11));
+
+                if (insuredName != null
+                        && !insuredName.isBlank()
+                        && !insuredName.equals(vehicle.getInsuredName())) {
+
+                    vehicle.setInsuredName(insuredName);
+
+                    vehicleRepository.save(vehicle);
+
+                }
+
                 VehicleOperationalState state =
                         operationalRepository.findByVehicle(vehicle)
                                 .orElse(

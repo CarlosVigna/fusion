@@ -1,14 +1,23 @@
 require('dotenv').config();
 
-const { chromium } = require('playwright');
-const { loginMultiportal, waitForFrame } = require('./multiportal-auth');
+const path = require('path');
+const fse = require('fs-extra');
+const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal-auth');
+const { moveToBackupWithRotation, log } = require('./src/file-utils');
+
+const DOWNLOADS_DIR =
+    process.env.ETL_DOWNLOADS_DIR
+    || 'C:/FusionData/etl/downloads';
+
+const OUTPUT_DIR =
+    process.env.ETL_OUTPUT_DIR
+    || 'C:/FusionData/imports/pending';
 
 async function run() {
 
-    const browser = await chromium.launch({
-        headless: false,
-        slowMo: 500
-    });
+    log('Scraper vínculo iniciado');
+
+    const browser = await launchBrowser();
 
     const context = await browser.newContext({
         acceptDownloads: true
@@ -101,11 +110,30 @@ async function run() {
             download.suggestedFilename()
         );
 
-        const targetFile =
-            'C:/FusionData/imports/pending/MULTIPORTAL_DISPOSITIVO_VINCULO.xls';
+        await fse.ensureDir(DOWNLOADS_DIR);
+
+        const downloadedFile =
+            path.join(DOWNLOADS_DIR, 'dispositivo_vinculo.xls');
 
         await download.saveAs(
-            targetFile
+            downloadedFile
+        );
+
+        const targetFile =
+            path.join(OUTPUT_DIR, 'MULTIPORTAL_DISPOSITIVO_VINCULO.xls');
+
+        await fse.ensureDir(OUTPUT_DIR);
+
+        await fse.copy(
+            downloadedFile,
+            targetFile,
+            { overwrite: true }
+        );
+
+        await moveToBackupWithRotation(
+            downloadedFile,
+            path.join(DOWNLOADS_DIR, 'history'),
+            5
         );
 
         console.log('');
@@ -115,6 +143,8 @@ async function run() {
 
         console.log(targetFile);
 
+        log('Download concluído: MULTIPORTAL_DISPOSITIVO_VINCULO.xls');
+
     } catch (error) {
 
         console.error('');
@@ -122,6 +152,8 @@ async function run() {
         console.error('ERRO');
         console.error('====================================');
         console.error(error);
+
+        log(`Erro no scraper vínculo: ${error.message}`);
 
         await browser.close();
 

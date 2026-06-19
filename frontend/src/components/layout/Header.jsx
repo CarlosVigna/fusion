@@ -1,10 +1,14 @@
-import { Bell, Search } from "lucide-react";
+import { Bell, LogOut, Search } from "lucide-react";
 
 import { useAuthStore } from "../../store/authStore";
 
 export default function Header() {
   const user = useAuthStore(
     (state) => state.user
+  );
+
+  const logout = useAuthStore(
+    (state) => state.logout
   );
 
   return (
@@ -86,6 +90,20 @@ export default function Header() {
             </p>
           </div>
         </div>
+
+        <button
+          onClick={logout}
+          title="Sair"
+          className="
+            flex items-center gap-2
+            rounded-xl border border-zinc-800
+            bg-zinc-950 p-3
+            text-zinc-400
+            transition hover:bg-zinc-800 hover:text-white
+          "
+        >
+          <LogOut size={18} />
+        </button>
       </div>
     </header>
   );

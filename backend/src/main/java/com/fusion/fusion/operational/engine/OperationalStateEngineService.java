@@ -8,6 +8,7 @@ import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotService;
 
@@ -15,6 +16,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OperationalStateEngineService {
@@ -36,7 +38,21 @@ public class OperationalStateEngineService {
 
         for (VehicleOperationalState state : states) {
 
-            process(state);
+            try {
+
+                process(state);
+
+            } catch (Exception e) {
+
+                log.error(
+                        "Erro ao processar estado operacional do veículo {}",
+                        state.getVehicle() != null
+                                ? state.getVehicle().getPlate()
+                                : state.getId(),
+                        e
+                );
+
+            }
 
         }
 

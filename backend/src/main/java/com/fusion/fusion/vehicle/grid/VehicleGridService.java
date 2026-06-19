@@ -45,9 +45,14 @@ public class VehicleGridService {
 
         Optional<DeviceLinkage> activeLinkage =
                 linkageRepository
-                        .findByVehicleAndActiveTrue(
-                                vehicle
-                        );
+                        .findByVehicle(vehicle)
+                        .stream()
+                        .filter(linkage ->
+                                Boolean.TRUE.equals(
+                                        linkage.getActive()
+                                )
+                        )
+                        .findFirst();
 
         String activeDevice = null;
         String manufacturer = null;

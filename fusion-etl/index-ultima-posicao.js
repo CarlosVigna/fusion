@@ -2,17 +2,24 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
-const { chromium } = require('playwright');
 const AdmZip = require('adm-zip');
 const fse = require('fs-extra');
-const { loginMultiportal, waitForFrame } = require('./multiportal-auth');
+const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal-auth');
+const { moveToBackupWithRotation, log } = require('./src/file-utils');
+
+const DOWNLOADS_DIR =
+    process.env.ETL_DOWNLOADS_DIR
+    || 'C:/FusionData/etl/downloads';
+
+const OUTPUT_DIR =
+    process.env.ETL_OUTPUT_DIR
+    || 'C:/FusionData/imports/pending';
 
 async function run() {
 
-    const browser = await chromium.launch({
-        headless: false,
-        slowMo: 500
-    });
+    log('Scraper última posição iniciado');
+
+    const browser = await launchBrowser();
 
     const context = await browser.newContext({
         acceptDownloads: true
@@ -118,8 +125,10 @@ async function run() {
             download.suggestedFilename()
         );
 
+        await fse.ensureDir(DOWNLOADS_DIR);
+
         const zipFile =
-            'C:/FusionData/etl/downloads/ultima_posicao.zip';
+            path.join(DOWNLOADS_DIR, 'ultima_posicao.zip');
 
         await download.saveAs(zipFile);
 
@@ -179,11 +188,9 @@ async function run() {
             );
 
         const targetFile =
-            'C:/FusionData/imports/pending/MULTIPORTAL_ULTIMA_POSICAO.xls';
+            path.join(OUTPUT_DIR, 'MULTIPORTAL_ULTIMA_POSICAO.xls');
 
-        await fse.ensureDir(
-            'C:/FusionData/imports/pending'
-        );
+        await fse.ensureDir(OUTPUT_DIR);
 
         await fse.copy(
             sourceFile,
@@ -193,12 +200,20 @@ async function run() {
             }
         );
 
+        await moveToBackupWithRotation(
+            sourceFile,
+            path.join(DOWNLOADS_DIR, 'history'),
+            5
+        );
+
         console.log('');
         console.log('====================================');
         console.log('ARQUIVO PROCESSADO');
         console.log('====================================');
 
         console.log(targetFile);
+
+        log('Download concluído: MULTIPORTAL_ULTIMA_POSICAO.xls');
 
     } catch (error) {
 
@@ -207,6 +222,8 @@ async function run() {
         console.error('ERRO');
         console.error('====================================');
         console.error(error);
+
+        log(`Erro no scraper última posição: ${error.message}`);
 
         await browser.close();
 

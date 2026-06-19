@@ -3,10 +3,18 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
-const { chromium } = require('playwright');
 const AdmZip = require('adm-zip');
 const fse = require('fs-extra');
-const { loginMultiportal, waitForFrame } = require('./multiportal-auth');
+const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal-auth');
+const { moveToBackupWithRotation, log } = require('./src/file-utils');
+
+const DOWNLOADS_DIR =
+    process.env.ETL_DOWNLOADS_DIR
+    || 'C:/FusionData/etl/downloads';
+
+const OUTPUT_DIR =
+    process.env.ETL_OUTPUT_DIR
+    || 'C:/FusionData/imports/pending';
 
 async function downloadFile(url, destination) {
 
@@ -28,10 +36,9 @@ async function downloadFile(url, destination) {
 
 async function run() {
 
-    const browser = await chromium.launch({
-        headless: false,
-        slowMo: 500
-    });
+    log('Scraper dispositivos iniciado');
+
+    const browser = await launchBrowser();
 
     const context = await browser.newContext();
 
@@ -159,8 +166,10 @@ async function run() {
         console.log('URL:');
         console.log(url);
 
+        await fse.ensureDir(DOWNLOADS_DIR);
+
         const destination =
-            'C:/FusionData/etl/downloads/cadastro_dispositivos_excel.zip';
+            path.join(DOWNLOADS_DIR, 'cadastro_dispositivos_excel.zip');
 
         console.log('');
         console.log('Baixando ZIP...');
@@ -219,11 +228,9 @@ async function run() {
             path.join(tempPath, xlsFile);
 
         const targetFile =
-            'C:/FusionData/imports/pending/MULTIPORTAL_DISPOSITIVOS.xls';
+            path.join(OUTPUT_DIR, 'MULTIPORTAL_DISPOSITIVOS.xls');
 
-        await fse.ensureDir(
-            'C:/FusionData/imports/pending'
-        );
+        await fse.ensureDir(OUTPUT_DIR);
 
         await fse.copy(
             sourceFile,
@@ -233,12 +240,20 @@ async function run() {
             }
         );
 
+        await moveToBackupWithRotation(
+            sourceFile,
+            path.join(DOWNLOADS_DIR, 'history'),
+            5
+        );
+
         console.log('');
         console.log('====================================');
         console.log('ARQUIVO PROCESSADO');
         console.log('====================================');
 
         console.log(targetFile);
+
+        log('Download concluído: MULTIPORTAL_DISPOSITIVOS.xls');
 
         console.log('');
         console.log('====================================');
@@ -269,6 +284,8 @@ async function run() {
         console.error('ERRO');
         console.error('====================================');
         console.error(error);
+
+        log(`Erro no scraper dispositivos: ${error.message}`);
 
         await browser.close();
 

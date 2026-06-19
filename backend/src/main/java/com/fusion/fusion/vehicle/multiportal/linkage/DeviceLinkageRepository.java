@@ -1,6 +1,7 @@
 package com.fusion.fusion.vehicle.multiportal.linkage;
 
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.multiportal.device.Device;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -14,6 +15,11 @@ public interface DeviceLinkageRepository
 
     Optional<DeviceLinkage> findByVehicleAndActiveTrue(
             Vehicle vehicle
+    );
+
+    Optional<DeviceLinkage> findByVehicleAndDeviceAndActiveTrue(
+            Vehicle vehicle,
+            Device device
     );
 
 }
