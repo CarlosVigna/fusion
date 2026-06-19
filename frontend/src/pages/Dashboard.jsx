@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 
+import { Info } from "lucide-react";
+
 import { realtimeService } from "../services/realtime/realtimeService";
 
 import { useDashboardStore } from "../store/dashboardStore";
@@ -43,6 +45,9 @@ export default function Dashboard() {
       value:
         dashboard?.onlineVehicles || 0,
 
+      description:
+        "Veículos que comunicaram há no máximo 30 minutos.",
+
       style:
         "bg-green-500/10 border-green-500/20",
     },
@@ -51,6 +56,9 @@ export default function Dashboard() {
       title: "DELAYED",
       value:
         dashboard?.delayedVehicles || 0,
+
+      description:
+        "Veículos que não comunicam entre 30 minutos e 6 horas. Ainda não é falha de comunicação, mas já passou do intervalo esperado.",
 
       style:
         "bg-yellow-500/10 border-yellow-500/20",
@@ -61,6 +69,9 @@ export default function Dashboard() {
       value:
         dashboard?.noCommunicationVehicles || 0,
 
+      description:
+        "Veículos sem qualquer comunicação há mais de 6 horas.",
+
       style:
         "bg-red-500/10 border-red-500/20",
     },
@@ -70,6 +81,9 @@ export default function Dashboard() {
       value:
         dashboard?.lowBatteryVehicles || 0,
 
+      description:
+        "Veículos com nível de bateria igual ou abaixo de 20%, conforme o último dado de última posição recebido.",
+
       style:
         "bg-orange-500/10 border-orange-500/20",
     },
@@ -78,6 +92,9 @@ export default function Dashboard() {
       title: "MAINTENANCE",
       value:
         dashboard?.maintenanceVehicles || 0,
+
+      description:
+        "Veículos marcados manualmente como \"em manutenção\" na ficha do veículo, independente do status de comunicação.",
 
       style:
         "bg-blue-500/10 border-blue-500/20",
@@ -138,8 +155,14 @@ export default function Dashboard() {
             `}
           >
 
-            <p className="text-sm text-zinc-400">
+            <p className="flex items-center gap-1.5 text-sm text-zinc-400">
               {card.title}
+
+              <Info
+                size={13}
+                className="text-zinc-500"
+                title={card.description}
+              />
             </p>
 
             <h2 className="mt-4 text-4xl font-bold">

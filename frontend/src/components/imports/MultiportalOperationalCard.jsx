@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import toast from "react-hot-toast";
+
 import { updateOperational } from "../../services/multiportalOperationalService";
 
 export default function MultiportalOperationalCard() {
@@ -24,8 +26,14 @@ export default function MultiportalOperationalCard() {
       setResult(response);
 
       setRawContent("");
+
+      toast.success(
+        `${response.updatedVehicles} veículos atualizados`
+      );
     } catch (error) {
       console.error(error);
+
+      toast.error("Erro ao processar a importação");
     } finally {
       setLoading(false);
     }

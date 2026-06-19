@@ -1,5 +1,8 @@
 package com.fusion.fusion.vehicle.multiportal.device;
 
+import com.fusion.fusion.importation.ImportHistoryService;
+import com.fusion.fusion.importation.ImportStatus;
+import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.importation.storage.enums.ImportFileType;
 import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
@@ -27,6 +30,7 @@ public class DeviceImportService {
     private final ImportFileManagerService fileManagerService;
     private final ImportBackupService backupService;
     private final ImportFileNamingService namingService;
+    private final ImportHistoryService importHistoryService;
 
     public DeviceImportResponse importFile(
             MultipartFile file
@@ -156,11 +160,24 @@ public class DeviceImportService {
                     backupName
             );
 
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_DEVICE,
+                    backupName,
+                    imported
+            );
+
         } catch (Exception e) {
 
             if (processingFile != null) {
                 fileManagerService.moveToFailed(processingFile);
             }
+
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_DEVICE,
+                    file.getOriginalFilename(),
+                    0,
+                    ImportStatus.FAILED
+            );
 
             throw new RuntimeException(
                     "Erro ao importar dispositivos"

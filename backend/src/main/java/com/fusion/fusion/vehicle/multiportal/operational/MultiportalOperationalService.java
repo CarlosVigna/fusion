@@ -1,5 +1,8 @@
 package com.fusion.fusion.vehicle.multiportal.operational;
 
+import com.fusion.fusion.importation.ImportHistoryService;
+import com.fusion.fusion.importation.ImportType;
+import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
@@ -24,6 +27,8 @@ public class MultiportalOperationalService {
 
     private final OperationalParserService parserService;
 
+    private final ImportHistoryService importHistoryService;
+
     public OperationalUpdateResponse update(
             OperationalUpdateRequest request
     ) {
@@ -38,12 +43,15 @@ public class MultiportalOperationalService {
         for (VehicleOperationalData operational :
                 operationalVehicles) {
 
+            String plate =
+                    normalizePlate(operational.getPlate());
+
+            if (!PlateValidator.isValidPlate(plate)) {
+                continue;
+            }
+
             Optional<Vehicle> optionalVehicle =
-                    repository.findByPlate(
-                            normalizePlate(
-                                    operational.getPlate()
-                            )
-                    );
+                    repository.findByPlate(plate);
 
             if (optionalVehicle.isEmpty()) {
 
@@ -55,6 +63,20 @@ public class MultiportalOperationalService {
 
             Vehicle vehicle =
                     optionalVehicle.get();
+
+            if (operational.getInsuredName() != null
+                    && !operational.getInsuredName().isBlank()
+                    && !operational.getInsuredName().equals(
+                            vehicle.getInsuredName()
+                    )) {
+
+                vehicle.setInsuredName(
+                        operational.getInsuredName()
+                );
+
+                repository.save(vehicle);
+
+            }
 
             Optional<VehicleOperationalState>
                     optionalState =
@@ -103,6 +125,12 @@ public class MultiportalOperationalService {
             updated++;
 
         }
+
+        importHistoryService.register(
+                ImportType.MULTIPORTAL_OPERATIONAL,
+                "paste-" + LocalDateTime.now(),
+                updated
+        );
 
         return new OperationalUpdateResponse(
                 updated,

@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "react-router-dom";
+
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Columns3,
+} from "lucide-react";
 
 import { realtimeService } from "../services/realtime/realtimeService";
 
@@ -9,6 +16,8 @@ import { useGridStore } from "../store/gridStore";
 import StatusBadge from "../components/ui/StatusBadge";
 import PlatformBadge from "../components/ui/PlatformBadge";
 import OperationalFlags from "../components/ui/OperationalFlags";
+
+import SyncStatusPanel from "../components/operational/SyncStatusPanel";
 
 const rowStyles = {
   ONLINE:
@@ -26,6 +35,130 @@ const rowStyles = {
   MAINTENANCE:
     "hover:bg-blue-500/5",
 };
+
+const COLUMN_STORAGE_KEY = "fusion_grid_columns";
+
+// Colunas fixas não podem ser ocultadas. Colunas opcionais
+// (optional: true) podem ser togadas pelo usuário e persistem
+// no localStorage.
+const ALL_COLUMNS = [
+  {
+    key: "status",
+    label: "Status",
+    optional: true,
+    sortValue: (v) => v.status ?? "",
+  },
+  {
+    key: "indicators",
+    label: "Indicadores",
+    sortable: false,
+  },
+  {
+    key: "plate",
+    label: "Placa",
+    sticky: true,
+    sortValue: (v) => v.plate ?? "",
+  },
+  {
+    key: "insuredName",
+    label: "Segurado",
+    sortValue: (v) => v.insuredName ?? "",
+  },
+  {
+    key: "platform",
+    label: "Plataforma",
+    sortValue: (v) => v.platform ?? "",
+  },
+  {
+    key: "batteryLevel",
+    label: "Bateria",
+    optional: true,
+    sortValue: (v) => v.batteryLevel ?? -1,
+  },
+  {
+    key: "activeDevice",
+    label: "Dispositivo",
+    sortValue: (v) => v.activeDevice ?? "",
+  },
+  {
+    key: "lineNumber",
+    label: "Linha",
+    sortValue: (v) => v.lineNumber ?? "",
+  },
+  {
+    key: "operator",
+    label: "Operadora",
+    optional: true,
+    sortValue: (v) => v.operator ?? "",
+  },
+  {
+    key: "manufacturer",
+    label: "Fabricante",
+    optional: true,
+    sortValue: (v) => v.manufacturer ?? "",
+  },
+  {
+    key: "model",
+    label: "Modelo",
+    optional: true,
+    sortValue: (v) => v.model ?? "",
+  },
+  {
+    key: "inMaintenance",
+    label: "Em Manutenção",
+    optional: true,
+    sortValue: (v) => (v.inMaintenance ? 1 : 0),
+  },
+  {
+    key: "position",
+    label: "Última Posição",
+    sortValue: (v) =>
+      `${v.positionDate ?? ""} ${v.positionTime ?? ""}`,
+  },
+  {
+    key: "signalDelayMinutes",
+    label: "Atraso",
+    optional: true,
+    sortValue: (v) => v.signalDelayMinutes ?? -1,
+  },
+  {
+    key: "realtime",
+    label: "Realtime",
+    sortable: false,
+  },
+];
+
+const OPTIONAL_COLUMNS = ALL_COLUMNS.filter(
+  (c) => c.optional
+);
+
+const DEFAULT_VISIBLE_COLUMNS = {
+  status: true,
+  batteryLevel: true,
+  signalDelayMinutes: true,
+  operator: true,
+  manufacturer: false,
+  model: false,
+  inMaintenance: false,
+};
+
+function loadStoredColumns() {
+
+  try {
+
+    const saved = JSON.parse(
+      localStorage.getItem(COLUMN_STORAGE_KEY) || "null"
+    );
+
+    return saved || DEFAULT_VISIBLE_COLUMNS;
+
+  } catch {
+
+    return DEFAULT_VISIBLE_COLUMNS;
+
+  }
+
+}
 
 export default function Grid() {
 
@@ -57,6 +190,68 @@ export default function Grid() {
       status: "",
       operator: "",
     });
+
+  const [visibleColumns, setVisibleColumns] =
+    useState(loadStoredColumns);
+
+  const [columnMenuOpen, setColumnMenuOpen] =
+    useState(false);
+
+  const [sortConfig, setSortConfig] =
+    useState({ key: null, direction: null });
+
+  const columnMenuRef = useRef(null);
+
+  useEffect(() => {
+
+    localStorage.setItem(
+      COLUMN_STORAGE_KEY,
+      JSON.stringify(visibleColumns)
+    );
+
+  }, [visibleColumns]);
+
+  useEffect(() => {
+
+    function handleClickOutside(e) {
+
+      if (
+        columnMenuRef.current &&
+        !columnMenuRef.current.contains(e.target)
+      ) {
+
+        setColumnMenuOpen(false);
+
+      }
+
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () =>
+      document.removeEventListener(
+        "mousedown",
+        handleClickOutside
+      );
+
+  }, []);
+
+  function toggleColumn(key) {
+
+    setVisibleColumns((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
+
+  }
+
+  const columns = useMemo(() => {
+
+    return ALL_COLUMNS.filter(
+      (col) => !col.optional || visibleColumns[col.key]
+    );
+
+  }, [visibleColumns]);
 
   function setColumnFilter(field, value) {
 
@@ -104,10 +299,55 @@ export default function Grid() {
 
   }, [vehicles, columnFilters]);
 
+  const sortedVehicles = useMemo(() => {
+
+    if (!sortConfig.key) {
+      return filteredVehicles;
+    }
+
+    const column = ALL_COLUMNS.find(
+      (c) => c.key === sortConfig.key
+    );
+
+    if (!column?.sortValue) {
+      return filteredVehicles;
+    }
+
+    return [...filteredVehicles].sort((a, b) => {
+
+      const aVal = column.sortValue(a);
+      const bVal = column.sortValue(b);
+
+      const cmp =
+        aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+
+      return sortConfig.direction === "asc" ? cmp : -cmp;
+
+    });
+
+  }, [filteredVehicles, sortConfig]);
+
+  function handleSort(key) {
+
+    setSortConfig((prev) =>
+      prev.key === key && prev.direction === "desc"
+        ? { key: null, direction: null }
+        : {
+            key,
+            direction: prev.key === key ? "desc" : "asc",
+          }
+    );
+
+  }
+
   useEffect(() => {
 
     loadOperationalGrid();
 
+    // Eventos de alerta só atualizam o indicador "LIVE" da linha
+    // (client-side, sem custo). O grid em si só recarrega na carga
+    // inicial, no clique manual em "Atualizar agora" ou quando um
+    // import for concluído (ver painel de sincronização).
     const unsubscribe =
       realtimeService.onDashboardEvent(
         (event) => {
@@ -128,8 +368,6 @@ export default function Grid() {
             );
 
           }
-
-          loadOperationalGrid();
 
         }
       );
@@ -174,6 +412,166 @@ export default function Grid() {
     e.preventDefault();
 
     loadOperationalGrid(plate);
+
+  }
+
+  function renderSortIcon(col) {
+
+    if (col.sortable === false || !col.sortValue) {
+      return null;
+    }
+
+    if (sortConfig.key !== col.key) {
+      return (
+        <ArrowUpDown
+          size={12}
+          className="text-zinc-600"
+        />
+      );
+    }
+
+    return sortConfig.direction === "asc" ? (
+      <ArrowUp size={12} />
+    ) : (
+      <ArrowDown size={12} />
+    );
+
+  }
+
+  function renderCell(col, vehicle) {
+
+    switch (col.key) {
+
+      case "status":
+        return (
+          <StatusBadge status={vehicle.status} />
+        );
+
+      case "indicators":
+        return <OperationalFlags vehicle={vehicle} />;
+
+      case "plate":
+        return (
+          <Link
+            to={`/vehicles/${vehicle.plate}`}
+            className="transition hover:text-white"
+          >
+            {vehicle.plate}
+          </Link>
+        );
+
+      case "insuredName":
+        return vehicle.insuredName || "--";
+
+      case "platform":
+        return <PlatformBadge platform={vehicle.platform} />;
+
+      case "batteryLevel":
+        return vehicle.batteryLevel != null
+          ? `${vehicle.batteryLevel}%`
+          : "--";
+
+      case "activeDevice":
+        return vehicle.activeDevice || "--";
+
+      case "lineNumber":
+        return vehicle.lineNumber || "--";
+
+      case "operator":
+        return vehicle.operator || "--";
+
+      case "manufacturer":
+        return vehicle.manufacturer || "--";
+
+      case "model":
+        return vehicle.model || "--";
+
+      case "inMaintenance":
+        return vehicle.inMaintenance ? "Sim" : "Não";
+
+      case "position":
+        return vehicle.positionDate
+          ? `${vehicle.positionDate} ${vehicle.positionTime ?? ""}`
+          : "--";
+
+      case "signalDelayMinutes":
+        return vehicle.signalDelayMinutes != null
+          ? `${vehicle.signalDelayMinutes} min`
+          : "--";
+
+      case "realtime":
+        return (
+          vehicle.realtimeEvent && (
+            <div
+              className="
+                inline-flex rounded-full
+                bg-green-500/10
+                px-2 py-1
+                text-[10px]
+                font-semibold
+                text-green-400
+              "
+            >
+              LIVE
+            </div>
+          )
+        );
+
+      default:
+        return null;
+
+    }
+
+  }
+
+  function renderFilterCell(col) {
+
+    if (col.key === "status") {
+      return (
+        <select
+          value={columnFilters.status}
+          onChange={(e) =>
+            setColumnFilter("status", e.target.value)
+          }
+          className="
+            w-full rounded-lg border border-zinc-800
+            bg-zinc-900 px-2 py-1.5 text-xs
+            outline-none
+          "
+        >
+          <option value="">Todos</option>
+          <option value="ONLINE">ONLINE</option>
+          <option value="OFFLINE">OFFLINE</option>
+          <option value="STALE">STALE</option>
+          <option value="LOW_BATTERY">LOW_BATTERY</option>
+          <option value="MAINTENANCE">MAINTENANCE</option>
+        </select>
+      );
+    }
+
+    if (
+      col.key === "plate" ||
+      col.key === "insuredName" ||
+      col.key === "operator"
+    ) {
+      return (
+        <input
+          type="text"
+          placeholder="Filtrar..."
+          value={columnFilters[col.key]}
+          onChange={(e) =>
+            setColumnFilter(col.key, e.target.value)
+          }
+          className="
+            w-full rounded-lg border border-zinc-800
+            bg-zinc-900 px-2 py-1.5 text-xs
+            outline-none placeholder:text-zinc-600
+          "
+        />
+      );
+    }
+
+    return null;
 
   }
 
@@ -266,6 +664,8 @@ export default function Grid() {
 
       </form>
 
+      <SyncStatusPanel onSynced={loadOperationalGrid} />
+
       <div
         className="
           flex flex-col items-start
@@ -305,21 +705,91 @@ export default function Grid() {
 
         </div>
 
-        <button
-          onClick={() =>
-            loadOperationalGrid()
-          }
-          className="
-            rounded-2xl border
-            border-zinc-700
-            bg-zinc-950 px-5 py-3
-            text-sm font-semibold
-            transition
-            hover:bg-zinc-800
-          "
-        >
-          Atualizar agora
-        </button>
+        <div className="flex items-center gap-3">
+
+          <div
+            ref={columnMenuRef}
+            className="relative"
+          >
+
+            <button
+              onClick={() =>
+                setColumnMenuOpen((open) => !open)
+              }
+              className="
+                flex items-center gap-2
+                rounded-2xl border
+                border-zinc-700
+                bg-zinc-950 px-5 py-3
+                text-sm font-semibold
+                transition
+                hover:bg-zinc-800
+              "
+            >
+              <Columns3 size={16} />
+              Colunas
+            </button>
+
+            {columnMenuOpen && (
+
+              <div
+                className="
+                  absolute right-0 top-full z-30
+                  mt-2 w-56 rounded-2xl
+                  border border-zinc-800
+                  bg-zinc-950 p-3
+                  shadow-xl
+                "
+              >
+
+                {OPTIONAL_COLUMNS.map((col) => (
+
+                  <label
+                    key={col.key}
+                    className="
+                      flex items-center gap-2
+                      rounded-lg px-2 py-2
+                      text-sm
+                      transition hover:bg-zinc-900
+                    "
+                  >
+
+                    <input
+                      type="checkbox"
+                      checked={!!visibleColumns[col.key]}
+                      onChange={() => toggleColumn(col.key)}
+                      className="rounded border-zinc-700"
+                    />
+
+                    {col.label}
+
+                  </label>
+
+                ))}
+
+              </div>
+
+            )}
+
+          </div>
+
+          <button
+            onClick={() =>
+              loadOperationalGrid()
+            }
+            className="
+              rounded-2xl border
+              border-zinc-700
+              bg-zinc-950 px-5 py-3
+              text-sm font-semibold
+              transition
+              hover:bg-zinc-800
+            "
+          >
+            Atualizar agora
+          </button>
+
+        </div>
 
       </div>
 
@@ -344,147 +814,48 @@ export default function Grid() {
 
               <tr className="text-left text-sm text-zinc-400">
 
-                <th className="px-4 py-4">
-                  Status
-                </th>
+                {columns.map((col) => (
 
-                <th className="px-4 py-4">
-                  Indicadores
-                </th>
+                  <th
+                    key={col.key}
+                    onClick={() =>
+                      col.sortable !== false &&
+                      col.sortValue &&
+                      handleSort(col.key)
+                    }
+                    className={`
+                      px-4 py-4
+                      ${col.sticky ? "sticky left-0 z-20 bg-zinc-950" : ""}
+                      ${col.sortable !== false && col.sortValue ? "cursor-pointer select-none hover:text-white" : ""}
+                    `}
+                  >
 
-                <th
-                  className="
-                    sticky left-0 z-20
-                    bg-zinc-950 px-4 py-4
-                  "
-                >
-                  Placa
-                </th>
+                    <span className="inline-flex items-center gap-1">
+                      {col.label}
+                      {renderSortIcon(col)}
+                    </span>
 
-                <th className="px-4 py-4">
-                  Segurado
-                </th>
+                  </th>
 
-                <th className="px-4 py-4">
-                  Plataforma
-                </th>
-
-                <th className="px-4 py-4">
-                  Bateria
-                </th>
-
-                <th className="px-4 py-4">
-                  Dispositivo
-                </th>
-
-                <th className="px-4 py-4">
-                  Linha
-                </th>
-
-                <th className="px-4 py-4">
-                  Operadora
-                </th>
-
-                <th className="px-4 py-4">
-                  Última Posição
-                </th>
-
-                <th className="px-4 py-4">
-                  Atraso
-                </th>
-
-                <th className="px-4 py-4">
-                  Realtime
-                </th>
+                ))}
 
               </tr>
 
               <tr className="border-t border-zinc-800 bg-zinc-950/60 text-xs">
 
-                <th className="px-4 py-2">
-                  <select
-                    value={columnFilters.status}
-                    onChange={(e) =>
-                      setColumnFilter("status", e.target.value)
-                    }
-                    className="
-                      w-full rounded-lg border border-zinc-800
-                      bg-zinc-900 px-2 py-1.5 text-xs
-                      outline-none
-                    "
+                {columns.map((col) => (
+
+                  <th
+                    key={col.key}
+                    className={`
+                      px-4 py-2
+                      ${col.sticky ? "sticky left-0 z-20 bg-zinc-950/60" : ""}
+                    `}
                   >
-                    <option value="">Todos</option>
-                    <option value="ONLINE">ONLINE</option>
-                    <option value="OFFLINE">OFFLINE</option>
-                    <option value="STALE">STALE</option>
-                    <option value="LOW_BATTERY">LOW_BATTERY</option>
-                    <option value="MAINTENANCE">MAINTENANCE</option>
-                  </select>
-                </th>
+                    {renderFilterCell(col)}
+                  </th>
 
-                <th className="px-4 py-2" />
-
-                <th className="sticky left-0 z-20 bg-zinc-950/60 px-4 py-2">
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    value={columnFilters.plate}
-                    onChange={(e) =>
-                      setColumnFilter("plate", e.target.value)
-                    }
-                    className="
-                      w-full rounded-lg border border-zinc-800
-                      bg-zinc-900 px-2 py-1.5 text-xs
-                      outline-none placeholder:text-zinc-600
-                    "
-                  />
-                </th>
-
-                <th className="px-4 py-2">
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    value={columnFilters.insuredName}
-                    onChange={(e) =>
-                      setColumnFilter("insuredName", e.target.value)
-                    }
-                    className="
-                      w-full rounded-lg border border-zinc-800
-                      bg-zinc-900 px-2 py-1.5 text-xs
-                      outline-none placeholder:text-zinc-600
-                    "
-                  />
-                </th>
-
-                <th className="px-4 py-2" />
-
-                <th className="px-4 py-2" />
-
-                <th className="px-4 py-2" />
-
-                <th className="px-4 py-2" />
-
-                <th className="px-4 py-2">
-                  <input
-                    type="text"
-                    placeholder="Filtrar..."
-                    value={columnFilters.operator}
-                    onChange={(e) =>
-                      setColumnFilter("operator", e.target.value)
-                    }
-                    className="
-                      w-full rounded-lg border border-zinc-800
-                      bg-zinc-900 px-2 py-1.5 text-xs
-                      outline-none placeholder:text-zinc-600
-                    "
-                  />
-                </th>
-
-                <th className="px-4 py-2" />
-
-                <th className="px-4 py-2" />
-
-                <th className="px-4 py-2" />
+                ))}
 
               </tr>
 
@@ -497,7 +868,7 @@ export default function Grid() {
                 <tr>
 
                   <td
-                    colSpan={12}
+                    colSpan={columns.length}
                     className="
                       px-6 py-10 text-center
                       text-zinc-500
@@ -508,12 +879,12 @@ export default function Grid() {
 
                 </tr>
 
-              ) : filteredVehicles.length === 0 ? (
+              ) : sortedVehicles.length === 0 ? (
 
                 <tr>
 
                   <td
-                    colSpan={12}
+                    colSpan={columns.length}
                     className="
                       px-6 py-10 text-center
                       text-zinc-500
@@ -526,7 +897,7 @@ export default function Grid() {
 
               ) : (
 
-                filteredVehicles.map((vehicle) => (
+                sortedVehicles.map((vehicle) => (
 
                   <tr
                     key={vehicle.plate}
@@ -537,110 +908,19 @@ export default function Grid() {
                     `}
                   >
 
-                    <td className="px-4 py-4">
+                    {columns.map((col) => (
 
-                      <StatusBadge
-                        status={
-                          vehicle.status
-                        }
-                      />
-
-                    </td>
-
-                    <td className="px-4 py-4">
-
-                      <OperationalFlags
-                        vehicle={vehicle}
-                      />
-
-                    </td>
-
-                    <td
-                      className="
-                        sticky left-0
-                        bg-zinc-900
-                        px-4 py-4
-                        font-mono
-                        font-semibold
-                      "
-                    >
-
-                      <Link
-                        to={`/vehicles/${vehicle.plate}`}
-                        className="
-                          transition
-                          hover:text-white
-                        "
+                      <td
+                        key={col.key}
+                        className={`
+                          px-4 py-4
+                          ${col.sticky ? "sticky left-0 bg-zinc-900 font-mono font-semibold" : ""}
+                        `}
                       >
-                        {vehicle.plate}
-                      </Link>
+                        {renderCell(col, vehicle)}
+                      </td>
 
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {vehicle.insuredName || "--"}
-                    </td>
-
-                    <td className="px-4 py-4">
-
-                      <PlatformBadge
-                        platform={
-                          vehicle.platform
-                        }
-                      />
-
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {vehicle.batteryLevel != null
-                        ? `${vehicle.batteryLevel}%`
-                        : "--"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {vehicle.activeDevice || "--"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {vehicle.lineNumber || "--"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {vehicle.operator || "--"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {vehicle.positionDate
-                        ? `${vehicle.positionDate} ${vehicle.positionTime ?? ""}`
-                        : "--"}
-                    </td>
-
-                    <td className="px-4 py-4">
-                      {vehicle.signalDelayMinutes != null
-                        ? `${vehicle.signalDelayMinutes} min`
-                        : "--"}
-                    </td>
-
-                    <td className="px-4 py-4">
-
-                      {vehicle.realtimeEvent && (
-
-                        <div
-                          className="
-                            inline-flex rounded-full
-                            bg-green-500/10
-                            px-2 py-1
-                            text-[10px]
-                            font-semibold
-                            text-green-400
-                          "
-                        >
-                          LIVE
-                        </div>
-
-                      )}
-
-                    </td>
+                    ))}
 
                   </tr>
 

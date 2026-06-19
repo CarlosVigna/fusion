@@ -1,10 +1,14 @@
 package com.fusion.fusion.vehicle.multiportal.linkage;
 
+import com.fusion.fusion.importation.ImportHistoryService;
+import com.fusion.fusion.importation.ImportStatus;
+import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.importation.storage.enums.ImportFileType;
 import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
+import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -33,6 +37,7 @@ public class LinkageImportService {
     private final ImportFileManagerService fileManagerService;
     private final ImportBackupService backupService;
     private final ImportFileNamingService namingService;
+    private final ImportHistoryService importHistoryService;
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
@@ -83,7 +88,7 @@ public class LinkageImportService {
                                 getCellValue(row.getCell(2))
                         );
 
-                if (plate == null || plate.isBlank()) {
+                if (!PlateValidator.isValidPlate(plate)) {
                     continue;
                 }
 
@@ -189,11 +194,24 @@ public class LinkageImportService {
                     backupName
             );
 
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_LINKAGE,
+                    backupName,
+                    imported
+            );
+
         } catch (Exception e) {
 
             if (processingFile != null) {
                 fileManagerService.moveToFailed(processingFile);
             }
+
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_LINKAGE,
+                    file.getOriginalFilename(),
+                    0,
+                    ImportStatus.FAILED
+            );
 
             throw new RuntimeException(
                     "Erro ao importar vínculos"

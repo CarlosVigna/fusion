@@ -27,6 +27,10 @@ public class ImportHistory {
 
     private Integer processedRecords;
 
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private ImportStatus status = ImportStatus.SUCCESS;
+
     @ManyToOne
     private User importedBy;
 
