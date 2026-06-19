@@ -1,0 +1,698 @@
+<html xmlns="http://www.w3.org/1999/xhtml"><head>
+	<title>Usebens</title>
+	<meta http-equiv="Pragma" content="no-cache">
+	<meta http-equiv="Expires" content="-1">
+
+	<link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.Finalorg/richfaces/renderkit/html/css/basic_classes.xcss" rel="stylesheet" type="text/css"><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.Finalorg/richfaces/renderkit/html/css/extended_classes.xcss" rel="stylesheet" type="text/css"><script src="https://cache.1gps.com.br/cached_a4j/g/3_3_3.Finalorg.ajax4jsf.javascript.AjaxScript" type="text/javascript"></script><script src="https://cache.1gps.com.br/cached_a4j/g/3_3_3.Finalorg/ajax4jsf/javascript/scripts/form.js" type="text/javascript"></script><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.FinalMETA-INF/skins/glassX.xcss" rel="stylesheet" type="text/css"><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.FinalMETA-INF/skins/glassXExt.xcss" rel="stylesheet" type="text/css"><script type="text/javascript">window.RICH_FACES_EXTENDED_SKINNING_ON=true;</script><script src="https://cache.1gps.com.br/cached_a4j/g/3_3_3.Finalorg/richfaces/renderkit/html/scripts/skinning.js" type="text/javascript"></script><link class="user" href="https://cache.1gps.com.br/system/stylesheet/0/default.css" rel="stylesheet" type="text/css"><link class="user" href="https://cache.1gps.com.br/system/stylesheet/0/list.css" rel="stylesheet" type="text/css"><script src="https://cache.1gps.com.br/system/js/functions_v3.js" type="text/javascript"></script><script src="https://cache.1gps.com.br/system/js/list.js" type="text/javascript"></script><link class="user" href="https://cache.1gps.com.br/system/stylesheet/0/costumization.css" rel="stylesheet" type="text/css"><script>
+		//<![CDATA[
+		var page_name = "LastPositionCompDataList";var template_id = 0;
+		var thisurl = "";
+  		var thisurl_image = "https://cache.1gps.com.br";
+		var loadFunc = null;
+		var languageTitlesMap = null;	
+
+		//try{top.frames[0].updateHelpPage('LastPositionCompDataList')}catch(e){;}
+		//]]>
+	</script>	
+	<script src="/system/jshelper"></script>
+	<link rel="stylesheet" href="/resources/css/rich_tabPanel.css">
+	<link rel="stylesheet" href="/resources/css/rich_suggestionbox.css">
+<script src="/system/jsservletLanguage?ts=1780619134371"></script>
+		<script src="https://cache.1gps.com.br/templates/endless151/js/jquery-1.10.2.min.js"></script>
+		<link href="https://cache.1gps.com.br/templates/endless151/bootstrap/css/bootstrap.rich.map.css" rel="stylesheet">
+		<script src="https://cache.1gps.com.br/templates/endless151/bootstrap/js/bootstrap.js"></script>
+		<link href="https://cache.1gps.com.br/templates/endless151/css/font-awesome.min.css" rel="stylesheet">	  	
+		<script>
+		function modalOpen(modalName)  {
+			$("#"+modalName).modal({show : true});
+		}
+		function modalClose(modalName)  {
+			$('#'+modalName.replace("#", "")).modal('hide');
+		}
+		</script>
+		<link rel="stylesheet" href="https://cache.1gps.com.br/system/stylesheet/general/jquery.autocomplete.css">	
+		<link rel="stylesheet" href="https://cache.1gps.com.br/system/stylesheet/general/autoCompleteReport.css">	
+	   	<script type="text/javascript" src="https://cache.1gps.com.br/system/js/jquery.autocomplete.min.js"></script>
+		
+		<style>
+			.action{
+				width: 40px;	
+				text-align: left;
+			}
+							.col-1{
+				width: fit-content;	
+				text-align: left;
+			}  
+							.col-2{
+				width: fit-content;	
+				text-align: left;
+			}  
+							.col-3{
+				width: fit-content;
+				text-align: left;
+			}  
+							.col-4{
+				width: 130px;	
+				text-align: left;
+			}  
+						.col-5{
+				width: 130px;	
+				text-align: left;
+			}  
+						.col-6{
+				width: 130px;	
+				text-align: left;
+			}  
+								.col-7{
+				width: 50px;	
+				text-align: center;
+			}  
+								.col-8{
+				width: 70px;	
+				text-align: left;
+			} 			
+								.col-9{
+				width: 50px;	
+				text-align: center;
+			} 			
+							.col-10{
+				width: 150px;	
+				text-align: left;
+			} 			
+					.col-11{
+				width: 150px;	
+				text-align: left;
+			} 			
+				.col-12{
+				width: 200px;	
+				text-align: left;
+			} 	
+								.col-13{
+				width: 300px;	
+				text-align: left;
+			}
+			.col-14{
+				width: 200px;	
+				text-align: left;
+			} 
+			.col-15{
+				width: 50px;	
+				text-align: left;
+			}
+			.col-16{
+				width: 200px;	
+				text-align: left;
+			} 		
+			.cont{
+				width: 100%;
+				padding-left: 23px !important;
+				margin-top: 0 !important;
+			}
+			.drop-d{
+				height: 36px !important;
+			}
+			
+			</style>
+								
+			<script>
+				$(document).ready(function(){
+					if(false){
+						modalOpen('modalTemplate');
+					}
+				});
+				function doFind(){
+					startLoadingS();
+					return true;
+				}
+				
+				function clearToFind(){
+					startLoadingS();
+					
+					$('#LastPositionCompDataList\\:proprInput').val("");
+					$('#LastPositionCompDataList\\:placaInput').val("");
+					$('#LastPositionCompDataList\\:dispoInput').val("");
+					$('#LastPositionCompDataList\\:grupoVeiculoInput').val("");
+					$('#LastPositionCompDataList\\:empresaInput').val("");
+					
+					_clearToFind();
+				}
+			</script>
+	<script>//<![CDATA[
+		function loadPage(){
+			resizeDivMain(81, true);
+			
+			if ( loadFunc != null )
+				loadFunc();
+		}
+
+		window.onresize=function () {resizeDivMain(81, true);changeResizeRows(document.body.clientHeight - 81)}
+	//]]></script>
+	<script>
+		//<![CDATA[
+		function printBT(){
+			var obj = document.getElementById("LastPositionCompDataList:printValidateOk");
+			if ( obj != null && obj.value != 0){
+					switch( printType ){
+						case 1:
+							printHTML("LastPositionCompDataList", "");
+							break;
+						case 2:
+							printEXCEL("LastPositionCompDataList", "");
+							break;
+						case 3:
+							printPDF("LastPositionCompDataList", "");
+							break;
+					}
+			}else{
+				alert("Nenhum registro encontrado");
+			}				
+		}
+		//]]>
+	</script>
+	<style>
+		/* para que o tamanho da caixa do auto complete se ajuste ao conteudo procurado */
+		.autocomplete-suggestions{width: auto !important; font-size:11px !important;}
+		.input-group-addon{ background-color: #ffffff; }
+		.item{
+			text-decoration: none;
+			color: #fff;
+		}
+		.item:hover{
+			text-decoration: none;
+			color: #000;
+		}
+	</style>
+		<link rel="stylesheet" href="https://cache.1gps.com.br/system/richfaces/css/layout/form/global-antigo.css">
+		<style>
+			.three.item.menu{
+				text-align: center;
+			}
+		</style>
+</head>
+
+<body onload="loadPage();" style=""><form id="LastPositionCompDataList" name="LastPositionCompDataList" method="post" action="/system/track/lastPositionCarSave.seam" target=""><span id="LastPositionCompDataList:stat:status"><span id="LastPositionCompDataList:stat:status.start" style="display: none"></span><script type="text/javascript">
+window.document.getElementById('LastPositionCompDataList:stat:status.start').onstart=function(){startLoading();;};
+</script><span id="LastPositionCompDataList:stat:status.stop"></span><script type="text/javascript">
+window.document.getElementById('LastPositionCompDataList:stat:status.stop').onstop=function(){stopLoading();;};
+</script></span><script id="LastPositionCompDataList:j_id15" type="text/javascript">//<![CDATA[
+		changeResizeRows=function(param1){A4J.AJAX.Submit('LastPositionCompDataList',null,{'similarityGroupingId':'LastPositionCompDataList:j_id15','containerId':'LastPositionCompDataList:stat','parameters':{'LastPositionCompDataList:j_id15':'LastPositionCompDataList:j_id15','param1':param1} } )};
+		//]]></script>
+	<table cellpadding="0" cellspacing="0" border="0" width="100%" class="tableTop">
+		<tbody><tr>
+			<td><div style="width: 4px">&nbsp;</div></td>
+			<td width="100%"><span id="LastPositionCompDataList:table_list_command">
+				<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%">
+					<tbody><tr>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_top_left.png"></td>
+						<td width="100%" class="top_middle">
+							<table cellpadding="0" cellspacing="0" border="0">
+								<tbody><tr>
+									<td align="center" class="pl2"><img id="menu_img" src="https://cache.1gps.com.br/system/img/0/arrow.png" onclick="checkMenu()"></td>
+									<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png"></td>
+									<td><span class="titlelist pl10"><b>Última Posição</b></span></td>
+											<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png"></td>
+											<td align="center" class="pl10">
+													<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="document.getElementById('LastPositionCompDataList:buttonFindHidden').click()" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+															<tbody><tr>
+																<td><img src="https://cache.1gps.com.br/system/img/icons/find.gif"></td>	
+																<td>Pesquisar<input id="LastPositionCompDataList:buttonFindHidden" type="submit" name="LastPositionCompDataList:buttonFindHidden" value="" onclick="if ( !doFind() ) return false;" style="visibility: hidden"></td>
+															</tr>
+														</tbody></table>		
+											</td>
+											<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png"></td>
+											<td align="center" class="pl10">	
+												<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="cleanList('LastPositionCompDataList', 16);clearToFind()" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+													<tbody><tr>
+														<td><img src="https://cache.1gps.com.br/system/img/icons/repeat.gif"></td>	
+														<td>Limpar</td>
+													</tr>
+												</tbody></table>	
+											</td>
+
+			<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png"></td>
+			<td align="center" class="pl10">
+
+				<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="modalOpen('modalTemplate')" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+					<tbody><tr>
+						<td><img style="width: 16px; height: 16px" src="https://cache.1gps.com.br/system/img/icons/report.gif"></td>
+						<td><nobr>Parâmetros</nobr></td>
+					</tr>
+				</tbody></table></td>
+								</tr>	
+							</tbody></table>
+						</td>
+						<td align="center" class="top_middle"><img id="top_img" src="https://cache.1gps.com.br/system/img/0/arrow_u.png" onclick="checkTop()"></td>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_top_right.png"></td>
+					</tr>	
+				</tbody></table>
+				<script>checkImagesControl();</script></span>
+			</td>
+		</tr>
+		<tr>
+			<td><div style="width: 4px">&nbsp;</div></td>
+			<td width="100%" class="td_middle">					
+					<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%">	
+						<tbody><tr>
+							<td width="100%">
+								<div id="divmenu" class="divmenu" style="height: 574px; width: 1080px;"><span id="LastPositionCompDataList:table_list"><script id="LastPositionCompDataList:j_id32" type="text/javascript">//<![CDATA[
+		_clearToFind=function(){A4J.AJAX.Submit('LastPositionCompDataList',null,{'similarityGroupingId':'LastPositionCompDataList:j_id32','containerId':'LastPositionCompDataList:stat','parameters':{'LastPositionCompDataList:j_id32':'LastPositionCompDataList:j_id32'} } )};
+		//]]></script><script id="LastPositionCompDataList:j_id33" type="text/javascript">//<![CDATA[
+		checkFind=function(){A4J.AJAX.Submit('LastPositionCompDataList',null,{'similarityGroupingId':'LastPositionCompDataList:j_id33','containerId':'LastPositionCompDataList:stat','parameters':{'LastPositionCompDataList:j_id33':'LastPositionCompDataList:j_id33'} } )};
+		//]]></script>	
+									<table class="table_list" border="0" cellpadding="0" cellspacing="0" width="100%">
+										<tbody><tr class="tableHeader">
+											<td class="table-header-first-col action">
+												<div class="action">Ações</div>
+											</td> 
+												<td class="table-header-col col-1"><div class="col-1">Placa</div></td> 
+												<td class="table-header-col col-2"><div class="col-2">Fabricante</div></td> 
+												<td class="table-header-col col-3"><div class="col-3">Serial</div></td> 
+												<td class="table-header-col col-4"><div class="col-4">Data GSM</div></td> 
+												<td class="table-header-col col-5"><div class="col-5">Data Posição</div></td> 
+												<td class="table-header-col col-6"><div class="col-6">Data Evento</div></td> 
+												<td class="table-header-col col-7"><div class="col-7">S/A</div></td> 
+												<td class="table-header-col col-8"><div class="col-8">Velocidade</div></td> 
+												<td class="table-header-col col-9"><div class="col-9">Online</div></td> 
+												<td class="table-header-col col-10"><div class="col-10">Eventos</div></td> 
+												<td class="table-header-col col-11"><div class="col-11">Lat / Lng</div></td> 
+												<td class="table-header-col col-12"><div class="col-12">Proprietário</div></td> 
+												<td class="table-header-col col-13"><div class="col-13">Endereço</div></td> 
+												<td class="table-header-col col-14"><div class="col-14">Empresa</div></td> 
+												<td class="table-header-col col-15"><div class="col-15">Bateria</div></td> 
+												<td class="table-header-col col-16"><div class="col-16">Frota</div></td> 
+										</tr>
+										    	<tr>
+											    		<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td>
+												        		<td class="table-col">&nbsp;</td> 
+												    	</tr><tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr> 
+												    	<tr>
+																<td class="table-first-col"><img src="https://cache.1gps.com.br/img/icons/space.gif" style="border: none">&nbsp;			</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td> 
+														        <td class="table-col">&nbsp;</td>
+														</tr>
+												
+									</tbody></table></span>
+								</div>		
+							</td>
+						</tr>	
+					</tbody></table>
+			</td>
+		</tr>
+		<tr>
+			<td><div style="width: 4px">&nbsp;</div></td>
+			<td width="100%">
+				<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%">
+					<tbody><tr>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_bt_left.png"></td>
+						<td width="100%" class="bt_middle"><span id="LastPositionCompDataList:table_command" style="width: 100%">
+								<table cellpadding="0" cellspacing="0" border="0" width="100%">
+								<tbody><tr>
+									<td class="pl2"><input id="LastPositionCompDataList:printValidateOk" type="hidden" name="LastPositionCompDataList:printValidateOk" value="0"><div style="width: 40px"><nobr><span id="statusImgBar" class="invisible"><img src="https://cache.1gps.com.br/img/ajax_process.gif"></span></nobr></div></td>
+									<td class="pl20 infomessage"><div style="width: 700px">&nbsp;<span id="LastPositionCompDataList:msgInfo"></span></div></td> 
+									<td width="100%">&nbsp;</td>   							
+								</tr>
+							</tbody></table></span>
+						</td>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_bt_right.png"></td>
+					</tr>	
+				</tbody></table>
+			</td>
+		</tr>
+	</tbody></table>
+ 
+  
+	<div class="modal fade" id="modalTemplate" style="">
+		<div class="modal-dialog " style="">
+			<div class="modal-content" id="modalAgendaEstilo" style="">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-hidden="true">X</button>
+					<span style="font-weight: bolder" class="">Parâmetros de pesquisa</span>
+				</div> 
+				<div class="modal-body" style="padding: 5px !important"><span id="LastPositionCompDataList:messages_modal"></span>
+					<div class="row">						
+						<div class="col-md-12">
+							<div class="form-group"><span id="LastPositionCompDataList:modalParams">
+	
+	<div class="col-sm-6 form-group ">Pesquisa por:<select id="LastPositionCompDataList:escolha" name="LastPositionCompDataList:escolha" class="form-control drop-d" size="1" onchange="startLoadingS();A4J.AJAX.Submit('LastPositionCompDataList',event,{'similarityGroupingId':'LastPositionCompDataList:j_id414','containerId':'LastPositionCompDataList:stat','parameters':{'LastPositionCompDataList:j_id414':'LastPositionCompDataList:j_id414'} } )">	<option value="1" selected="selected">Placa</option>
+	<option value="2">Dispositivo</option>
+	<option value="5">Proprietário</option>
+	<option value="6">Período de Verificação</option>
+	<option value="7">Fabricante</option>
+	<option value="8">Grupo Veículos</option>
+	<option value="9">Empresa</option>
+</select>
+	</div>
+	
+	<div class="col-sm-6 form-group "><div id="LastPositionCompDataList:b1_box">Placa:<input id="LastPositionCompDataList:placaInput" type="text" name="LastPositionCompDataList:placaInput" value="" class="form-control" maxlength="20" autocomplete="off"><input id="LastPositionCompDataList:grupoVeiculoHidden" type="hidden" name="LastPositionCompDataList:grupoVeiculoHidden" value="0"></div>
+	</div>
+	
+	<div class="col-sm-6 form-group ">Selecione a quantidade de veículo para pesquisa:<select id="LastPositionCompDataList:quantidadePesquisa" name="LastPositionCompDataList:quantidadePesquisa" class="form-control drop-d" size="1">	<option value="250" selected="selected">250</option>
+	<option value="500">500</option>
+	<option value="750">750</option>
+	<option value="1000">1000</option>
+</select>
+	</div><div id="LastPositionCompDataList:b2_box"><div id="LastPositionCompDataList:jquery_autocomplete_placa">
+				<script>//<![CDATA[
+		        		$('#LastPositionCompDataList\\:placaInput').autocomplete({
+		            serviceUrl: '/system/autocompleteServlet?suggestion=findByPlateSuggestion',
+		            minChars: 2,
+		            deferRequestBy: 500,
+		            autoSelectFirst : true,
+		            paramName: 'searchString',
+		            onSelect: function (suggestion) {
+		            	console.log(suggestion);
+		            }
+		        });
+		      //]]></script></div></div></span>
+							</div>
+						</div>						
+					</div>
+				</div>
+				<div class="modal-footer">
+
+				<div class="row">
+						<div class="col-xs-6 col-md-2 col-md-offset-8">
+	   						<a onclick="modalClose('modalTemplate')" id="btnCancelModal" class="btn btn-default btn-sm aNotLink"> Cancelar</a>
+	   					</div>
+			<div class="col-md-2">
+<script type="text/javascript" language="Javascript">function dpf(f) {var adp = f.adp;if (adp != null) {for (var i = 0;i < adp.length;i++) {f.removeChild(adp[i]);}}};function apf(f, pvp) {var adp = new Array();f.adp = adp;var i = 0;for (k in pvp) {var p = document.createElement("input");p.type = "hidden";p.name = k;p.value = pvp[k];f.appendChild(p);adp[i++] = p;}};function jsfcljs(f, pvp, t) {apf(f, pvp);var ft = f.target;if (t) {f.target = t;}f.submit();f.target = ft;dpf(f);};</script>
+<a id="LastPositionCompDataList:pesquisaModal" href="#" onclick="var a=function(){startLoadingS();};var b=function(){if(typeof jsfcljs == 'function'){jsfcljs(document.getElementById('LastPositionCompDataList'),{'LastPositionCompDataList:pesquisaModal':'LastPositionCompDataList:pesquisaModal'},'');}return false};return (a()==false) ? false : b();" class="ui blue button btn btn-primary btn-block btn-sm">Pesquisar</a>
+			</div>
+				</div>
+				
+				</div>
+			</div>
+		</div>
+	</div>
+	
+    	
+    <div id="loading" class="invisible" style="position: absolute; top: 0px; left: 0px; z-index: 9990000; width: 100%; height: 100%;"><table cellpadding="0" cellspacing="0" border="0" style="width: 100%; height: 100%" align="center"><tbody><tr><td align="center"><div><img src="https://cache.1gps.com.br/system/img/spinner.gif"></div></td></tr></tbody></table></div><input type="hidden" autocomplete="off" name="LastPositionCompDataList" value="LastPositionCompDataList"><input type="hidden" autocomplete="off" name="autoScroll" value=""><script type="text/javascript">function clear_LastPositionCompDataList() {
+_clearJSFFormParameters('LastPositionCompDataList','',['LastPositionCompDataList:_link_hidden_','LastPositionCompDataList:j_idcl']);
+}
+function clearFormHiddenParams_LastPositionCompDataList(){clear_LastPositionCompDataList();}
+function clearFormHiddenParams_LastPositionCompDataList(){clear_LastPositionCompDataList();}
+clear_LastPositionCompDataList();</script><input type="hidden" name="javax.faces.ViewState" id="javax.faces.ViewState" value="j_id5"></form><div class="autocomplete-suggestions" style="position: absolute; display: none; width: 100px; top: 48px; left: 0px; max-height: 300px; z-index: 900000005;"></div>
+<div id="panelHint" class="invisible"></div>	
+<span id="ruler"></span>	
+<script> 
+addHint('Retornar o registro para outra tela'); 
+addHint('Editar Registro'); 
+addHint('Deletar o registro');
+</script>
+
+
+</body></html>

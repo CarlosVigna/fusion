@@ -6,7 +6,7 @@ async function upload(
   file
 ) {
   const token =
-    localStorage.getItem("token");
+    localStorage.getItem("fusion_token");
 
   const formData = new FormData();
 

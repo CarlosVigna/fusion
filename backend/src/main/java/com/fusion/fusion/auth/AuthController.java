@@ -1,11 +1,13 @@
 package com.fusion.fusion.auth;
 
-import com.fusion.fusion.user.Role;
+import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.user.User;
 import com.fusion.fusion.user.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,32 +27,38 @@ public class AuthController {
             @RequestBody LoginRequest request
     ) {
 
-        User user = repository.findByEmail(
-                request.email()
-        ).orElseThrow();
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.email(),
+                            request.password()
+                    )
+            );
+        } catch (AuthenticationException ex) {
+            throw new BusinessException("Credenciais inválidas");
+        }
 
-        System.out.println(user.getPassword());
-
-        String token = jwtService.generateToken(
-                user.getEmail()
-        );
+        String token = jwtService.generateToken(request.email());
 
         return new LoginResponse(token);
 
     }
 
-    @GetMapping("/register")
-    public void register() {
+    @PostMapping("/register")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void register(
+            @RequestBody RegisterRequest request
+    ) {
 
-        if (repository.findByEmail("admin@fusion.com").isPresent()) {
-            return;
+        if (repository.findByEmail(request.email()).isPresent()) {
+            throw new BusinessException("E-mail já cadastrado");
         }
 
         User user = User.builder()
-                .name("Administrador")
-                .email("admin@fusion.com")
-                .password(passwordEncoder.encode("123456"))
-                .role(Role.ADMIN)
+                .name(request.name())
+                .email(request.email())
+                .password(passwordEncoder.encode(request.password()))
+                .role(request.role())
                 .build();
 
         repository.save(user);
@@ -61,22 +69,6 @@ public class AuthController {
     public MeResponse me() {
 
         return authService.me();
-
-    }
-    @GetMapping("/reset")
-    public void reset() {
-
-        User user = repository.findByEmail(
-                "admin@fusion.com"
-        ).orElseThrow();
-
-        user.setPassword(
-                passwordEncoder.encode("123456")
-        );
-
-        user.setActive(true);
-
-        repository.save(user);
 
     }
 

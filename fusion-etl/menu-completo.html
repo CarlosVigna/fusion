@@ -1,0 +1,2110 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head>
+	<title>Usebens</title>
+	<link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.Finalorg/richfaces/renderkit/html/css/basic_classes.xcss" rel="stylesheet" type="text/css"><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.Finalorg/richfaces/renderkit/html/css/extended_classes.xcss" rel="stylesheet" type="text/css"><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.FinalMETA-INF/skins/glassX.xcss" rel="stylesheet" type="text/css"><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.FinalMETA-INF/skins/glassXExt.xcss" rel="stylesheet" type="text/css"><script type="text/javascript">window.RICH_FACES_EXTENDED_SKINNING_ON=true;</script><script src="https://cache.1gps.com.br/cached_a4j/g/3_3_3.Finalorg/richfaces/renderkit/html/scripts/skinning.js" type="text/javascript"></script><link class="user" href="https://cache.1gps.com.br/system/stylesheet/0/default.css" rel="stylesheet" type="text/css"><link class="user" href="https://cache.1gps.com.br/system/stylesheet/0/home/menu.css" rel="stylesheet" type="text/css"><script src="https://cache.1gps.com.br/system/js/home/menu.js" type="text/javascript"></script><script src="https://cache.1gps.com.br/templates/endless151/js/jquery-1.10.2.min.js" charset="UTF-8"></script>
+	<link rel="stylesheet" href="https://cache.1gps.com.br/system/stylesheet/general/jquery.autocomplete.css" charset="UTF-8">
+	<script type="text/javascript" src="https://cache.1gps.com.br/system/js/jquery.autocomplete.min.js" charset="UTF-8"></script>
+	<script>//<![CDATA[
+		var thisurl = '';
+		var totalM = parseInt('3');
+		resizeMenu();
+		function loadPage() {
+			resizeMenu();
+		}
+
+		window.onresize = function () { resizeMenu(); }
+
+		$(document).ready(function () {
+			$("tr.menuName").click(function () {
+
+				var parentTR = $(this);//.parents().eq(5);				
+				var containerSize = parentTR.next('tr').find('.divChildMenu').height() + ($("#divmenu").height() - $(".backmenu").height());
+
+				// 				console.log( parentTR.next('tr').find('.divChildMenu').height());
+				// 				console.log( $("#divmenu").height() - $(".backmenu").height() );
+
+				parentTR.next('tr').find('.divChildMenu').height(containerSize);
+
+				// 				console.log( parentTR.next('tr').find('.divChildMenu').height());
+
+			});
+		});
+
+	//]]></script>
+	<style>
+		input[type=text] {
+			width: 175px;
+			height: 22px;
+			font-family: serif;
+			margin-bottom: 5px;
+		}
+
+		/* webkit solution */
+
+		::-webkit-input-placeholder {
+			font-family: FontAwesome;
+			text-align: left;
+		}
+
+		/* mozilla solution */
+
+		input:-moz-placeholder {
+			font-family: FontAwesome;
+			text-align: left;
+		}
+
+		.autocomplete-suggestions {
+			word-wrap: break-word !important;
+		}
+	</style>
+</head>
+
+<body onload="loadPage();" style="">
+<form id="form" name="form" method="post" action="/system/layout/menu.seam" enctype="application/x-www-form-urlencoded">
+<input type="hidden" name="form" value="form">
+<span id="_viewRoot:status"><span id="_viewRoot:status.start" style="display: none"></span><script type="text/javascript">
+window.document.getElementById('_viewRoot:status.start').onstart=function(){Richfaces.showModalPanel('loading');;};
+</script><span id="_viewRoot:status.stop"></span><script type="text/javascript">
+window.document.getElementById('_viewRoot:status.stop').onstop=function(){Richfaces.hideModalPanel('loading');;};
+</script></span>
+
+		<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="tablemenu">
+			<tbody><tr>
+				<td>
+					<div style="width: 4px">&nbsp;</div>
+				</td>
+				<td>
+					<div id="divmenu" class="divmenu" style="height: 620px;">
+						<div class="backmenu">
+								<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" id="pag_1" class="tableinnermenu" style="background-color:#fff;">
+												
+												<tbody><tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menufirst_off" onmouseover="menuOver(this, true)" onmouseout="menuOut(this, true)" onclick="openMenu(1)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Rastreamentos</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_1" class="invisible">
+											<td>
+												<div id="divChildMenu_1" class="divChildMenu" style="height: 380px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/acumuladosDiarioList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/acumuladosDiarioList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/edit.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Acumulado Diário</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/placeList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/placeList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/local.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Cercas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/gateway/checkListSave.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/gateway/checkListSave.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/edit.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Checklist</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/gateway/comandSendSave.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/gateway/comandSendSave.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Comandos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/gateway/commandHistoricList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/gateway/commandHistoricList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Comandos Histórico - Lista</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/rotaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/rotaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Controle Cadastro</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/rotaviagementregaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/rotaviagementregaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Controle Entregas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/rotaviagemList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/rotaviagemList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Controle Viagem</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/temporaryLinkList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/temporaryLinkList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/create_doc.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Link Temporário</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/painelAproximacao.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/painelAproximacao.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/local.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Painel Aproximação</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/painelAproximacaoAdmin.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/painelAproximacaoAdmin.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/local.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Painel Aproximação Grupo</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/pontosreferenciaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/pontosreferenciaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/local.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Pontos de Referência</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/regrasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/regrasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Regras</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/regrasAtivosList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/regrasAtivosList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Regras Ativos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/lastPositionCarSave.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/lastPositionCarSave.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Última Posição</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/lastPositionSimpleList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/lastPositionSimpleList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Última Posição - Simples</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(1);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(23)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/ex.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Ocorrências</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_23" class="invisible">
+											<td>
+												<div id="divChildMenu_23" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/occurrence/atendimentosList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/occurrence/atendimentosList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/attt.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Atendimentos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/occurrence/atendimentosReturnList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/occurrence/atendimentosReturnList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/attt.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Atendimentos Retorno</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/occurrence/occurrenceCarList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/occurrence/occurrenceCarList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/ex.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ocorrências</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/occurrence/occurrenceCarPropList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/occurrence/occurrenceCarPropList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/ex.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ocorrências Prop/Emp</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/occurrence/occurrenceCarReturnList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/occurrence/occurrenceCarReturnList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/ex.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ocorrências Retorno</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/occurrence/occurrenceCarStatusList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/occurrence/occurrenceCarStatusList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/ex.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ocorrências Status</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/occurrence/occurrenceTopList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/occurrence/occurrenceTopList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ocorrências Top</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(23);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(36)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/attt.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Cadastros Gerais</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_36" class="invisible">
+											<td>
+												<div id="divChildMenu_36" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/ativosList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/ativosList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ativos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/centrocustoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/centrocustoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Centro de Custo</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/ciaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/ciaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Cia</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/customerList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/customerList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/perso.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Cliente</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/dispositivovinculoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/dispositivovinculoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/roda.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Dispositivo Vínculo</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/gateway/devicesList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/gateway/devicesList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/roda.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Dispositivos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/empresaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/empresaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/attt.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Empresas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/fornecedoresList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/fornecedoresList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/p1.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Fornecedores</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/fleetSave.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/fleetSave.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/truck.png" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Frota</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/grupoMotoristaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/grupoMotoristaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Grupo Motorista</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/groupVehicleList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/groupVehicleList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Grupo Veículos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/driverList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/driverList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/p1.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Motoristas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/businessPartnerList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/businessPartnerList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/perso.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Pessoas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/vehicleList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/vehicleList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/car.png" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Veículos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/vehicleDriverList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/vehicleDriverList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Vínculo Motorista</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/vehicleDriverIndList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/vehicleDriverIndList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Vínculo Motorista Individual</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(36);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(63)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Cadastros Auxiliares</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_63" class="invisible">
+											<td>
+												<div id="divChildMenu_63" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/cityList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/cityList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/local.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Cidade</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/tipolocalidadeList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/tipolocalidadeList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Conjunto de Cercas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/stateList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/stateList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/local.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Estado</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/garagensList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/garagensList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Garagens</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/grupoTrabalhoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/grupoTrabalhoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Grupo Trabalho</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/manutencaoChecklistItem.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/manutencaoChecklistItem.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/edit.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Itens do Checklist</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/manutencaoLembretesList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/manutencaoLembretesList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/edit.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Lembretes de Manutenção</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/macroregiaoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/macroregiaoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Macro Região</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/vehicleModelBrandList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/vehicleModelBrandList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Marca Veículo</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/vehicleModelList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/vehicleModelList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Modelo Veículo</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/countryList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/countryList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/local.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">País</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/regiaoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/regiaoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Região</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/regiaoZonasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/regiaoZonasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Região Zonas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/despesasRubricaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/despesasRubricaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/edit.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Rubricas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/veiculotipoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/veiculotipoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Tipo Veículo</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(63);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(87)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/rodas.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Configurações</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_87" class="invisible">
+											<td>
+												<div id="divChildMenu_87" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/configuration/configuracoesGeraisList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/configuration/configuracoesGeraisList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/bdk.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Configurações Gerais</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/configuration/eventosRenomeadosList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/configuration/eventosRenomeadosList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/roda.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Eventos - Renomear</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/configuration/ibuttonConsultarList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/configuration/ibuttonConsultarList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/roda.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">IButton - Consultar</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/configuration/ibuttonEnviarSave.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/configuration/ibuttonEnviarSave.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/roda.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">IButton - Enviar</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/configuration/perfilRelatorioColunasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/configuration/perfilRelatorioColunasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/roda.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Perfil Relatório Colunas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/configuration/perfilRelatorioEventosList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/configuration/perfilRelatorioEventosList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/roda.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Perfil Relatório Eventos</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(87);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(125)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Telemetria - RPM</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_125" class="invisible">
+											<td>
+												<div id="divChildMenu_125" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/rpmList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/rpmList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Acumulado por Viagens</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/perfil/faixasrpmList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/perfil/faixasrpmList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Faixas RPM</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(125);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(132)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Telemetria - Horímetro</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_132" class="invisible">
+											<td>
+												<div id="divChildMenu_132" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/perfil/relacionamentoHorimetroList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/perfil/relacionamentoHorimetroList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/edit.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Configura Faixa Sensor</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/perfil/faixasHorimetroList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/perfil/faixasHorimetroList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Faixas Horímetro</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(132);
+										//]]></script>
+									<tr>
+										<td valign="top" style="height: 1px; font-size: 1px; padding: 0px; margin: 0x;"><img src="https://cache.1gps.com.br/system/img/0/menu_in_bottom.png">
+										</td>
+									</tr>
+								</tbody></table>
+								<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" id="pag_2" class="invisible" style="background-color:#fff;">
+												
+												<tbody><tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menufirst_off" onmouseover="menuOver(this, true)" onmouseout="menuOut(this, true)" onclick="openMenu(138)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Telemetria - Odômetro</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_138" class="invisible">
+											<td>
+												<div id="divChildMenu_138" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/gateway/dispositivosOdometrosList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/gateway/dispositivosOdometrosList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Dispositivos Odômetros</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(138);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(157)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/point_truck.png" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Rota - Distribuição</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_157" class="invisible">
+											<td>
+												<div id="divChildMenu_157" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/route/entregasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/route/entregasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Entregas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/route/entregasControleList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/route/entregasControleList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Entregas - Controle</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/route/mapEntregas.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/route/mapEntregas.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Mapa Entregas - Edição</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/route/mapEntregasHistorico.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/route/mapEntregasHistorico.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/map_rast.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Mapa Entregas - Visualização</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(157);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(166)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Relatórios Gerenciais</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_166" class="invisible">
+											<td>
+												<div id="divChildMenu_166" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosReportControleKm.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosReportControleKm.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Controle Km</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosReportControleVelocidade.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosReportControleVelocidade.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Controle de Velocidade</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosGraficosReport.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosGraficosReport.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Gerencial Gráficos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosReportHodometro.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosReportHodometro.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Odômetro Km</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports2/perfilReportList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports2/perfilReportList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Perfil Gerencial</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosReportPerformanceMensal.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosReportPerformanceMensal.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Performance Mensal</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosResumoPerformanceMensalReport.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosResumoPerformanceMensalReport.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Resumo Performance Mensal</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosReportIgnicao.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosReportIgnicao.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Tempo Ignição</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(166);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(175)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Relatórios</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_175" class="invisible">
+											<td>
+												<div id="divChildMenu_175" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/acumuladosCustom1List.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/acumuladosCustom1List.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Acumulado Diário</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/cercasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/cercasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Cercas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/excessoVelocidadeEmbarcadoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/excessoVelocidadeEmbarcadoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Excesso Velocidade Embarcado</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/excessoVelocidadeList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/excessoVelocidadeList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Excesso de Velocidade</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/horimetroList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/horimetroList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Horímetro</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/horimetroCercasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/horimetroCercasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Horímetro - Cercas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/horimetroSimplesList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/horimetroSimplesList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Horímetro - Lista</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/kmList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/kmList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Km</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/kmMensalList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/kmMensalList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Km Mensal</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/track/mensagemList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/track/mensagemList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Mensagens - Teclado</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/viagemEstacionamentoReport.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/viagemEstacionamentoReport.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Novo Viagem / Estacionamento</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/pontoReferenciaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/pontoReferenciaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Pontos Referência</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/positionList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/positionList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Posições</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/positionCompleteList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/positionCompleteList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Posições Completo</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/positionEventList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/positionEventList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Posições Eventos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/positionSmallList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/positionSmallList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Posições Simples</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/positionTechnicalList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/positionTechnicalList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Posições Técnico</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/rpmList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/rpmList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">RPM</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/regrasPlacaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/regrasPlacaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Regras - Placa</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/regrasVioladasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/regrasVioladasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Regras Violadas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/matriculaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/matriculaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Relatório Matrícula</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/daysignalList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/daysignalList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Sem Sinal</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/gateway/semsinalList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/gateway/semsinalList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Sem Sinal Lista</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/temperaturaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/temperaturaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Temperatura</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/lastpositionList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/lastpositionList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Última Posição</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(175);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(216)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/point_truck.png" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Frota Manutenção</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_216" class="invisible">
+											<td>
+												<div id="divChildMenu_216" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/acessosList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/acessosList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/cert_pvt_key_on.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Acessos de Usuários</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/despesasList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/despesasList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/paste.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Despesas</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/despesasDashboard.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/despesasDashboard.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Despesas Dashboard</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/manutencaoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/manutencaoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/rodas.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Manutenção Preventiva</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/reportCusto.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/reportCusto.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/btn_preview_bg.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Relatório de Custo</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(216);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(230)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/point_truck.png" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Frota</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_230" class="invisible">
+											<td>
+												<div id="divChildMenu_230" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet/abastecimentoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet/abastecimentoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Abastecimento</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet/abastecimentoHodometroList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet/abastecimentoHodometroList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Abastecimento - Odômetro</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(230);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(264)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/point_truck.png" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Frota - Controle de Abastecimento</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_264" class="invisible">
+											<td>
+												<div id="divChildMenu_264" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet/dieselAbastecimentoTanqueList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet/dieselAbastecimentoTanqueList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Abastecimento Tanque</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(264);
+										//]]></script>
+									<tr>
+										<td valign="top" style="height: 1px; font-size: 1px; padding: 0px; margin: 0x;"><img src="https://cache.1gps.com.br/system/img/0/menu_in_bottom.png">
+										</td>
+									</tr>
+								</tbody></table>
+								<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" id="pag_3" class="invisible" style="background-color:#fff;">
+												
+												<tbody><tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menufirst_off" onmouseover="menuOver(this, true)" onmouseout="menuOut(this, true)" onclick="openMenu(280)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/usergroups.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Perfil</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_280" class="invisible">
+											<td>
+												<div id="divChildMenu_280" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/perfil/rankingSave.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/perfil/rankingSave.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/up.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ranking</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(280);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(336)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/perso.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Administração</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_336" class="invisible">
+											<td>
+												<div id="divChildMenu_336" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/security/groupList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/security/groupList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/usergroups.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Grupos</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/security/impressaoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/security/impressaoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Impressão</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/security/changePassword.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/security/changePassword.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/reload.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Troca Senha</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/security/userList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/security/userList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/friends.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Usuários</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/security/userClientsList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/security/userClientsList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/friends.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Usuários do Cliente</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(336);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(391)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Ranking Motorista</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_391" class="invisible">
+											<td>
+												<div id="divChildMenu_391" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports2/perfilRankingMotoristaReportList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports2/perfilRankingMotoristaReportList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Perfil Ranking Motorista</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/acumuladosReportRankingMotorista.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/acumuladosReportRankingMotorista.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Ranking Motorista</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(391);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(397)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/p1.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Nova Lei Motorista</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_397" class="invisible">
+											<td>
+												<div id="divChildMenu_397" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/controleJornadaMotoristaReport.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/controleJornadaMotoristaReport.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Controle Jornada Motorista</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/jornadaTrabalhoDiarioReport.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/jornadaTrabalhoDiarioReport.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Jornada Trabalho Diário</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/reports/jornadaTrabalhoMensalReport.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/reports/jornadaTrabalhoMensalReport.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Jornada Trabalho Mensal</div>
+																</td>
+															</tr>
+															<tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/leiJornadaTrabalhoMotoristaList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/leiJornadaTrabalhoMotoristaList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/p1.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Jornada Trabalho Motorista</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(397);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(442)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Layout Relatório</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_442" class="invisible">
+											<td>
+												<div id="divChildMenu_442" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/layout/relatorio/edicao_layout_relatorio.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/layout/relatorio/edicao_layout_relatorio.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/report.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Meus Layouts</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(442);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(460)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/files.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Integração / Espelhamento</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_460" class="invisible">
+											<td>
+												<div id="divChildMenu_460" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/businesspartner/logingrpveicintegracaoList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/businesspartner/logingrpveicintegracaoList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/serv.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Veículo Integração</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(460);
+										//]]></script>
+												<tr class="menuName">
+													<td>
+														<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%" class="menu_off" onmouseover="menuOver(this, false)" onmouseout="menuOut(this, false)" onclick="openMenu(499)">
+															<tbody><tr>
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center" valign="middle">
+																	<img src="https://cache.1gps.com.br/system/img/icons/point_truck.png" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<span class="menulinkprincipal">Gestão de Frota</span>
+																</td>
+															</tr>
+														</tbody></table>
+													</td>
+												</tr>
+										<tr id="menu_child_499" class="invisible">
+											<td>
+												<div id="divChildMenu_499" class="divChildMenu" style="height: 200px;">
+													<table cellpadding="0" cellspacing="0" border="0" align="left" width="100%">
+															<tbody><tr class="menu_child_off" onmouseover="menuChildOver(this)" id="/system/fleet2/tipoGFList.seam" onmouseout="menuChildOut(this)" onclick="doSubmit(this, '/system/fleet2/tipoGFList.seam')">
+																<td>
+																	<div style="width: 10px">&nbsp;</div>
+																</td>
+																<td align="center">
+																	<img src="https://cache.1gps.com.br/system/img/icons/paste.gif" width="16" height="16">
+																</td>
+																<td align="left" width="100%">
+																	<div class="menulinkprincipal">Tipo de Custo</div>
+																</td>
+															</tr>
+													</tbody></table>
+												</div>
+											</td>
+										</tr>
+										<script>//<![CDATA[
+											loadContainerMenu(499);
+										//]]></script>
+									<tr>
+										<td valign="top" style="height: 1px; font-size: 1px; padding: 0px; margin: 0x;"><img src="https://cache.1gps.com.br/system/img/0/menu_in_bottom.png">
+										</td>
+									</tr>
+								</tbody></table>
+						</div>
+					</div>
+				</td>
+			</tr>
+					<tr>
+						<td>
+							<div style="width: 4px">&nbsp;</div>
+						</td>
+						<td align="right" valign="bottom" style="background-image: url(https://cache.1gps.com.br/system/img/0/menu_bottom.png)">
+							<div style="width: 183px; height: 31px">
+								<table cellpadding="2" cellspacing="2" border="0" align="center" height="100%">
+									<tbody><tr>
+										<td>
+											<img src="https://cache.1gps.com.br/system/img/panel/bt_prev.jpg" onclick="prevPage()" style="cursor: pointer">
+										</td>
+										<td>
+											<img src="https://cache.1gps.com.br/system/img/dot_on.png" id="dot_1">
+										</td>
+											<td>
+												<img src="https://cache.1gps.com.br/system/img/dot_off.png" id="dot_2">
+											</td>
+											<td>
+												<img src="https://cache.1gps.com.br/system/img/dot_off.png" id="dot_3">
+											</td>
+										<td>
+											<img src="https://cache.1gps.com.br/system/img/panel/bt_next.jpg" onclick="nextPage()" style="cursor: pointer">
+										</td>
+									</tr>
+								</tbody></table>
+							</div>
+						</td>
+					</tr>
+		</tbody></table>
+
+		<div id="loading" class="invisible" style="position: absolute; top: 0px; left: 0px; z-index: 9990000; width: 100%; height: 100%;">
+			<table cellpadding="0" cellspacing="0" border="0" style="width: 100%; height: 100%" align="center">
+				<tbody><tr>
+					<td align="center">
+						<div style="background-color: #fff; width: 84px; height: 64px; padding: 10px; border: 1px solid #ccc"><img src="https://cache.1gps.com.br/img/loadingRing.gif">
+						</div>
+					</td>
+				</tr>
+			</tbody></table>
+		</div><input type="hidden" name="javax.faces.ViewState" id="javax.faces.ViewState" value="j_id2">
+</form>
+
+
+
+</body></html>
