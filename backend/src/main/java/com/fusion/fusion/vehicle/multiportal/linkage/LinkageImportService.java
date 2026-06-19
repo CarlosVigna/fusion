@@ -67,7 +67,9 @@ public class LinkageImportService {
 
             Sheet sheet = workbook.getSheetAt(0);
 
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            int headerRow = findHeaderRow(sheet, "Data Inicial");
+
+            for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
                 Row row = sheet.getRow(i);
 
@@ -199,6 +201,33 @@ public class LinkageImportService {
         return LocalDateTime.parse(
                 value,
                 FORMATTER
+        );
+
+    }
+
+    private int findHeaderRow(Sheet sheet, String expectedFirstColumn) {
+
+        for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+
+            Row row = sheet.getRow(i);
+
+            if (row == null) {
+                continue;
+            }
+
+            String firstCell = getCellValue(row.getCell(0));
+
+            if (expectedFirstColumn.equalsIgnoreCase(
+                    firstCell == null ? null : firstCell.trim()
+            )) {
+                return i;
+            }
+
+        }
+
+        throw new RuntimeException(
+                "Linha de cabeçalho (\"" + expectedFirstColumn
+                        + "\") não encontrada na planilha."
         );
 
     }

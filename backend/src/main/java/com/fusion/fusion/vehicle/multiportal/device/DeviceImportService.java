@@ -6,6 +6,7 @@ import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
@@ -58,7 +59,9 @@ public class DeviceImportService {
 
             Sheet sheet = workbook.getSheetAt(0);
 
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            int headerRow = findHeaderRow(sheet, "Número");
+
+            for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
                 Row row = sheet.getRow(i);
 
@@ -97,13 +100,25 @@ public class DeviceImportService {
                                 getCellValue(row.getCell(4))
                         );
 
-                Optional<Vehicle> optionalVehicle =
-                        vehicleRepository.findByPlate(plate);
+                if (plate != null && !plate.isBlank()) {
 
-                optionalVehicle.ifPresent(device::setVehicle);
+                    Vehicle vehicle =
+                            vehicleRepository.findByPlate(plate)
+                                    .orElseGet(() ->
+                                            vehicleRepository.save(
+                                                    Vehicle.builder()
+                                                            .plate(plate)
+                                                            .platform(
+                                                                    VehiclePlatform.MULTIPORTAL
+                                                            )
+                                                            .build()
+                                            )
+                                    );
 
-                if (optionalVehicle.isPresent()) {
+                    device.setVehicle(vehicle);
+
                     linked++;
+
                 }
 
                 device.setNumber(
@@ -169,6 +184,33 @@ public class DeviceImportService {
         return new DeviceImportResponse(
                 imported,
                 linked
+        );
+
+    }
+
+    private int findHeaderRow(Sheet sheet, String expectedFirstColumn) {
+
+        for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+
+            Row row = sheet.getRow(i);
+
+            if (row == null) {
+                continue;
+            }
+
+            String firstCell = getCellValue(row.getCell(0));
+
+            if (expectedFirstColumn.equalsIgnoreCase(
+                    firstCell == null ? null : firstCell.trim()
+            )) {
+                return i;
+            }
+
+        }
+
+        throw new RuntimeException(
+                "Linha de cabeçalho (\"" + expectedFirstColumn
+                        + "\") não encontrada na planilha."
         );
 
     }

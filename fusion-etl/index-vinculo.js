@@ -1,8 +1,9 @@
 require('dotenv').config();
 
 const { chromium } = require('playwright');
+const { loginMultiportal, waitForFrame } = require('./multiportal-auth');
 
-(async () => {
+async function run() {
 
     const browser = await chromium.launch({
         headless: false,
@@ -23,35 +24,16 @@ const { chromium } = require('playwright');
 
         // LOGIN
 
-        await page.goto(
-            'https://usebens.1gps.com.br/apps/login.seam',
-            { waitUntil: 'domcontentloaded' }
-        );
-
-        await page.locator('#myForm\\:username')
-            .fill(process.env.MULTIPORTAL_USER);
-
-        await page.locator('#myForm\\:password')
-            .fill(process.env.MULTIPORTAL_PASSWORD);
-
-        await page.locator('#myForm\\:loginBtn')
-            .click();
-
-        await page.waitForTimeout(5000);
+        await loginMultiportal(page);
 
         console.log('Login realizado.');
 
         // MENU
 
-        const menuFrame = page.frames().find(frame =>
-            frame.url().includes('/system/layout/menu.seam')
+        const menuFrame = await waitForFrame(
+            page,
+            '/system/layout/menu.seam'
         );
-
-        if (!menuFrame) {
-            throw new Error(
-                'Frame menu.seam não encontrado.'
-            );
-        }
 
         console.log('Abrindo Cadastros Gerais...');
 
@@ -59,7 +41,9 @@ const { chromium } = require('playwright');
             'table[onclick="openMenu(36)"]'
         ).click();
 
-        await page.waitForTimeout(3000);
+        await menuFrame.locator(
+            'tr[id="/system/businesspartner/dispositivovinculoList.seam"]'
+        ).waitFor({ state: 'visible' });
 
         console.log('Abrindo Dispositivo Vinculo...');
 
@@ -67,21 +51,12 @@ const { chromium } = require('playwright');
             'tr[id="/system/businesspartner/dispositivovinculoList.seam"]'
         ).click();
 
-        await page.waitForTimeout(5000);
-
         // FRAME
 
-        const vinculoFrame = page.frames().find(frame =>
-            frame.url().includes(
-                '/system/businesspartner/dispositivovinculoList.seam'
-            )
+        const vinculoFrame = await waitForFrame(
+            page,
+            '/system/businesspartner/dispositivovinculoList.seam'
         );
-
-        if (!vinculoFrame) {
-            throw new Error(
-                'Frame dispositivovinculoList.seam não encontrado.'
-            );
-        }
 
         console.log('Frame encontrado.');
 
@@ -89,11 +64,19 @@ const { chromium } = require('playwright');
 
         console.log('Pesquisando...');
 
-        await vinculoFrame.locator(
+        const searchButton = vinculoFrame.locator(
             '#DispositivovinculoDataList\\:table_list_command > table > tbody > tr > td:nth-child(2) > table > tbody > tr > td:nth-child(5) > table > tbody > tr > td:nth-child(2)'
-        ).click();
+        );
 
-        await page.waitForTimeout(5000);
+        await searchButton.waitFor({ state: 'visible' });
+
+        await searchButton.click();
+
+        const downloadLink = vinculoFrame.locator(
+            '#DispositivovinculoDataList\\:table_list_command > table > tbody > tr > td:nth-child(2) > table > tbody > tr > td:nth-child(7) > table > tbody > tr > td > a'
+        );
+
+        await downloadLink.waitFor({ state: 'visible' });
 
         console.log('Pesquisa executada.');
 
@@ -104,9 +87,7 @@ const { chromium } = require('playwright');
         const downloadPromise =
             page.waitForEvent('download');
 
-        await vinculoFrame.locator(
-            '#DispositivovinculoDataList\\:table_list_command > table > tbody > tr > td:nth-child(2) > table > tbody > tr > td:nth-child(7) > table > tbody > tr > td > a'
-        ).click();
+        await downloadLink.click();
 
         const download =
             await downloadPromise;
@@ -134,8 +115,6 @@ const { chromium } = require('playwright');
 
         console.log(targetFile);
 
-        await page.waitForTimeout(5000);
-
     } catch (error) {
 
         console.error('');
@@ -144,9 +123,17 @@ const { chromium } = require('playwright');
         console.error('====================================');
         console.error(error);
 
-        await page.waitForTimeout(30000);
+        await browser.close();
+
+        throw error;
     }
 
     await browser.close();
 
-})();
+}
+
+module.exports = { run };
+
+if (require.main === module) {
+    run();
+}

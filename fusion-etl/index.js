@@ -6,6 +6,7 @@ const axios = require('axios');
 const { chromium } = require('playwright');
 const AdmZip = require('adm-zip');
 const fse = require('fs-extra');
+const { loginMultiportal, waitForFrame } = require('./multiportal-auth');
 
 async function downloadFile(url, destination) {
 
@@ -25,7 +26,7 @@ async function downloadFile(url, destination) {
     });
 }
 
-(async () => {
+async function run() {
 
     const browser = await chromium.launch({
         headless: false,
@@ -44,65 +45,59 @@ async function downloadFile(url, destination) {
 
         // LOGIN
 
-        await page.goto(
-            'https://usebens.1gps.com.br/apps/login.seam',
-            { waitUntil: 'domcontentloaded' }
-        );
-
-        await page.locator('#myForm\\:username')
-            .fill(process.env.MULTIPORTAL_USER);
-
-        await page.locator('#myForm\\:password')
-            .fill(process.env.MULTIPORTAL_PASSWORD);
-
-        await page.locator('#myForm\\:loginBtn')
-            .click();
-
-        await page.waitForTimeout(5000);
+        await loginMultiportal(page);
 
         console.log('Login realizado.');
 
         // MENU
 
-        const menuFrame = page.frames().find(frame =>
-            frame.url().includes('/system/layout/menu.seam')
+        const menuFrame = await waitForFrame(
+            page,
+            '/system/layout/menu.seam'
         );
 
         await menuFrame.locator(
             'table[onclick="openMenu(36)"]'
         ).click();
 
-        await page.waitForTimeout(2000);
+        await menuFrame.locator(
+            'tr[id="/system/gateway/devicesList.seam"]'
+        ).waitFor({ state: 'visible' });
 
         await menuFrame.locator(
             'tr[id="/system/gateway/devicesList.seam"]'
         ).click();
 
-        await page.waitForTimeout(5000);
-
         // DISPOSITIVOS
 
-        const devicesFrame = page.frames().find(frame =>
-            frame.url().includes('/system/gateway/devicesList.seam')
+        const devicesFrame = await waitForFrame(
+            page,
+            '/system/gateway/devicesList.seam'
         );
 
-        await devicesFrame.locator(
+        const findButton = devicesFrame.locator(
             'table[onclick="find()"]'
-        ).click();
+        );
+
+        await findButton.waitFor({ state: 'visible' });
+
+        await findButton.click();
 
         console.log('Pesquisa executada.');
 
-        await page.waitForTimeout(5000);
+        const excelButton = devicesFrame.getByText('Excel');
 
-        await devicesFrame.getByText('Excel')
-            .click();
+        await excelButton.waitFor({ state: 'visible' });
+
+        await excelButton.click();
 
         console.log('Excel solicitado.');
 
         // IMPRESSÃO
 
-        const topFrame = page.frames().find(frame =>
-            frame.url().includes('/system/layout/top.seam')
+        const topFrame = await waitForFrame(
+            page,
+            '/system/layout/top.seam'
         );
 
         await topFrame.locator(
@@ -118,17 +113,10 @@ async function downloadFile(url, destination) {
             '#occurrence_priority_text'
         ).click();
 
-        await page.waitForTimeout(5000);
-
-        const impressaoFrame = page.frames().find(frame =>
-            frame.url().includes('/system/security/impressaoList.seam')
+        const impressaoFrame = await waitForFrame(
+            page,
+            '/system/security/impressaoList.seam'
         );
-
-        if (!impressaoFrame) {
-            throw new Error(
-                'Frame impressaoList.seam não encontrado.'
-            );
-        }
 
         console.log('Frame impressão encontrado.');
 
@@ -197,7 +185,7 @@ async function downloadFile(url, destination) {
         const tempPath =
             'C:/FusionData/etl/temp';
 
-        await fse.ensureDir(tempPath);
+        await fse.emptyDir(tempPath);
 
         const zip = new AdmZip(destination);
 
@@ -274,8 +262,6 @@ async function downloadFile(url, destination) {
 
         console.log('Botão excluir clicado.');
 
-        await page.waitForTimeout(5000);
-
     } catch (error) {
 
         console.error('');
@@ -284,7 +270,17 @@ async function downloadFile(url, destination) {
         console.error('====================================');
         console.error(error);
 
-        await page.waitForTimeout(30000);
+        await browser.close();
+
+        throw error;
     }
 
-})();
+    await browser.close();
+
+}
+
+module.exports = { run };
+
+if (require.main === module) {
+    run();
+}

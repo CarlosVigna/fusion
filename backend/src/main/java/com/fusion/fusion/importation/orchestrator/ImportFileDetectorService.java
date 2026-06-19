@@ -29,7 +29,9 @@ public class ImportFileDetectorService {
 
         }
 
-        if (fileName.contains("DEVICE")) {
+        if (fileName.contains("DEVICE")
+                || (fileName.contains("DISPOSITIVO")
+                        && !fileName.contains("VINCULO"))) {
 
             return ImportExecutionContext.builder()
                     .file(file)
@@ -42,7 +44,8 @@ public class ImportFileDetectorService {
 
         }
 
-        if (fileName.contains("LINK")) {
+        if (fileName.contains("LINK")
+                || fileName.contains("VINCULO")) {
 
             return ImportExecutionContext.builder()
                     .file(file)
@@ -55,7 +58,8 @@ public class ImportFileDetectorService {
 
         }
 
-        if (fileName.contains("OPER")) {
+        if (fileName.contains("OPER")
+                || fileName.contains("ULTIMA_POSICAO")) {
 
             return ImportExecutionContext.builder()
                     .file(file)

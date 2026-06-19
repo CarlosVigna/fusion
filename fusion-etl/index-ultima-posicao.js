@@ -5,8 +5,9 @@ const path = require('path');
 const { chromium } = require('playwright');
 const AdmZip = require('adm-zip');
 const fse = require('fs-extra');
+const { loginMultiportal, waitForFrame } = require('./multiportal-auth');
 
-(async () => {
+async function run() {
 
     const browser = await chromium.launch({
         headless: false,
@@ -27,37 +28,16 @@ const fse = require('fs-extra');
 
         // LOGIN
 
-        await page.goto(
-            'https://usebens.1gps.com.br/apps/login.seam',
-            {
-                waitUntil: 'domcontentloaded'
-            }
-        );
-
-        await page.locator('#myForm\\:username')
-            .fill(process.env.MULTIPORTAL_USER);
-
-        await page.locator('#myForm\\:password')
-            .fill(process.env.MULTIPORTAL_PASSWORD);
-
-        await page.locator('#myForm\\:loginBtn')
-            .click();
-
-        await page.waitForTimeout(5000);
+        await loginMultiportal(page);
 
         console.log('Login realizado.');
 
         // MENU
 
-        const menuFrame = page.frames().find(frame =>
-            frame.url().includes('/system/layout/menu.seam')
+        const menuFrame = await waitForFrame(
+            page,
+            '/system/layout/menu.seam'
         );
-
-        if (!menuFrame) {
-            throw new Error(
-                'Frame menu.seam não encontrado.'
-            );
-        }
 
         console.log('Abrindo Rastreamentos...');
 
@@ -65,7 +45,9 @@ const fse = require('fs-extra');
             'table[onclick="openMenu(1)"]'
         ).click();
 
-        await page.waitForTimeout(3000);
+        await menuFrame.locator(
+            'tr[id="/system/track/lastPositionCarSave.seam"]'
+        ).waitFor({ state: 'visible' });
 
         console.log('Abrindo Ultima Posicao...');
 
@@ -73,21 +55,12 @@ const fse = require('fs-extra');
             'tr[id="/system/track/lastPositionCarSave.seam"]'
         ).click();
 
-        await page.waitForTimeout(5000);
-
         // FRAME
 
-        const ultimaPosicaoFrame = page.frames().find(frame =>
-            frame.url().includes(
-                '/system/track/lastPositionCarSave.seam'
-            )
+        const ultimaPosicaoFrame = await waitForFrame(
+            page,
+            '/system/track/lastPositionCarSave.seam'
         );
-
-        if (!ultimaPosicaoFrame) {
-            throw new Error(
-                'Frame lastPositionCarSave.seam não encontrado.'
-            );
-        }
 
         console.log('Frame encontrado.');
 
@@ -103,7 +76,10 @@ const fse = require('fs-extra');
                 .click();
         });
 
-        await page.waitForTimeout(5000);
+        await ultimaPosicaoFrame.getByText(
+            'Excel',
+            { exact: true }
+        ).waitFor({ state: 'visible' });
 
         console.log('Pesquisa executada.');
 
@@ -224,8 +200,6 @@ const fse = require('fs-extra');
 
         console.log(targetFile);
 
-        await page.waitForTimeout(5000);
-
     } catch (error) {
 
         console.error('');
@@ -234,9 +208,17 @@ const fse = require('fs-extra');
         console.error('====================================');
         console.error(error);
 
-        await page.waitForTimeout(30000);
+        await browser.close();
+
+        throw error;
     }
 
     await browser.close();
 
-})();
+}
+
+module.exports = { run };
+
+if (require.main === module) {
+    run();
+}
