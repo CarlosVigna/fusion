@@ -2,6 +2,7 @@ package com.fusion.fusion.vehicle.multiportal.operational;
 
 import com.fusion.fusion.importation.ImportHistoryService;
 import com.fusion.fusion.importation.ImportType;
+import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -44,7 +45,7 @@ public class MultiportalOperationalService {
                 operationalVehicles) {
 
             String plate =
-                    normalizePlate(operational.getPlate());
+                    PlateNormalizer.normalize(operational.getPlate());
 
             if (!PlateValidator.isValidPlate(plate)) {
                 continue;
@@ -137,16 +138,6 @@ public class MultiportalOperationalService {
                 notFound.size(),
                 notFound
         );
-
-    }
-
-    private String normalizePlate(String plate) {
-
-        return plate
-                .replace("-", "")
-                .replace(" ", "")
-                .trim()
-                .toUpperCase();
 
     }
 

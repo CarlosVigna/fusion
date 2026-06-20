@@ -170,6 +170,8 @@ export default function Grid() {
 
     loadGrid,
 
+    lastLoadedAt,
+
     prependRealtimeEvent,
 
   } = useGridStore();
@@ -179,9 +181,6 @@ export default function Grid() {
 
   const [status, setStatus] =
     useState("");
-
-  const [lastUpdate, setLastUpdate] =
-    useState(null);
 
   const [columnFilters, setColumnFilters] =
     useState({
@@ -340,9 +339,32 @@ export default function Grid() {
 
   }
 
+  const didMountRef = useRef(false);
+
   useEffect(() => {
 
+    // Primeira montagem: só recarrega da API se o cache estiver vazio
+    // ou tiver mais de 30 minutos — navegar entre páginas e voltar
+    // para o Grid não deve disparar uma nova requisição.
+    // Mudança de filtro (status) depois disso recarrega normalmente.
+    if (!didMountRef.current) {
+
+      didMountRef.current = true;
+
+      useGridStore.getState().loadGridIfStale({
+        plate,
+        status,
+      });
+
+      return;
+
+    }
+
     loadOperationalGrid();
+
+  }, [status]);
+
+  useEffect(() => {
 
     // Eventos de alerta só atualizam o indicador "LIVE" da linha
     // (client-side, sem custo). O grid em si só recarrega na carga
@@ -378,7 +400,7 @@ export default function Grid() {
 
     };
 
-  }, [status]);
+  }, []);
 
   async function loadOperationalGrid(
     customPlate
@@ -394,10 +416,6 @@ export default function Grid() {
         status,
 
       });
-
-      setLastUpdate(
-        new Date().toLocaleTimeString()
-      );
 
     } catch (error) {
 
@@ -698,7 +716,9 @@ export default function Grid() {
             </p>
 
             <p className="text-lg font-semibold">
-              {lastUpdate || "--"}
+              {lastLoadedAt
+                ? new Date(lastLoadedAt).toLocaleTimeString()
+                : "--"}
             </p>
 
           </div>

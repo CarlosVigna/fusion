@@ -8,8 +8,13 @@ import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
+import com.fusion.fusion.pendingchange.PendingChangeService;
+import com.fusion.fusion.vehicle.PlateNormalizer;
+import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
+import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
+import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
@@ -19,13 +24,19 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 @Service
 @RequiredArgsConstructor
 public class DeviceImportService {
 
+    private static final String SOURCE_IMPORT = "DEVICE";
+
     private final DeviceRepository deviceRepository;
     private final VehicleRepository vehicleRepository;
+    private final DeviceLinkageRepository linkageRepository;
+    private final PendingChangeService pendingChangeService;
 
     private final ImportFileManagerService fileManagerService;
     private final ImportBackupService backupService;
@@ -72,15 +83,20 @@ public class DeviceImportService {
                     continue;
                 }
 
-                String imei =
-                        getCellValue(row.getCell(12));
+                // numberStr é o identificador do dispositivo nesta planilha
+                // (é o que a planilha de Vínculo usa para casar com o Device).
+                // IMEI costuma vir vazio e não pode mais bloquear a criação.
+                String numberStr =
+                        getCellValue(row.getCell(1));
 
-                if (imei == null || imei.isBlank()) {
+                if (numberStr == null || numberStr.isBlank()) {
                     continue;
                 }
 
                 Optional<Device> optionalDevice =
-                        deviceRepository.findByImei(imei);
+                        deviceRepository.findByNumberStr(numberStr);
+
+                boolean isNewDevice = optionalDevice.isEmpty();
 
                 Device device;
 
@@ -91,7 +107,7 @@ public class DeviceImportService {
                 } else {
 
                     device = Device.builder()
-                            .imei(imei)
+                            .numberStr(numberStr)
                             .build();
 
                     imported++;
@@ -99,41 +115,68 @@ public class DeviceImportService {
                 }
 
                 String plate =
-                        normalizePlate(
+                        PlateNormalizer.normalize(
                                 getCellValue(row.getCell(4))
                         );
 
-                Optional<Vehicle> optionalVehicle =
-                        vehicleRepository.findByPlate(plate);
+                boolean hasValidPlate =
+                        plate != null
+                                && !plate.isBlank()
+                                && PlateValidator.isValidPlate(plate);
 
-                optionalVehicle.ifPresent(device::setVehicle);
+                String imei =
+                        getCellValue(row.getCell(12));
 
-                if (optionalVehicle.isPresent()) {
-                    linked++;
+                if (imei != null && !imei.isBlank()) {
+                    device.setImei(imei);
                 }
 
                 device.setNumber(
                         getCellValue(row.getCell(0))
                 );
 
-                device.setNumberStr(
-                        getCellValue(row.getCell(1))
+                // Em dispositivo já existente e vinculado a um veículo,
+                // mudanças nesses campos vão para aprovação em vez de
+                // serem aplicadas direto. Em dispositivo novo (ou ainda
+                // sem veículo conhecido) aplica-se direto — é cadastro,
+                // não "mudança".
+                boolean requiresApproval =
+                        !isNewDevice && hasValidPlate;
+
+                applySensitiveField(
+                        device::getOperator,
+                        device::setOperator,
+                        getCellValue(row.getCell(7)),
+                        plate,
+                        "operator",
+                        requiresApproval
                 );
 
-                device.setOperator(
-                        getCellValue(row.getCell(7))
+                applySensitiveField(
+                        device::getLineNumber,
+                        device::setLineNumber,
+                        getCellValue(row.getCell(8)),
+                        plate,
+                        "lineNumber",
+                        requiresApproval
                 );
 
-                device.setLineNumber(
-                        getCellValue(row.getCell(8))
+                applySensitiveField(
+                        device::getManufacturer,
+                        device::setManufacturer,
+                        getCellValue(row.getCell(14)),
+                        plate,
+                        "manufacturer",
+                        requiresApproval
                 );
 
-                device.setManufacturer(
-                        getCellValue(row.getCell(14))
-                );
-
-                device.setModel(
-                        getCellValue(row.getCell(15))
+                applySensitiveField(
+                        device::getModel,
+                        device::setModel,
+                        getCellValue(row.getCell(15)),
+                        plate,
+                        "model",
+                        requiresApproval
                 );
 
                 device.setActive(
@@ -143,6 +186,45 @@ public class DeviceImportService {
                 );
 
                 deviceRepository.save(device);
+
+                if (hasValidPlate) {
+
+                    Optional<Vehicle> optionalVehicle =
+                            vehicleRepository.findByPlate(plate);
+
+                    if (optionalVehicle.isPresent()) {
+
+                        Vehicle vehicle = optionalVehicle.get();
+
+                        device.setVehicle(vehicle);
+
+                        deviceRepository.save(device);
+
+                        linked++;
+
+                        if (linkageRepository
+                                .findByVehicleAndDeviceAndActiveTrue(
+                                        vehicle,
+                                        device
+                                ).isEmpty()) {
+
+                            DeviceLinkage linkage =
+                                    DeviceLinkage.builder()
+                                            .vehicle(vehicle)
+                                            .device(device)
+                                            .manufacturer(
+                                                    device.getManufacturer()
+                                            )
+                                            .active(true)
+                                            .build();
+
+                            linkageRepository.save(linkage);
+
+                        }
+
+                    }
+
+                }
 
             }
 
@@ -192,6 +274,34 @@ public class DeviceImportService {
 
     }
 
+    private void applySensitiveField(
+            Supplier<String> getter,
+            Consumer<String> setter,
+            String newValue,
+            String plate,
+            String fieldName,
+            boolean requiresApproval
+    ) {
+
+        String currentValue = getter.get();
+
+        if (requiresApproval
+                && pendingChangeService.detect(
+                        plate,
+                        fieldName,
+                        currentValue,
+                        newValue,
+                        SOURCE_IMPORT
+                )) {
+
+            return; // mudança pendente registrada, mantém o valor atual
+
+        }
+
+        setter.accept(newValue);
+
+    }
+
     private int findHeaderRow(Sheet sheet, String expectedFirstColumn) {
 
         for (int i = 0; i <= sheet.getLastRowNum(); i++) {
@@ -237,20 +347,6 @@ public class DeviceImportService {
             default -> null;
 
         };
-
-    }
-
-    private String normalizePlate(String plate) {
-
-        if (plate == null) {
-            return null;
-        }
-
-        return plate
-                .replace("-", "")
-                .replace(" ", "")
-                .trim()
-                .toUpperCase();
 
     }
 

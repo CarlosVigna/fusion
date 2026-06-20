@@ -1,5 +1,6 @@
 package com.fusion.fusion.vehicle.multiportal.operational;
 
+import com.fusion.fusion.vehicle.PlateNormalizer;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -27,9 +28,10 @@ public class OperationalParserService {
 
         for (int i = 0; i < lines.length; i++) {
 
-            String line = lines[i]
-                    .trim()
-                    .replace("\t", "");
+            String line =
+                    PlateNormalizer.normalize(
+                            lines[i].replace("\t", "")
+                    );
 
             if (!PLATE_PATTERN.matcher(line).matches()) {
                 continue;
@@ -91,7 +93,9 @@ public class OperationalParserService {
 
             // chegou em outro bloco sem achar o cabeçalho do segurado
             if (PLATE_PATTERN.matcher(
-                    line.replace("\t", "")
+                    PlateNormalizer.normalize(
+                            line.replace("\t", "")
+                    )
             ).matches()) {
                 return null;
             }

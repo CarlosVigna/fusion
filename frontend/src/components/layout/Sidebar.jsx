@@ -34,7 +34,7 @@ const items = [
         path: "/vehicles",
     },
     {
-        label: "Auditoria",
+        label: "Monitoramento",
         icon: ShieldCheck,
         path: "/audit",
     },

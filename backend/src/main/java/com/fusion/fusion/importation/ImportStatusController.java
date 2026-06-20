@@ -7,9 +7,15 @@ import com.fusion.fusion.vehicle.multiportal.operational.OperationalUpdateRespon
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
@@ -24,6 +30,14 @@ public class ImportStatusController {
     private final ImportOrchestratorService orchestratorService;
 
     private final MultiportalOperationalService operationalService;
+
+    @Value("${fusion.etl.server-url}")
+    private String etlServerUrl;
+
+    private static final HttpClient HTTP_CLIENT =
+            HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
 
     @GetMapping("/last-sync")
     public LastSyncResponse lastSync(
@@ -55,13 +69,11 @@ public class ImportStatusController {
             @RequestParam(required = false) ImportType type
     ) {
 
-        // Reprocessa imediatamente qualquer arquivo já presente em
-        // imports/pending, em vez de esperar o próximo ciclo agendado.
-        // Acionar o scraper Playwright diretamente a partir do backend
-        // fica para uma integração futura.
         new Thread(() -> {
 
             try {
+
+                triggerScrapeIfApplicable(type);
 
                 orchestratorService.execute();
 
@@ -77,6 +89,56 @@ public class ImportStatusController {
                 "status", "ACCEPTED",
                 "message", "Reprocessamento de imports/pending iniciado"
         );
+
+    }
+
+    private void triggerScrapeIfApplicable(ImportType type) {
+
+        if (type == null) {
+            return; // reprocessa só o que já está em pending/
+        }
+
+        String scrapeEndpoint = switch (type) {
+            case MULTIPORTAL_DEVICE -> "/scrape/device";
+            case MULTIPORTAL_LINKAGE -> "/scrape/linkage";
+            case MULTIPORTAL_OPERATIONAL -> "/scrape/operational";
+            default -> null;
+        };
+
+        if (scrapeEndpoint == null) {
+            return; // sem type, ou TRACKNME: só reprocessa pending/
+        }
+
+        try {
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(etlServerUrl + scrapeEndpoint))
+                    .timeout(Duration.ofSeconds(120))
+                    .POST(HttpRequest.BodyPublishers.noBody())
+                    .build();
+
+            HttpResponse<String> response = HTTP_CLIENT.send(
+                    request,
+                    HttpResponse.BodyHandlers.ofString()
+            );
+
+            log.info(
+                    "Scraper ETL ({}) respondeu {}: {}",
+                    type,
+                    response.statusCode(),
+                    response.body()
+            );
+
+        } catch (Exception e) {
+
+            log.error(
+                    "Não foi possível acionar o scraper ETL para {} — "
+                            + "seguindo apenas com reprocessamento de imports/pending",
+                    type,
+                    e
+            );
+
+        }
 
     }
 

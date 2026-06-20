@@ -8,6 +8,8 @@ import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
+import com.fusion.fusion.pendingchange.PendingChangeService;
+import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehiclePlatform;
@@ -30,9 +32,12 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class LinkageImportService {
 
+    private static final String SOURCE_IMPORT = "LINKAGE";
+
     private final DeviceLinkageRepository repository;
     private final VehicleRepository vehicleRepository;
     private final DeviceRepository deviceRepository;
+    private final PendingChangeService pendingChangeService;
 
     private final ImportFileManagerService fileManagerService;
     private final ImportBackupService backupService;
@@ -84,7 +89,7 @@ public class LinkageImportService {
                 }
 
                 String plate =
-                        normalizePlate(
+                        PlateNormalizer.normalize(
                                 getCellValue(row.getCell(2))
                         );
 
@@ -118,14 +123,7 @@ public class LinkageImportService {
                         getCellValue(row.getCell(5));
 
                 Optional<Device> optionalDevice =
-                        deviceRepository.findAll()
-                                .stream()
-                                .filter(device ->
-                                        numberStr.equals(
-                                                device.getNumberStr()
-                                        )
-                                )
-                                .findFirst();
+                        deviceRepository.findByNumberStr(numberStr);
 
                 if (optionalDevice.isEmpty()) {
                     continue;
@@ -133,12 +131,28 @@ public class LinkageImportService {
 
                 Device device = optionalDevice.get();
 
-                if (repository.findByVehicleAndDeviceAndActiveTrue(
-                        vehicle,
-                        device
-                ).isPresent()) {
+                Optional<DeviceLinkage> currentActiveLinkage =
+                        repository.findByVehicleAndActiveTrue(vehicle);
 
-                    continue; // vínculo ativo já registrado
+                if (currentActiveLinkage.isPresent()
+                        && !currentActiveLinkage.get()
+                                .getDevice()
+                                .getId()
+                                .equals(device.getId())) {
+
+                    // veículo já tem outro dispositivo ativo — troca de
+                    // dispositivo precisa de aprovação, não troca direto
+                    pendingChangeService.detect(
+                            plate,
+                            "dispositivo",
+                            currentActiveLinkage.get()
+                                    .getDevice()
+                                    .getNumberStr(),
+                            device.getNumberStr(),
+                            SOURCE_IMPORT
+                    );
+
+                    continue;
 
                 }
 
@@ -146,36 +160,39 @@ public class LinkageImportService {
 
                 deviceRepository.save(device);
 
-                active++;
+                Optional<DeviceLinkage> existingLinkage =
+                        repository.findByVehicleAndDeviceAndActiveTrue(
+                                vehicle,
+                                device
+                        );
 
                 DeviceLinkage linkage =
-                        DeviceLinkage.builder()
-                                .vehicle(vehicle)
-                                .device(device)
-                                .manufacturer(
-                                        getCellValue(
-                                                row.getCell(6)
-                                        )
-                                )
-                                .active(true)
-                                .startAt(
-                                        parseDate(
-                                                getCellValue(
-                                                        row.getCell(0)
-                                                )
-                                        )
-                                )
-                                .endAt(
-                                        parseDate(
-                                                getCellValue(
-                                                        row.getCell(1)
-                                                )
-                                        )
-                                )
-                                .build();
+                        existingLinkage.orElseGet(() ->
+                                DeviceLinkage.builder()
+                                        .vehicle(vehicle)
+                                        .device(device)
+                                        .active(true)
+                                        .build()
+                        );
+
+                // Já pode existir um vínculo criado pelo import de
+                // Dispositivos (sem datas) — aqui completamos/atualizamos
+                // as datas reais, sem nunca duplicar o registro.
+                linkage.setManufacturer(
+                        getCellValue(row.getCell(6))
+                );
+
+                linkage.setStartAt(
+                        parseDate(getCellValue(row.getCell(0)))
+                );
+
+                linkage.setEndAt(
+                        parseDate(getCellValue(row.getCell(1)))
+                );
 
                 repository.save(linkage);
 
+                active++;
                 imported++;
 
             }
@@ -288,18 +305,5 @@ public class LinkageImportService {
 
     }
 
-    private String normalizePlate(String plate) {
-
-        if (plate == null) {
-            return null;
-        }
-
-        return plate
-                .replace("-", "")
-                .replace(" ", "")
-                .trim()
-                .toUpperCase();
-
-    }
 
 }

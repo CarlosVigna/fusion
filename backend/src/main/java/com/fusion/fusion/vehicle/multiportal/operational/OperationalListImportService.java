@@ -8,6 +8,7 @@ import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
+import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -85,7 +86,7 @@ public class OperationalListImportService {
                 }
 
                 String plate =
-                        normalizePlate(
+                        PlateNormalizer.normalize(
                                 getCellValue(row.getCell(0))
                         );
 
@@ -315,20 +316,6 @@ public class OperationalListImportService {
             default -> null;
 
         };
-
-    }
-
-    private String normalizePlate(String plate) {
-
-        if (plate == null) {
-            return null;
-        }
-
-        return plate
-                .replace("-", "")
-                .replace(" ", "")
-                .trim()
-                .toUpperCase();
 
     }
 

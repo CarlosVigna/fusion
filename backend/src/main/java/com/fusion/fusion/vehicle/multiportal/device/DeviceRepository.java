@@ -10,4 +10,6 @@ public interface DeviceRepository
 
     Optional<Device> findByImei(String imei);
 
+    Optional<Device> findByNumberStr(String numberStr);
+
 }

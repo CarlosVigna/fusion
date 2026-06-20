@@ -11,6 +11,8 @@ export const useGridStore =
 
     loading: false,
 
+    lastLoadedAt: null,
+
     async loadGrid(
       filters = {}
     ) {
@@ -29,6 +31,7 @@ export const useGridStore =
         set({
           vehicles: data,
           loading: false,
+          lastLoadedAt: Date.now(),
         });
 
       } catch (error) {
@@ -40,6 +43,26 @@ export const useGridStore =
         });
 
       }
+
+    },
+
+    loadGridIfStale(
+      filters = {},
+      maxAgeMs = 30 * 60 * 1000
+    ) {
+
+      const { lastLoadedAt, loadGrid } =
+        useGridStore.getState();
+
+      const isStale =
+        !lastLoadedAt ||
+        Date.now() - lastLoadedAt > maxAgeMs;
+
+      if (isStale) {
+        return loadGrid(filters);
+      }
+
+      return Promise.resolve();
 
     },
 
