@@ -19,6 +19,8 @@ import OperationalFlags from "../components/ui/OperationalFlags";
 
 import SyncStatusPanel from "../components/operational/SyncStatusPanel";
 
+import { formatDelay } from "../utils/formatDelay";
+
 const rowStyles = {
   ONLINE:
     "hover:bg-green-500/5",
@@ -184,7 +186,6 @@ export default function Grid() {
 
   const [columnFilters, setColumnFilters] =
     useState({
-      plate: "",
       insuredName: "",
       status: "",
       operator: "",
@@ -265,12 +266,6 @@ export default function Grid() {
 
     return vehicles.filter((vehicle) => {
 
-      const matchesPlate =
-        !columnFilters.plate ||
-        vehicle.plate
-          ?.toLowerCase()
-          .includes(columnFilters.plate.toLowerCase());
-
       const matchesInsuredName =
         !columnFilters.insuredName ||
         vehicle.insuredName
@@ -288,7 +283,6 @@ export default function Grid() {
           .includes(columnFilters.operator.toLowerCase());
 
       return (
-        matchesPlate &&
         matchesInsuredName &&
         matchesStatus &&
         matchesOperator
@@ -513,9 +507,17 @@ export default function Grid() {
           : "--";
 
       case "signalDelayMinutes":
-        return vehicle.signalDelayMinutes != null
-          ? `${vehicle.signalDelayMinutes} min`
-          : "--";
+        return (
+          <span
+            title={
+              vehicle.signalDelayMinutes != null
+                ? `${vehicle.signalDelayMinutes} min`
+                : undefined
+            }
+          >
+            {formatDelay(vehicle.signalDelayMinutes)}
+          </span>
+        );
 
       case "realtime":
         return (
@@ -568,7 +570,6 @@ export default function Grid() {
     }
 
     if (
-      col.key === "plate" ||
       col.key === "insuredName" ||
       col.key === "operator"
     ) {
@@ -682,7 +683,10 @@ export default function Grid() {
 
       </form>
 
-      <SyncStatusPanel onSynced={loadOperationalGrid} />
+      <SyncStatusPanel
+        onSynced={loadOperationalGrid}
+        showStatusText={false}
+      />
 
       <div
         className="

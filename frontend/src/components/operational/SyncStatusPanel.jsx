@@ -66,7 +66,7 @@ function computeStatus(lastSync) {
 
 }
 
-export default function SyncStatusPanel({ onSynced }) {
+export default function SyncStatusPanel({ onSynced, showStatusText = true }) {
 
   const [lastSync, setLastSync] =
     useState(null);
@@ -148,20 +148,28 @@ export default function SyncStatusPanel({ onSynced }) {
       "
     >
 
-      <div className="flex items-center gap-2 text-sm">
+      {showStatusText ? (
 
-        <span
-          className={`
-            h-2.5 w-2.5 rounded-full
-            ${status.color}
-          `}
-        />
+        <div className="flex items-center gap-2 text-sm">
 
-        <span className="text-zinc-300">
-          {status.text}
-        </span>
+          <span
+            className={`
+              h-2.5 w-2.5 rounded-full
+              ${status.color}
+            `}
+          />
 
-      </div>
+          <span className="text-zinc-300">
+            {status.text}
+          </span>
+
+        </div>
+
+      ) : (
+
+        <div />
+
+      )}
 
       <button
         onClick={handleTrigger}
