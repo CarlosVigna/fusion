@@ -3,6 +3,7 @@ package com.fusion.fusion.operational.snapshot;
 import com.fusion.fusion.operational.projection.VehicleOperationalProjection;
 import com.fusion.fusion.operational.projection.VehicleOperationalProjectionService;
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -22,16 +23,32 @@ public class OperationalSnapshotService {
             Vehicle vehicle
     ) {
 
+        refresh(
+                vehicle,
+                null,
+                repository.findByVehicle(vehicle)
+                        .orElse(null)
+        );
+
+    }
+
+    public void refresh(
+            Vehicle vehicle,
+            VehicleOperationalState state,
+            OperationalSnapshot existingSnapshot
+    ) {
+
         VehicleOperationalProjection projection =
-                projectionService.build(vehicle);
+                state != null
+                        ? projectionService.build(vehicle, state)
+                        : projectionService.build(vehicle);
 
         OperationalSnapshot snapshot =
-                repository.findByVehicle(vehicle)
-                        .orElse(
-                                OperationalSnapshot.builder()
-                                        .vehicle(vehicle)
-                                        .build()
-                        );
+                existingSnapshot != null
+                        ? existingSnapshot
+                        : OperationalSnapshot.builder()
+                                .vehicle(vehicle)
+                                .build();
 
         snapshot.setOnline(
                 projection.getOnline()

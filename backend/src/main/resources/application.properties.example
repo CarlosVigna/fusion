@@ -8,6 +8,10 @@ spring.jpa.hibernate.ddl-auto=update
 spring.jpa.show-sql=true
 spring.jpa.properties.hibernate.format_sql=true
 
+spring.jpa.properties.hibernate.jdbc.batch_size=50
+spring.jpa.properties.hibernate.order_updates=true
+spring.jpa.properties.hibernate.order_inserts=true
+
 jwt.secret=${JWT_SECRET}
 jwt.expiration=86400000
 
@@ -20,6 +24,12 @@ fusion.operational.stale-update-hours=6
 fusion.operational.low-battery-level=20
 
 fusion.etl.server-url=${ETL_SERVER_URL:http://localhost:3001}
+
+spring.task.scheduling.pool.size=3
+
+spring.datasource.hikari.keepalive-time=120000
+spring.datasource.hikari.minimum-idle=3
+spring.datasource.hikari.maximum-pool-size=10
 
 # Set DB_URL, DB_USERNAME, DB_PASSWORD and JWT_SECRET in backend/.env
 # (see backend/.env, which is gitignored and not committed)

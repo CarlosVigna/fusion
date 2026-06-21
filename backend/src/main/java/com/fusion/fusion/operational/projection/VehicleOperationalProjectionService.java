@@ -28,10 +28,19 @@ public class VehicleOperationalProjectionService {
             Vehicle vehicle
     ) {
 
-        VehicleOperationalState operational =
+        return build(
+                vehicle,
                 operationalRepository
                         .findByVehicle(vehicle)
-                        .orElse(null);
+                        .orElse(null)
+        );
+
+    }
+
+    public VehicleOperationalProjection build(
+            Vehicle vehicle,
+            VehicleOperationalState operational
+    ) {
 
         boolean staleUpdate = false;
 

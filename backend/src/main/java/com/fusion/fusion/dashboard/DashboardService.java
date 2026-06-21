@@ -20,64 +20,52 @@ public class DashboardService {
 
     public DashboardProjection build() {
 
-        long totalVehicles =
-                snapshotRepository.count();
+        // Uma unica passada sobre os snapshots em vez de 1 findAll() por
+        // metrica — eram 6 table scans completos da operational_snapshot
+        // a cada chamada, disparada toda vez que um alerta novo abre
+        // (ex.: motor operacional detectando um veiculo stale por
+        // primeira vez), travando a thread do motor.
+        var snapshots = snapshotRepository.findAll();
 
-        long onlineVehicles =
-                snapshotRepository.findAll()
-                        .stream()
-                        .filter(snapshot ->
-                                snapshot.getCommunicationStatus()
-                                        == CommunicationStatus.ONLINE
-                        )
-                        .count();
+        long totalVehicles = snapshots.size();
+        long onlineVehicles = 0;
+        long delayedVehicles = 0;
+        long noCommunicationVehicles = 0;
+        long maintenanceVehicles = 0;
+        long lowBatteryVehicles = 0;
+        long staleVehicles = 0;
 
-        long delayedVehicles =
-                snapshotRepository.findAll()
-                        .stream()
-                        .filter(snapshot ->
-                                snapshot.getCommunicationStatus()
-                                        == CommunicationStatus.DELAYED
-                        )
-                        .count();
+        for (var snapshot : snapshots) {
 
-        long noCommunicationVehicles =
-                snapshotRepository.findAll()
-                        .stream()
-                        .filter(snapshot ->
-                                snapshot.getCommunicationStatus()
-                                        == CommunicationStatus.NO_COMMUNICATION
-                        )
-                        .count();
+            if (snapshot.getCommunicationStatus()
+                    == CommunicationStatus.ONLINE) {
+                onlineVehicles++;
+            }
 
-        long maintenanceVehicles =
-                snapshotRepository.findAll()
-                        .stream()
-                        .filter(snapshot ->
-                                snapshot.getOperationalStatus()
-                                        == OperationalStatus.MAINTENANCE
-                        )
-                        .count();
+            if (snapshot.getCommunicationStatus()
+                    == CommunicationStatus.DELAYED) {
+                delayedVehicles++;
+            }
 
-        long lowBatteryVehicles =
-                snapshotRepository.findAll()
-                        .stream()
-                        .filter(snapshot ->
-                                Boolean.TRUE.equals(
-                                        snapshot.getLowBattery()
-                                )
-                        )
-                        .count();
+            if (snapshot.getCommunicationStatus()
+                    == CommunicationStatus.NO_COMMUNICATION) {
+                noCommunicationVehicles++;
+            }
 
-        long staleVehicles =
-                snapshotRepository.findAll()
-                        .stream()
-                        .filter(snapshot ->
-                                Boolean.TRUE.equals(
-                                        snapshot.getStaleUpdate()
-                                )
-                        )
-                        .count();
+            if (snapshot.getOperationalStatus()
+                    == OperationalStatus.MAINTENANCE) {
+                maintenanceVehicles++;
+            }
+
+            if (Boolean.TRUE.equals(snapshot.getLowBattery())) {
+                lowBatteryVehicles++;
+            }
+
+            if (Boolean.TRUE.equals(snapshot.getStaleUpdate())) {
+                staleVehicles++;
+            }
+
+        }
 
         long openAlerts =
                 alertRepository.findAll()

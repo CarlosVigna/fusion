@@ -9,8 +9,10 @@ import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
+import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -25,34 +27,62 @@ public class VehicleGridService {
 
     public List<GridVehicleResponse> getGrid() {
 
-        return vehicleRepository.findAll()
+        List<Vehicle> vehicles = vehicleRepository.findAll()
                 .stream()
                 .filter(vehicle ->
                         vehicle.getDeletedAt() == null
                 )
-                .map(this::buildGridResponse)
+                .toList();
+
+        // Pre-carrega tudo de uma vez em vez de 2 queries por veículo
+        // (era o N+1 que fazia /vehicles/grid demorar ~20s para 245+
+        // veículos).
+        Map<UUID, OperationalSnapshot> snapshotsByVehicleId =
+                new HashMap<>();
+
+        for (OperationalSnapshot snapshot : snapshotRepository.findAll()) {
+
+            if (snapshot.getVehicle() != null) {
+                snapshotsByVehicleId.put(
+                        snapshot.getVehicle().getId(),
+                        snapshot
+                );
+            }
+
+        }
+
+        Map<UUID, DeviceLinkage> activeLinkageByVehicleId =
+                new HashMap<>();
+
+        for (DeviceLinkage linkage : linkageRepository.findAll()) {
+
+            if (Boolean.TRUE.equals(linkage.getActive())
+                    && linkage.getVehicle() != null) {
+
+                activeLinkageByVehicleId.putIfAbsent(
+                        linkage.getVehicle().getId(),
+                        linkage
+                );
+
+            }
+
+        }
+
+        return vehicles.stream()
+                .map(vehicle -> buildGridResponse(
+                        vehicle,
+                        snapshotsByVehicleId.get(vehicle.getId()),
+                        activeLinkageByVehicleId.get(vehicle.getId())
+                ))
                 .toList();
 
     }
 
     private GridVehicleResponse buildGridResponse(
-            Vehicle vehicle
+            Vehicle vehicle,
+            OperationalSnapshot snapshot,
+            DeviceLinkage activeLinkage
     ) {
-
-        OperationalSnapshot snapshot =
-                snapshotRepository.findByVehicle(vehicle)
-                        .orElse(null);
-
-        Optional<DeviceLinkage> activeLinkage =
-                linkageRepository
-                        .findByVehicle(vehicle)
-                        .stream()
-                        .filter(linkage ->
-                                Boolean.TRUE.equals(
-                                        linkage.getActive()
-                                )
-                        )
-                        .findFirst();
 
         String activeDevice = null;
         String manufacturer = null;
@@ -60,34 +90,28 @@ public class VehicleGridService {
         String lineNumber = null;
         String operator = null;
 
-        if (activeLinkage.isPresent()) {
+        if (activeLinkage != null
+                && activeLinkage.getDevice() != null) {
 
-            DeviceLinkage linkage =
-                    activeLinkage.get();
+            activeDevice =
+                    activeLinkage.getDevice()
+                            .getNumberStr();
 
-            if (linkage.getDevice() != null) {
+            manufacturer =
+                    activeLinkage.getDevice()
+                            .getManufacturer();
 
-                activeDevice =
-                        linkage.getDevice()
-                                .getNumberStr();
+            model =
+                    activeLinkage.getDevice()
+                            .getModel();
 
-                manufacturer =
-                        linkage.getDevice()
-                                .getManufacturer();
+            lineNumber =
+                    activeLinkage.getDevice()
+                            .getLineNumber();
 
-                model =
-                        linkage.getDevice()
-                                .getModel();
-
-                lineNumber =
-                        linkage.getDevice()
-                                .getLineNumber();
-
-                operator =
-                        linkage.getDevice()
-                                .getOperator();
-
-            }
+            operator =
+                    activeLinkage.getDevice()
+                            .getOperator();
 
         }
 

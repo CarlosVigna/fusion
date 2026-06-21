@@ -10,11 +10,17 @@ import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
+import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotService;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -28,19 +34,53 @@ public class OperationalStateEngineService {
     private final OperationalSnapshotService
             snapshotService;
 
+    private final OperationalSnapshotRepository
+            snapshotRepository;
+
     private final OperationalRulesService
             rulesService;
 
+    // Sem isso, cada repository.save() (state, snapshot, alert, timeline,
+    // occurrence) abre/comita sua propria transacao — ~8 round trips de
+    // commit por veiculo so para o caminho de abrir um alerta novo. Cada
+    // commit para o Neon tem latencia de rede propria (confirmado via
+    // EXPLAIN ANALYZE: a query em si executa em <1ms — o tempo estava todo
+    // no overhead de commit, nao na query). Uma unica transacao para a
+    // passada inteira reduz isso a 1 commit no final.
+    @Transactional
     public void processAll() {
 
         List<VehicleOperationalState> states =
                 repository.findAll();
 
+        // Pre-carrega os snapshots de uma vez em vez de 1 findByVehicle
+        // por veiculo dentro do refresh() — era o N+1 que fazia uma
+        // unica passada do motor sobre ~260 veiculos levar mais de 1h.
+        Map<UUID, OperationalSnapshot> snapshotsByVehicleId =
+                new HashMap<>();
+
+        for (OperationalSnapshot snapshot :
+                snapshotRepository.findAll()) {
+
+            if (snapshot.getVehicle() != null) {
+                snapshotsByVehicleId.put(
+                        snapshot.getVehicle().getId(),
+                        snapshot
+                );
+            }
+
+        }
+
         for (VehicleOperationalState state : states) {
 
             try {
 
-                process(state);
+                process(
+                        state,
+                        snapshotsByVehicleId.get(
+                                state.getVehicle().getId()
+                        )
+                );
 
             } catch (Exception e) {
 
@@ -62,6 +102,15 @@ public class OperationalStateEngineService {
             VehicleOperationalState state
     ) {
 
+        process(state, null);
+
+    }
+
+    public void process(
+            VehicleOperationalState state,
+            OperationalSnapshot existingSnapshot
+    ) {
+
         CommunicationStatus previousStatus =
                 state.getCommunicationStatus();
 
@@ -80,7 +129,9 @@ public class OperationalStateEngineService {
 
         repository.save(state);
         snapshotService.refresh(
-                state.getVehicle()
+                state.getVehicle(),
+                state,
+                existingSnapshot
         );
 
         if (previousStatus != newStatus) {

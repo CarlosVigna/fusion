@@ -18,6 +18,7 @@ import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -25,9 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +43,7 @@ public class OperationalListImportService {
     private final ImportFileNamingService namingService;
     private final ImportHistoryService importHistoryService;
 
+    @Transactional
     public OperationalListImportResponse importFile(
             MultipartFile file
     ) {
@@ -77,6 +77,33 @@ public class OperationalListImportService {
 
             int headerRow = findHeaderRow(sheet);
 
+            // Carrega tudo de uma vez em memória em vez de uma query por
+            // linha (era o N+1 que fazia o import de ~260 linhas levar
+            // ~4 minutos e travar a thread única do scheduler).
+            Map<String, Vehicle> vehiclesByPlate = new HashMap<>();
+
+            for (Vehicle vehicle : vehicleRepository.findAll()) {
+                vehiclesByPlate.put(vehicle.getPlate(), vehicle);
+            }
+
+            Map<UUID, VehicleOperationalState> statesByVehicleId =
+                    new HashMap<>();
+
+            for (VehicleOperationalState state :
+                    operationalRepository.findAll()) {
+
+                if (state.getVehicle() != null) {
+                    statesByVehicleId.put(
+                            state.getVehicle().getId(),
+                            state
+                    );
+                }
+
+            }
+
+            List<Vehicle> vehiclesToSave = new ArrayList<>();
+            List<VehicleOperationalState> statesToSave = new ArrayList<>();
+
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
                 Row row = sheet.getRow(i);
@@ -94,18 +121,15 @@ public class OperationalListImportService {
                     continue;
                 }
 
-                Optional<Vehicle> optionalVehicle =
-                        vehicleRepository.findByPlate(plate);
+                Vehicle vehicle = vehiclesByPlate.get(plate);
 
-                if (optionalVehicle.isEmpty()) {
+                if (vehicle == null) {
 
                     notFound.add(plate);
 
                     continue;
 
                 }
-
-                Vehicle vehicle = optionalVehicle.get();
 
                 String insuredName =
                         getCellValue(row.getCell(11));
@@ -116,17 +140,22 @@ public class OperationalListImportService {
 
                     vehicle.setInsuredName(insuredName);
 
-                    vehicleRepository.save(vehicle);
+                    vehiclesToSave.add(vehicle);
 
                 }
 
                 VehicleOperationalState state =
-                        operationalRepository.findByVehicle(vehicle)
-                                .orElse(
-                                        VehicleOperationalState.builder()
-                                                .vehicle(vehicle)
-                                                .build()
-                                );
+                        statesByVehicleId.get(vehicle.getId());
+
+                if (state == null) {
+
+                    state = VehicleOperationalState.builder()
+                            .vehicle(vehicle)
+                            .build();
+
+                    statesByVehicleId.put(vehicle.getId(), state);
+
+                }
 
                 boolean online =
                         "Sim".equalsIgnoreCase(
@@ -169,13 +198,21 @@ public class OperationalListImportService {
 
                 state.setUpdatedAt(LocalDateTime.now());
 
-                operationalRepository.save(state);
+                statesToSave.add(state);
 
                 updated++;
 
             }
 
             workbook.close();
+
+            if (!vehiclesToSave.isEmpty()) {
+                vehicleRepository.saveAll(vehiclesToSave);
+            }
+
+            if (!statesToSave.isEmpty()) {
+                operationalRepository.saveAll(statesToSave);
+            }
 
             String backupName =
                     namingService.build(
