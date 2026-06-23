@@ -1,0 +1,112 @@
+package com.fusion.fusion.signalcontrol;
+
+import com.fusion.fusion.common.exception.ResourceNotFoundException;
+import com.fusion.fusion.common.security.CurrentUserService;
+import com.fusion.fusion.observation.VehicleObservation;
+import com.fusion.fusion.observation.VehicleObservationService;
+import com.fusion.fusion.vehicle.Vehicle;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+@RequiredArgsConstructor
+public class SignalReturnAlertService {
+
+    private final SignalReturnAlertRepository repository;
+
+    private final CurrentUserService currentUserService;
+
+    private final VehicleObservationService observationService;
+
+    public List<SignalReturnAlertResponse> findActive() {
+
+        Map<UUID, VehicleObservation> latestObsByVehicleId =
+                observationService.findLatestByVehicleId();
+
+        return repository.findByDismissedFalseOrderByDetectedAtDesc()
+                .stream()
+                .map(alert -> SignalReturnAlertResponse.from(
+                        alert,
+                        latestObsByVehicleId.get(
+                                alert.getVehicle().getId()
+                        )
+                ))
+                .toList();
+
+    }
+
+    @Transactional
+    public void create(
+            Vehicle vehicle,
+            Integer previousDelayMinutes
+    ) {
+
+        if (repository.findByVehicleAndDismissedFalse(vehicle)
+                .isPresent()) {
+
+            return; // já existe um alerta ativo para esse veículo
+
+        }
+
+        SignalReturnAlert alert = SignalReturnAlert.builder()
+                .vehicle(vehicle)
+                .previousDelayMinutes(previousDelayMinutes)
+                .build();
+
+        repository.save(alert);
+
+    }
+
+    @Transactional
+    public void dismiss(Long id) {
+
+        SignalReturnAlert alert = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Alerta não encontrado"
+                ));
+
+        alert.setDismissed(true);
+
+        alert.setDismissedAt(LocalDateTime.now());
+
+        alert.setDismissedBy(
+                currentUserService.getCurrentUserName()
+        );
+
+        repository.save(alert);
+
+    }
+
+    // Uma unica query em vez de 1 findByVehicleAndDismissedFalse por
+    // veiculo — usado pelo Controle de Sinais para sobrepor a etapa
+    // sugerida com SIGNAL_RETURNED quando ha alerta ativo.
+    public Map<UUID, SignalReturnAlert> findActiveByVehicleId() {
+
+        Map<UUID, SignalReturnAlert> result = new HashMap<>();
+
+        for (SignalReturnAlert alert :
+                repository.findByDismissedFalseOrderByDetectedAtDesc()) {
+
+            if (alert.getVehicle() != null) {
+
+                result.put(
+                        alert.getVehicle().getId(),
+                        alert
+                );
+
+            }
+
+        }
+
+        return result;
+
+    }
+
+}

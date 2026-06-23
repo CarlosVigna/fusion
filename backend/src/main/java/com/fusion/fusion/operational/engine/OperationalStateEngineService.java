@@ -1,9 +1,12 @@
 package com.fusion.fusion.operational.engine;
 
+import com.fusion.fusion.observation.VehicleObservation;
+import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.detector.LowBatteryDetector;
 import com.fusion.fusion.operational.detector.OperationalDetector;
 import com.fusion.fusion.operational.detector.StaleUpdateDetector;
 import com.fusion.fusion.operational.rules.OperationalRulesService;
+import com.fusion.fusion.signalcontrol.SignalReturnAlertService;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
@@ -40,6 +43,16 @@ public class OperationalStateEngineService {
     private final OperationalRulesService
             rulesService;
 
+    private final VehicleObservationService
+            observationService;
+
+    private final SignalReturnAlertService
+            signalReturnAlertService;
+
+    // Limiar (em minutos) usado para detectar "retorno de sinal":
+    // estava com mais de 48h de atraso e voltou para menos de 48h.
+    private static final int SIGNAL_RETURN_THRESHOLD_MINUTES = 2880;
+
     // Sem isso, cada repository.save() (state, snapshot, alert, timeline,
     // occurrence) abre/comita sua propria transacao — ~8 round trips de
     // commit por veiculo so para o caminho de abrir um alerta novo. Cada
@@ -71,6 +84,11 @@ public class OperationalStateEngineService {
 
         }
 
+        // Idem para as observações — usado só para checar se a última
+        // observação já é "#RESOLVIDO" antes de abrir alerta de retorno.
+        Map<UUID, VehicleObservation> latestObservationByVehicleId =
+                observationService.findLatestByVehicleId();
+
         for (VehicleOperationalState state : states) {
 
             try {
@@ -78,6 +96,9 @@ public class OperationalStateEngineService {
                 process(
                         state,
                         snapshotsByVehicleId.get(
+                                state.getVehicle().getId()
+                        ),
+                        latestObservationByVehicleId.get(
                                 state.getVehicle().getId()
                         )
                 );
@@ -102,14 +123,20 @@ public class OperationalStateEngineService {
             VehicleOperationalState state
     ) {
 
-        process(state, null);
+        process(state, null, null);
 
     }
 
     public void process(
             VehicleOperationalState state,
-            OperationalSnapshot existingSnapshot
+            OperationalSnapshot existingSnapshot,
+            VehicleObservation lastObservation
     ) {
+
+        Integer previousDelayMinutes =
+                existingSnapshot != null
+                        ? existingSnapshot.getSignalDelayMinutes()
+                        : null;
 
         CommunicationStatus previousStatus =
                 state.getCommunicationStatus();
@@ -142,6 +169,51 @@ public class OperationalStateEngineService {
 
         executeAdvancedDetectors(state);
 
+        detectSignalReturn(
+                state,
+                previousDelayMinutes,
+                lastObservation
+        );
+
+    }
+
+    // Sinal "ausente" (> 48h) e que agora voltou (< 48h) — alerta para o
+    // operador verificar se precisa retirar carta de suspensão e avisar
+    // o segurado. Não dispara se a última observação já é "#RESOLVIDO"
+    // (operador já encerrou o caso manualmente).
+    private void detectSignalReturn(
+            VehicleOperationalState state,
+            Integer previousDelayMinutes,
+            VehicleObservation lastObservation
+    ) {
+
+        boolean wasDelayed =
+                previousDelayMinutes != null
+                        && previousDelayMinutes > SIGNAL_RETURN_THRESHOLD_MINUTES;
+
+        boolean nowOk =
+                state.getSignalDelayMinutes() != null
+                        && state.getSignalDelayMinutes() < SIGNAL_RETURN_THRESHOLD_MINUTES;
+
+        if (!wasDelayed || !nowOk) {
+            return;
+        }
+
+        boolean alreadyResolved =
+                lastObservation != null
+                        && lastObservation.getText() != null
+                        && lastObservation.getText()
+                        .toUpperCase()
+                        .contains("#RESOLVIDO");
+
+        if (alreadyResolved) {
+            return;
+        }
+
+        signalReturnAlertService.create(
+                state.getVehicle(),
+                previousDelayMinutes
+        );
 
     }
 

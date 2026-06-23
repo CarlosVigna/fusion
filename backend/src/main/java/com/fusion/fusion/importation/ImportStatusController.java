@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
@@ -64,31 +65,31 @@ public class ImportStatusController {
     }
 
     @PostMapping("/trigger")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    public Map<String, String> trigger(
+    public ResponseEntity<Map<String, String>> trigger(
             @RequestParam(required = false) ImportType type
     ) {
 
-        new Thread(() -> {
+        try {
 
-            try {
+            triggerScrapeIfApplicable(type);
 
-                triggerScrapeIfApplicable(type);
+            orchestratorService.execute();
 
-                orchestratorService.execute();
+            return ResponseEntity.ok(Map.of(
+                    "status", "SUCCESS",
+                    "message", "Reprocessamento de imports/pending concluído"
+            ));
 
-            } catch (Exception e) {
+        } catch (Exception e) {
 
-                log.error("Erro ao reprocessar imports/pending", e);
+            log.error("Erro ao acionar scraper/reprocessar imports para {}", type, e);
 
-            }
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
+                    "status", "ERROR",
+                    "message", "Falha ao acionar o ETL: " + e.getMessage()
+            ));
 
-        }).start();
-
-        return Map.of(
-                "status", "ACCEPTED",
-                "message", "Reprocessamento de imports/pending iniciado"
-        );
+        }
 
     }
 
@@ -109,33 +110,41 @@ public class ImportStatusController {
             return; // sem type, ou TRACKNME: só reprocessa pending/
         }
 
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(etlServerUrl + scrapeEndpoint))
+                .timeout(Duration.ofSeconds(120))
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<String> response;
+
         try {
 
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(etlServerUrl + scrapeEndpoint))
-                    .timeout(Duration.ofSeconds(120))
-                    .POST(HttpRequest.BodyPublishers.noBody())
-                    .build();
-
-            HttpResponse<String> response = HTTP_CLIENT.send(
+            response = HTTP_CLIENT.send(
                     request,
                     HttpResponse.BodyHandlers.ofString()
             );
 
-            log.info(
-                    "Scraper ETL ({}) respondeu {}: {}",
-                    type,
-                    response.statusCode(),
-                    response.body()
-            );
-
         } catch (Exception e) {
 
-            log.error(
-                    "Não foi possível acionar o scraper ETL para {} — "
-                            + "seguindo apenas com reprocessamento de imports/pending",
-                    type,
+            throw new RuntimeException(
+                    "Não foi possível conectar ao ETL em " + etlServerUrl,
                     e
+            );
+
+        }
+
+        log.info(
+                "Scraper ETL ({}) respondeu {}: {}",
+                type,
+                response.statusCode(),
+                response.body()
+        );
+
+        if (response.statusCode() != 200) {
+
+            throw new RuntimeException(
+                    "Scraper ETL para " + type + " falhou: " + response.body()
             );
 
         }

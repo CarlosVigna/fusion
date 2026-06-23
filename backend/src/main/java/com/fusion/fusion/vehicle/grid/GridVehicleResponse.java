@@ -5,6 +5,7 @@ import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -48,7 +49,11 @@ public record GridVehicleResponse(
 
         Boolean staleUpdate,
 
-        Boolean lowBattery
+        Boolean lowBattery,
+
+        String lastObservationText,
+
+        LocalDateTime lastObservationAt
 
 ) {
 }

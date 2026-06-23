@@ -10,7 +10,7 @@ import {
   rejectChange,
 } from "../services/pendingChangeService";
 
-import { getOperationalGrid } from "../services/gridService";
+import { getNeverCommunicated } from "../services/signalControlService";
 
 const IMPORT_TYPE_LABELS = {
   MULTIPORTAL_DEVICE: "Dispositivos",
@@ -46,12 +46,11 @@ export default function Monitoring() {
   const [resolvingId, setResolvingId] =
     useState(null);
 
-  const [summary, setSummary] =
-    useState({
-      total: 0,
-      updated: 0,
-      stale: 0,
-    });
+  const [neverCommunicated, setNeverCommunicated] =
+    useState([]);
+
+  const [neverCommunicatedLoading, setNeverCommunicatedLoading] =
+    useState(true);
 
   async function loadHistory() {
 
@@ -93,46 +92,21 @@ export default function Monitoring() {
 
   }
 
-  async function loadSummary() {
+  async function loadNeverCommunicated() {
 
     try {
 
-      const vehicles = await getOperationalGrid();
+      const data = await getNeverCommunicated();
 
-      const now = Date.now();
-
-      let updated = 0;
-      let stale = 0;
-
-      vehicles.forEach((vehicle) => {
-
-        if (!vehicle.positionDate) {
-          return;
-        }
-
-        const positionAt = new Date(
-          `${vehicle.positionDate}T${vehicle.positionTime || "00:00:00"}`
-        ).getTime();
-
-        const minutesAgo = (now - positionAt) / 60000;
-
-        if (minutesAgo < 35) {
-          updated++;
-        } else if (minutesAgo > 120) {
-          stale++;
-        }
-
-      });
-
-      setSummary({
-        total: vehicles.length,
-        updated,
-        stale,
-      });
+      setNeverCommunicated(data);
 
     } catch (error) {
 
       console.error(error);
+
+    } finally {
+
+      setNeverCommunicatedLoading(false);
 
     }
 
@@ -142,7 +116,7 @@ export default function Monitoring() {
 
     loadHistory();
     loadPendingChanges();
-    loadSummary();
+    loadNeverCommunicated();
 
   }, []);
 
@@ -189,30 +163,6 @@ export default function Monitoring() {
         <p className="mt-1 text-zinc-400">
           Histórico de importações, mudanças pendentes e integridade dos dados
         </p>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-4">
-
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-          <p className="text-sm text-zinc-500">VEÍCULOS ATIVOS</p>
-          <h2 className="mt-3 text-4xl font-bold">{summary.total}</h2>
-        </div>
-
-        <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-6">
-          <p className="text-sm text-zinc-400">ATUALIZADOS (&lt;35min)</p>
-          <h2 className="mt-3 text-4xl font-bold">{summary.updated}</h2>
-        </div>
-
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-6">
-          <p className="text-sm text-zinc-400">DESATUALIZADOS (&gt;2h)</p>
-          <h2 className="mt-3 text-4xl font-bold">{summary.stale}</h2>
-        </div>
-
-        <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-6">
-          <p className="text-sm text-zinc-400">MUDANÇAS PENDENTES</p>
-          <h2 className="mt-3 text-4xl font-bold">{pendingChanges.length}</h2>
-        </div>
-
       </div>
 
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
@@ -378,6 +328,75 @@ export default function Monitoring() {
                           Rejeitar
                         </button>
                       </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+
+        <div className="border-b border-zinc-800 p-6">
+          <h2 className="text-xl font-semibold">Veículos sem comunicação</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Vínculo de equipamento ativo, mas nunca apareceram numa
+            planilha de Última Posição.
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-zinc-950">
+              <tr className="text-left text-sm text-zinc-400">
+                <th className="px-4 py-4">Placa</th>
+                <th className="px-4 py-4">Segurado</th>
+                <th className="px-4 py-4">Vínculo desde</th>
+                <th className="px-4 py-4">Diagnóstico automático</th>
+                <th className="px-4 py-4">Ação sugerida</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {neverCommunicatedLoading ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-zinc-500">
+                    Carregando...
+                  </td>
+                </tr>
+              ) : neverCommunicated.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-10 text-center text-zinc-500">
+                    Nenhum veículo nessa condição
+                  </td>
+                </tr>
+              ) : (
+                neverCommunicated.map((vehicle) => (
+                  <tr
+                    key={vehicle.plate}
+                    className="border-t border-zinc-800 transition hover:bg-zinc-800"
+                  >
+                    <td className="px-4 py-4 font-mono font-semibold">
+                      {vehicle.plate}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {vehicle.insuredName || "--"}
+                    </td>
+
+                    <td className="px-4 py-4 text-zinc-400">
+                      {formatDateTime(vehicle.linkedSince)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      {vehicle.diagnosis}
+                    </td>
+
+                    <td className="px-4 py-4 text-zinc-400">
+                      {vehicle.suggestedAction}
                     </td>
                   </tr>
                 ))

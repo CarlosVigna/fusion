@@ -1,5 +1,7 @@
 package com.fusion.fusion.vehicle.grid;
 
+import com.fusion.fusion.observation.VehicleObservation;
+import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.vehicle.Vehicle;
@@ -25,14 +27,10 @@ public class VehicleGridService {
     private final OperationalSnapshotRepository
             snapshotRepository;
 
-    public List<GridVehicleResponse> getGrid() {
+    private final VehicleObservationService
+            observationService;
 
-        List<Vehicle> vehicles = vehicleRepository.findAll()
-                .stream()
-                .filter(vehicle ->
-                        vehicle.getDeletedAt() == null
-                )
-                .toList();
+    public List<GridVehicleResponse> getGrid() {
 
         // Pre-carrega tudo de uma vez em vez de 2 queries por veículo
         // (era o N+1 que fazia /vehicles/grid demorar ~20s para 245+
@@ -54,10 +52,10 @@ public class VehicleGridService {
         Map<UUID, DeviceLinkage> activeLinkageByVehicleId =
                 new HashMap<>();
 
-        for (DeviceLinkage linkage : linkageRepository.findAll()) {
+        for (DeviceLinkage linkage :
+                linkageRepository.findAllActiveWithVehicleAndDevice()) {
 
-            if (Boolean.TRUE.equals(linkage.getActive())
-                    && linkage.getVehicle() != null) {
+            if (linkage.getVehicle() != null) {
 
                 activeLinkageByVehicleId.putIfAbsent(
                         linkage.getVehicle().getId(),
@@ -68,11 +66,33 @@ public class VehicleGridService {
 
         }
 
+        // Grid mostra apenas veiculos que ja apareceram pelo menos uma vez
+        // numa planilha de Ultima Posicao com posicao preenchida e que
+        // ainda tem vinculo de equipamento ativo. Veiculos com vinculo mas
+        // que nunca comunicaram ficam na aba Monitoramento ("nunca
+        // comunicou"), nao aqui — eles nao tem nada de "atraso" a mostrar.
+        List<Vehicle> vehicles = vehicleRepository.findAll()
+                .stream()
+                .filter(vehicle ->
+                        vehicle.getDeletedAt() == null
+                                && Boolean.TRUE.equals(
+                                vehicle.getHasEverCommunicated()
+                        )
+                                && activeLinkageByVehicleId.containsKey(
+                                vehicle.getId()
+                        )
+                )
+                .toList();
+
+        Map<UUID, VehicleObservation> latestObservationByVehicleId =
+                observationService.findLatestByVehicleId();
+
         return vehicles.stream()
                 .map(vehicle -> buildGridResponse(
                         vehicle,
                         snapshotsByVehicleId.get(vehicle.getId()),
-                        activeLinkageByVehicleId.get(vehicle.getId())
+                        activeLinkageByVehicleId.get(vehicle.getId()),
+                        latestObservationByVehicleId.get(vehicle.getId())
                 ))
                 .toList();
 
@@ -81,7 +101,8 @@ public class VehicleGridService {
     private GridVehicleResponse buildGridResponse(
             Vehicle vehicle,
             OperationalSnapshot snapshot,
-            DeviceLinkage activeLinkage
+            DeviceLinkage activeLinkage,
+            VehicleObservation lastObservation
     ) {
 
         String activeDevice = null;
@@ -177,7 +198,15 @@ public class VehicleGridService {
 
                 snapshot != null
                         ? snapshot.getLowBattery()
-                        : false
+                        : false,
+
+                lastObservation != null
+                        ? lastObservation.getText()
+                        : null,
+
+                lastObservation != null
+                        ? lastObservation.getCreatedAt()
+                        : null
 
         );
 

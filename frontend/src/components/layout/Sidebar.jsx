@@ -4,13 +4,16 @@ import {
     Upload,
     Car,
     ShieldCheck,
+    RadioTower,
     ChevronLeft,
     ChevronRight,
 } from "lucide-react";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { NavLink } from "react-router-dom";
+
+import { getSignalControl } from "../../services/signalControlService";
 
 const items = [
     {
@@ -22,6 +25,12 @@ const items = [
         label: "Dashboard",
         icon: LayoutDashboard,
         path: "/dashboard",
+    },
+    {
+        label: "Controle de Sinais",
+        icon: RadioTower,
+        path: "/signal-control",
+        badgeKey: "signalControl",
     },
     {
         label: "Importações",
@@ -40,8 +49,42 @@ const items = [
     },
 ];
 
+const POLL_INTERVAL_MS = 60000;
+
 export default function Sidebar() {
     const [collapsed, setCollapsed] = useState(false);
+
+    const [signalControlCount, setSignalControlCount] = useState(0);
+
+    useEffect(() => {
+
+        async function loadCount() {
+
+            try {
+
+                const data = await getSignalControl();
+
+                setSignalControlCount(data.length);
+
+            } catch (error) {
+
+                console.error(error);
+
+            }
+
+        }
+
+        loadCount();
+
+        const interval = setInterval(loadCount, POLL_INTERVAL_MS);
+
+        return () => clearInterval(interval);
+
+    }, []);
+
+    const badgeCounts = {
+        signalControl: signalControlCount,
+    };
 
     return (
         <aside
@@ -122,10 +165,23 @@ export default function Sidebar() {
                             <Icon size={20} />
 
                             {!collapsed && (
-                                <span className="font-medium">
+                                <span className="flex-1 font-medium">
                                     {item.label}
                                 </span>
                             )}
+
+                            {item.badgeKey &&
+                                badgeCounts[item.badgeKey] > 0 && (
+                                    <span
+                                        className="
+                      rounded-full bg-red-500
+                      px-2 py-0.5 text-xs font-bold
+                      text-white
+                    "
+                                    >
+                                        {badgeCounts[item.badgeKey]}
+                                    </span>
+                                )}
                         </NavLink>
                     );
                 })}

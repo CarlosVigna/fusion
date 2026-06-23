@@ -8,10 +8,29 @@ export async function getLastSync(type) {
 
 }
 
-export async function triggerImport(type) {
+export async function triggerImport(type, { timeoutMs = 120000 } = {}) {
 
   const query = type ? `?type=${type}` : "";
 
-  return apiClient.post(`/imports/trigger${query}`);
+  const controller = new AbortController();
+
+  const timeoutId = setTimeout(
+    () => controller.abort(),
+    timeoutMs
+  );
+
+  try {
+
+    return await apiClient.post(
+      `/imports/trigger${query}`,
+      undefined,
+      { signal: controller.signal }
+    );
+
+  } finally {
+
+    clearTimeout(timeoutId);
+
+  }
 
 }

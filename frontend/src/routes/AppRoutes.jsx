@@ -11,6 +11,7 @@ import Grid from "../pages/Grid";
 import Imports from "../pages/Imports";
 import Vehicles from "../pages/Vehicles";
 import Monitoring from "../pages/Monitoring";
+import SignalControl from "../pages/SignalControl";
 import Login from "../pages/Login";
 import VehicleDetails from "../pages/VehicleDetails";
 
@@ -65,6 +66,11 @@ export default function AppRoutes() {
                 <Route
                     path="audit"
                     element={<Monitoring />}
+                />
+
+                <Route
+                    path="signal-control"
+                    element={<SignalControl />}
                 />
             </Route>
 

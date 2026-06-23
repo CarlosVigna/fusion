@@ -48,6 +48,14 @@ public class Vehicle {
     @Builder.Default
     private Boolean active = true;
 
+    // true na primeira vez que o veiculo aparece numa planilha de Ultima
+    // Posicao com posicao preenchida — nunca volta para false. Usado para
+    // distinguir "atrasado" (ja comunicou, sinal sumiu) de "nunca
+    // comunicou" (linkage existe mas device nunca respondeu).
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean hasEverCommunicated = false;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

@@ -2,24 +2,29 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "react-router-dom";
 
+import toast from "react-hot-toast";
+
 import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   Columns3,
+  RefreshCw,
 } from "lucide-react";
 
 import { realtimeService } from "../services/realtime/realtimeService";
 
 import { useGridStore } from "../store/gridStore";
 
+import { triggerImport } from "../services/importStatusService";
+
 import StatusBadge from "../components/ui/StatusBadge";
 import PlatformBadge from "../components/ui/PlatformBadge";
 import OperationalFlags from "../components/ui/OperationalFlags";
-
-import SyncStatusPanel from "../components/operational/SyncStatusPanel";
+import ObservationModal from "../components/observations/ObservationModal";
 
 import { formatDelay } from "../utils/formatDelay";
+import { specialFirstCompare } from "../utils/specialFirstCompare";
 
 const rowStyles = {
   ONLINE:
@@ -124,6 +129,16 @@ const ALL_COLUMNS = [
     sortValue: (v) => v.signalDelayMinutes ?? -1,
   },
   {
+    key: "observation",
+    label: "Obs",
+    optional: true,
+    compare: (a, b) =>
+      specialFirstCompare(
+        a.lastObservationText,
+        b.lastObservationText
+      ),
+  },
+  {
     key: "realtime",
     label: "Realtime",
     sortable: false,
@@ -138,6 +153,7 @@ const DEFAULT_VISIBLE_COLUMNS = {
   status: true,
   batteryLevel: true,
   signalDelayMinutes: true,
+  observation: true,
   operator: true,
   manufacturer: false,
   model: false,
@@ -178,11 +194,11 @@ export default function Grid() {
 
   } = useGridStore();
 
-  const [plate, setPlate] =
-    useState("");
+  const [refreshing, setRefreshing] =
+    useState(false);
 
-  const [status, setStatus] =
-    useState("");
+  const [observationModalPlate, setObservationModalPlate] =
+    useState(null);
 
   const [columnFilters, setColumnFilters] =
     useState({
@@ -302,17 +318,20 @@ export default function Grid() {
       (c) => c.key === sortConfig.key
     );
 
-    if (!column?.sortValue) {
+    if (!column?.sortValue && !column?.compare) {
       return filteredVehicles;
     }
 
     return [...filteredVehicles].sort((a, b) => {
 
-      const aVal = column.sortValue(a);
-      const bVal = column.sortValue(b);
+      const cmp = column.compare
+        ? column.compare(a, b)
+        : (() => {
+            const aVal = column.sortValue(a);
+            const bVal = column.sortValue(b);
 
-      const cmp =
-        aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+            return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+          })();
 
       return sortConfig.direction === "asc" ? cmp : -cmp;
 
@@ -333,37 +352,20 @@ export default function Grid() {
 
   }
 
-  const didMountRef = useRef(false);
-
   useEffect(() => {
 
-    // Primeira montagem: só recarrega da API se o cache estiver vazio
-    // ou tiver mais de 30 minutos — navegar entre páginas e voltar
-    // para o Grid não deve disparar uma nova requisição.
-    // Mudança de filtro (status) depois disso recarrega normalmente.
-    if (!didMountRef.current) {
+    // Só recarrega da API se o cache estiver vazio ou tiver mais de
+    // 30 minutos — navegar entre páginas e voltar para o Grid não
+    // deve disparar uma nova requisição.
+    useGridStore.getState().loadGridIfStale();
 
-      didMountRef.current = true;
-
-      useGridStore.getState().loadGridIfStale({
-        plate,
-        status,
-      });
-
-      return;
-
-    }
-
-    loadOperationalGrid();
-
-  }, [status]);
+  }, []);
 
   useEffect(() => {
 
     // Eventos de alerta só atualizam o indicador "LIVE" da linha
     // (client-side, sem custo). O grid em si só recarrega na carga
-    // inicial, no clique manual em "Atualizar agora" ou quando um
-    // import for concluído (ver painel de sincronização).
+    // inicial ou no clique manual em "Atualizar agora".
     const unsubscribe =
       realtimeService.onDashboardEvent(
         (event) => {
@@ -396,20 +398,11 @@ export default function Grid() {
 
   }, []);
 
-  async function loadOperationalGrid(
-    customPlate
-  ) {
+  async function loadOperationalGrid() {
 
     try {
 
-      await loadGrid({
-
-        plate:
-          customPlate ?? plate,
-
-        status,
-
-      });
+      await loadGrid();
 
     } catch (error) {
 
@@ -419,17 +412,37 @@ export default function Grid() {
 
   }
 
-  function handleSearch(e) {
+  async function handleRefreshFromEtl() {
 
-    e.preventDefault();
+    setRefreshing(true);
 
-    loadOperationalGrid(plate);
+    try {
+
+      await triggerImport("MULTIPORTAL_OPERATIONAL");
+
+      toast.success("Posições atualizadas com sucesso");
+
+      await loadOperationalGrid();
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error(
+        "Falha ao atualizar — verifique se o ETL está rodando"
+      );
+
+    } finally {
+
+      setRefreshing(false);
+
+    }
 
   }
 
   function renderSortIcon(col) {
 
-    if (col.sortable === false || !col.sortValue) {
+    if (col.sortable === false || (!col.sortValue && !col.compare)) {
       return null;
     }
 
@@ -519,6 +532,20 @@ export default function Grid() {
           </span>
         );
 
+      case "observation":
+        return (
+          <button
+            onClick={() => setObservationModalPlate(vehicle.plate)}
+            title={vehicle.lastObservationText || "Adicionar observação"}
+            className="
+              max-w-[200px] truncate text-left
+              text-zinc-400 transition hover:text-white
+            "
+          >
+            {vehicle.lastObservationText || "+ Observação"}
+          </button>
+        );
+
       case "realtime":
         return (
           vehicle.realtimeEvent && (
@@ -596,97 +623,6 @@ export default function Grid() {
 
   return (
     <div className="space-y-6">
-
-      <div>
-
-        <h1 className="text-3xl font-bold">
-          Grid Operacional
-        </h1>
-
-        <p className="mt-1 text-zinc-400">
-          Consolidação operacional realtime
-        </p>
-
-      </div>
-
-      <form
-        onSubmit={handleSearch}
-        className="
-          flex flex-col gap-4
-          rounded-2xl border border-zinc-800
-          bg-zinc-900 p-4
-          lg:flex-row
-        "
-      >
-
-        <input
-          type="text"
-          placeholder="Buscar por placa..."
-          value={plate}
-          onChange={(e) =>
-            setPlate(e.target.value)
-          }
-          className="
-            flex-1 rounded-2xl border
-            border-zinc-800 bg-zinc-950
-            px-4 py-3 outline-none
-          "
-        />
-
-        <select
-          value={status}
-          onChange={(e) =>
-            setStatus(e.target.value)
-          }
-          className="
-            rounded-2xl border border-zinc-800
-            bg-zinc-950 px-4 py-3 outline-none
-          "
-        >
-
-          <option value="">
-            Todos os status
-          </option>
-
-          <option value="ONLINE">
-            ONLINE
-          </option>
-
-          <option value="OFFLINE">
-            OFFLINE
-          </option>
-
-          <option value="STALE">
-            STALE
-          </option>
-
-          <option value="LOW_BATTERY">
-            LOW_BATTERY
-          </option>
-
-          <option value="MAINTENANCE">
-            MAINTENANCE
-          </option>
-
-        </select>
-
-        <button
-          className="
-            rounded-2xl bg-white
-            px-6 py-3 font-semibold
-            text-black transition
-            hover:opacity-90
-          "
-        >
-          Buscar
-        </button>
-
-      </form>
-
-      <SyncStatusPanel
-        onSynced={loadOperationalGrid}
-        showStatusText={false}
-      />
 
       <div
         className="
@@ -798,19 +734,24 @@ export default function Grid() {
           </div>
 
           <button
-            onClick={() =>
-              loadOperationalGrid()
-            }
+            onClick={handleRefreshFromEtl}
+            disabled={refreshing}
             className="
+              flex items-center gap-2
               rounded-2xl border
               border-zinc-700
               bg-zinc-950 px-5 py-3
               text-sm font-semibold
               transition
               hover:bg-zinc-800
+              disabled:opacity-50
             "
           >
-            Atualizar agora
+            <RefreshCw
+              size={16}
+              className={refreshing ? "animate-spin" : ""}
+            />
+            {refreshing ? "Atualizando..." : "Atualizar agora"}
           </button>
 
         </div>
@@ -844,13 +785,13 @@ export default function Grid() {
                     key={col.key}
                     onClick={() =>
                       col.sortable !== false &&
-                      col.sortValue &&
+                      (col.sortValue || col.compare) &&
                       handleSort(col.key)
                     }
                     className={`
                       px-4 py-4
                       ${col.sticky ? "sticky left-0 z-20 bg-zinc-950" : ""}
-                      ${col.sortable !== false && col.sortValue ? "cursor-pointer select-none hover:text-white" : ""}
+                      ${col.sortable !== false && (col.sortValue || col.compare) ? "cursor-pointer select-none hover:text-white" : ""}
                     `}
                   >
 
@@ -959,6 +900,16 @@ export default function Grid() {
         </div>
 
       </div>
+
+      {observationModalPlate && (
+
+        <ObservationModal
+          plate={observationModalPlate}
+          onClose={() => setObservationModalPlate(null)}
+          onSaved={loadOperationalGrid}
+        />
+
+      )}
 
     </div>
   );

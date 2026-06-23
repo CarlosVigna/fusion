@@ -134,13 +134,15 @@ public class OperationalListImportService {
                 String insuredName =
                         getCellValue(row.getCell(11));
 
+                boolean vehicleChanged = false;
+
                 if (insuredName != null
                         && !insuredName.isBlank()
                         && !insuredName.equals(vehicle.getInsuredName())) {
 
                     vehicle.setInsuredName(insuredName);
 
-                    vehiclesToSave.add(vehicle);
+                    vehicleChanged = true;
 
                 }
 
@@ -193,7 +195,23 @@ public class OperationalListImportService {
                 }
 
                 if (lastPositionAt != null) {
+
                     state.setLastPositionAt(lastPositionAt);
+
+                    if (!Boolean.TRUE.equals(
+                            vehicle.getHasEverCommunicated()
+                    )) {
+
+                        vehicle.setHasEverCommunicated(true);
+
+                        vehicleChanged = true;
+
+                    }
+
+                }
+
+                if (vehicleChanged) {
+                    vehiclesToSave.add(vehicle);
                 }
 
                 state.setUpdatedAt(LocalDateTime.now());

@@ -20,7 +20,11 @@ public class OperationalSnapshot {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
+    // LAZY explicito — @OneToOne/@ManyToOne sao EAGER por padrao no
+    // Hibernate, o que faz findAll() carregar a Vehicle associada de
+    // cada linha com 1 query extra por linha (N+1 mascarado, so aparece
+    // sob carga concorrente).
+    @OneToOne(fetch = FetchType.LAZY)
     private Vehicle vehicle;
 
     private Boolean online;

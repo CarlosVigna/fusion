@@ -81,7 +81,7 @@ export const apiClient = {
     return request(endpoint);
   },
 
-  post(endpoint, body) {
+  post(endpoint, body, options = {}) {
     return request(endpoint, {
       method: "POST",
 
@@ -89,6 +89,8 @@ export const apiClient = {
         body instanceof FormData
           ? body
           : JSON.stringify(body),
+
+      ...options,
     });
   },
 
