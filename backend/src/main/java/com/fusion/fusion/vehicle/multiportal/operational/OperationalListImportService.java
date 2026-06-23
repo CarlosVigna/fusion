@@ -16,6 +16,7 @@ import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +29,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OperationalListImportService {
@@ -252,16 +254,41 @@ public class OperationalListImportService {
 
         } catch (Exception e) {
 
-            if (processingFile != null) {
-                fileManagerService.moveToFailed(processingFile);
+            // Loga o erro REAL primeiro — antes, se moveToFailed() ou o
+            // register() abaixo lançassem (ex.: o arquivo já tinha sido
+            // movido para backup/ por moveToBackup() mais acima, ou uma
+            // falha de conexão), a exceção original era perdida e
+            // substituída por um NoSuchFileException sem nenhuma pista
+            // do problema de verdade.
+            log.error(
+                    "Erro ao importar última posição",
+                    e
+            );
+
+            try {
+
+                importHistoryService.register(
+                        ImportType.MULTIPORTAL_OPERATIONAL,
+                        file.getOriginalFilename(),
+                        0,
+                        ImportStatus.FAILED
+                );
+
+            } catch (Exception registerError) {
+
+                log.error(
+                        "Erro adicional ao registrar falha do import em import_history",
+                        registerError
+                );
+
             }
 
-            importHistoryService.register(
-                    ImportType.MULTIPORTAL_OPERATIONAL,
-                    file.getOriginalFilename(),
-                    0,
-                    ImportStatus.FAILED
-            );
+            if (processingFile != null
+                    && Files.exists(processingFile)) {
+
+                fileManagerService.moveToFailed(processingFile);
+
+            }
 
             throw new RuntimeException(
                     "Erro ao importar última posição: " + e.getMessage(),
