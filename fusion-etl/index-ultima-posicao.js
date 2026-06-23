@@ -6,6 +6,7 @@ const AdmZip = require('adm-zip');
 const fse = require('fs-extra');
 const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal-auth');
 const { moveToBackupWithRotation, log } = require('./src/file-utils');
+const { uploadToBackend } = require('./src/uploadToBackend');
 
 const DOWNLOADS_DIR =
     process.env.ETL_DOWNLOADS_DIR
@@ -214,6 +215,8 @@ async function run() {
         console.log(targetFile);
 
         log('Download concluído: MULTIPORTAL_ULTIMA_POSICAO.xls');
+
+        await uploadToBackend(targetFile, 'MULTIPORTAL_OPERATIONAL');
 
     } catch (error) {
 

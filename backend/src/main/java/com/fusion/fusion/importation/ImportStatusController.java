@@ -1,7 +1,10 @@
 package com.fusion.fusion.importation;
 
 import com.fusion.fusion.importation.orchestrator.ImportOrchestratorService;
+import com.fusion.fusion.vehicle.multiportal.device.DeviceImportService;
+import com.fusion.fusion.vehicle.multiportal.linkage.LinkageImportService;
 import com.fusion.fusion.vehicle.multiportal.operational.MultiportalOperationalService;
+import com.fusion.fusion.vehicle.multiportal.operational.OperationalListImportService;
 import com.fusion.fusion.vehicle.multiportal.operational.OperationalUpdateRequest;
 import com.fusion.fusion.vehicle.multiportal.operational.OperationalUpdateResponse;
 import jakarta.validation.Valid;
@@ -11,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,6 +22,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -32,8 +37,17 @@ public class ImportStatusController {
 
     private final MultiportalOperationalService operationalService;
 
+    private final OperationalListImportService operationalImportService;
+
+    private final DeviceImportService deviceImportService;
+
+    private final LinkageImportService linkageImportService;
+
     @Value("${fusion.etl.server-url}")
     private String etlServerUrl;
+
+    @Value("${fusion.etl.api-key:}")
+    private String etlApiKey;
 
     private static final HttpClient HTTP_CLIENT =
             HttpClient.newBuilder()
@@ -146,6 +160,100 @@ public class ImportStatusController {
             throw new RuntimeException(
                     "Scraper ETL para " + type + " falhou: " + response.body()
             );
+
+        }
+
+    }
+
+    // Endpoint M2M usado pelo ETL local para entregar o XLS quando o
+    // backend roda na nuvem (Render) e nao compartilha mais o sistema de
+    // arquivos com o PC do ETL — sem isso, o orquestrador (que so escaneia
+    // a pasta pending/ local) nunca veria o arquivo. Autenticado por
+    // API key (X-ETL-Key), nao por JWT — o ETL nao tem usuario logado.
+    @PostMapping("/upload")
+    public ResponseEntity<?> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("type") String type,
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
+    ) {
+
+        if (etlApiKey == null
+                || etlApiKey.isBlank()
+                || !etlApiKey.equals(providedKey)) {
+
+            log.warn(
+                    "Upload de import rejeitado: chave X-ETL-Key inválida ou ausente"
+            );
+
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of(
+                            "status", "ERROR",
+                            "message", "Chave de API inválida"
+                    ));
+
+        }
+
+        ImportType importType;
+
+        try {
+
+            importType = ImportType.valueOf(type);
+
+        } catch (IllegalArgumentException e) {
+
+            return ResponseEntity.badRequest().body(Map.of(
+                    "status", "ERROR",
+                    "message", "Tipo de import inválido: " + type
+            ));
+
+        }
+
+        try {
+
+            Object response = switch (importType) {
+
+                case MULTIPORTAL_OPERATIONAL ->
+                        operationalImportService.importFile(file);
+
+                case MULTIPORTAL_DEVICE ->
+                        deviceImportService.importFile(file);
+
+                case MULTIPORTAL_LINKAGE ->
+                        linkageImportService.importFile(file);
+
+                case TRACKNME -> {
+                    throw new IllegalArgumentException(
+                            "Upload de TRACKNME não é suportado neste endpoint"
+                    );
+                }
+
+            };
+
+            log.info(
+                    "Upload via ETL processado com sucesso: type={} file={}",
+                    importType,
+                    file.getOriginalFilename()
+            );
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+
+            log.error(
+                    "Erro ao processar upload do ETL (type={}, file={})",
+                    importType,
+                    file.getOriginalFilename(),
+                    e
+            );
+
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of(
+                            "status", "ERROR",
+                            "message", Objects.requireNonNullElse(
+                                    e.getMessage(),
+                                    e.getClass().getSimpleName()
+                            )
+                    ));
 
         }
 
