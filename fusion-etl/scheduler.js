@@ -5,60 +5,29 @@ const cron = require('node-cron');
 const { run: runUltimaPosicao } = require('./index-ultima-posicao');
 const { run: runDispositivos } = require('./index');
 const { run: runVinculo } = require('./index-vinculo');
+const { log } = require('./src/file-utils');
+const { withRetry } = require('./src/retry');
+
+// withRetry ja loga e relanca o erro definitivo — aqui so precisamos
+// absorver essa rejeicao pra nao gerar um unhandled promise rejection,
+// ja que o cron nao tem ninguem aguardando o resultado.
+function scheduleWithRetry(cronExpression, fn, name) {
+
+    cron.schedule(cronExpression, () => {
+
+        withRetry(fn, name).catch(() => {});
+
+    });
+
+}
 
 // Última posição: a cada 30 minutos
-cron.schedule('*/30 * * * *', async () => {
-
-    console.log(
-        '[CRON]',
-        new Date().toISOString(),
-        '— rodando última posição...'
-    );
-
-    try {
-
-        await runUltimaPosicao();
-
-        console.log('[CRON] última posição concluída');
-
-    } catch (err) {
-
-        console.error(
-            '[CRON] erro última posição:',
-            err.message
-        );
-
-    }
-
-});
+scheduleWithRetry('*/30 * * * *', runUltimaPosicao, 'Última posição');
 
 // Dispositivos e vínculo: uma vez por dia às 02:00
-cron.schedule('0 2 * * *', async () => {
+scheduleWithRetry('0 2 * * *', runDispositivos, 'Dispositivos');
+scheduleWithRetry('0 2 * * *', runVinculo, 'Vínculo');
 
-    console.log(
-        '[CRON]',
-        new Date().toISOString(),
-        '— rodando dispositivos e vínculo...'
-    );
-
-    try {
-
-        await runDispositivos();
-        await runVinculo();
-
-        console.log('[CRON] dispositivos e vínculo concluídos');
-
-    } catch (err) {
-
-        console.error(
-            '[CRON] erro dispositivos/vínculo:',
-            err.message
-        );
-
-    }
-
-});
-
-console.log('[CRON] Agendador iniciado.');
-console.log('[CRON] Última posição: a cada 30 minutos.');
-console.log('[CRON] Dispositivos e vínculo: diariamente às 02:00.');
+log('[CRON] Agendador iniciado.');
+log('[CRON] Última posição: a cada 30 minutos.');
+log('[CRON] Dispositivos e vínculo: diariamente às 02:00.');

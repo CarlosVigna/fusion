@@ -6,6 +6,11 @@ const { run: runDevices } = require('./index');
 const { run: runLinkage } = require('./index-vinculo');
 const { run: runOperational } = require('./index-ultima-posicao');
 const { log } = require('./src/file-utils');
+const { withRetry } = require('./src/retry');
+
+// Delay menor que o do scheduler (60s) — aqui tem um usuario esperando
+// a resposta HTTP do clique em "Atualizar agora".
+const HTTP_RETRY_DELAY_MS = 30000;
 
 const app = express();
 
@@ -34,7 +39,7 @@ async function handleScrape(req, res, key, runFn, label) {
 
     try {
 
-        await runFn();
+        await withRetry(runFn, label, 1, HTTP_RETRY_DELAY_MS);
 
         log(`[server] Scraper ${label} concluído com sucesso`);
 
