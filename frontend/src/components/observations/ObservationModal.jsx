@@ -18,12 +18,13 @@ const SUGGESTED_TAGS = [
 
 export default function ObservationModal({
   plate,
+  lastObservation,
   onClose,
   onSaved,
 }) {
 
   const [text, setText] =
-    useState("");
+    useState(lastObservation?.text || "");
 
   const [saving, setSaving] =
     useState(false);
@@ -117,7 +118,20 @@ export default function ObservationModal({
         </div>
 
         <textarea
-          autoFocus
+          ref={(el) => {
+
+            if (el) {
+
+              el.focus();
+
+              el.setSelectionRange(
+                el.value.length,
+                el.value.length
+              );
+
+            }
+
+          }}
           rows={4}
           placeholder="Descreva o que foi feito..."
           value={text}

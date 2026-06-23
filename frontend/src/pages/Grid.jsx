@@ -200,6 +200,10 @@ export default function Grid() {
   const [observationModalPlate, setObservationModalPlate] =
     useState(null);
 
+  const observationModalVehicle = vehicles.find(
+    (v) => v.plate === observationModalPlate
+  );
+
   const [columnFilters, setColumnFilters] =
     useState({
       insuredName: "",
@@ -905,6 +909,11 @@ export default function Grid() {
 
         <ObservationModal
           plate={observationModalPlate}
+          lastObservation={
+            observationModalVehicle?.lastObservationText
+              ? { text: observationModalVehicle.lastObservationText }
+              : null
+          }
           onClose={() => setObservationModalPlate(null)}
           onSaved={loadOperationalGrid}
         />

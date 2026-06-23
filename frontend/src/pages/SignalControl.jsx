@@ -54,6 +54,10 @@ export default function SignalControl() {
   const [modalPlate, setModalPlate] =
     useState(null);
 
+  const modalVehicle = vehicles.find(
+    (v) => v.plate === modalPlate
+  );
+
   const [checkingId, setCheckingId] =
     useState(null);
 
@@ -474,29 +478,32 @@ export default function SignalControl() {
 
                           ) : (
 
-                            <ul className="space-y-2">
+                            <ul className="space-y-3">
 
                               {history[vehicle.plate].map((obs) => (
 
                                 <li
                                   key={obs.id}
                                   className="
-                                    rounded-xl border border-zinc-800
+                                    rounded-xl border border-zinc-700
                                     bg-zinc-900 p-3 text-sm
+                                    shadow-sm
                                   "
                                 >
 
                                   <p>{obs.text}</p>
 
-                                  <p className="mt-1 text-xs text-zinc-500">
+                                  <p className="mt-2 border-t border-zinc-800 pt-2 text-xs text-zinc-500">
                                     {obs.createdBy} em {formatDateTime(obs.createdAt)}
-                                    {obs.checkedOff && (
+                                    {obs.checkedOff ? (
                                       <>
                                         {" · conferido por "}
                                         {obs.checkedBy}
                                         {" em "}
                                         {formatDateTime(obs.checkedAt)}
                                       </>
+                                    ) : (
+                                      " · não conferido"
                                     )}
                                   </p>
 
@@ -532,6 +539,7 @@ export default function SignalControl() {
 
         <ObservationModal
           plate={modalPlate}
+          lastObservation={modalVehicle?.lastObservation}
           onClose={() => setModalPlate(null)}
           onSaved={() => handleObservationSaved(modalPlate)}
         />

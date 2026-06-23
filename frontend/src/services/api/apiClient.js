@@ -69,11 +69,12 @@ async function request(
     throw new Error(message);
   }
 
-  if (response.status === 204) {
-    return null;
-  }
+  // Vários endpoints void (ex.: POST /observations/{id}/check) respondem
+  // 200 com corpo vazio, não 204 — response.json() falha em corpo vazio
+  // independente do status, então lemos como texto primeiro.
+  const text = await response.text();
 
-  return response.json();
+  return text ? JSON.parse(text) : null;
 }
 
 export const apiClient = {
