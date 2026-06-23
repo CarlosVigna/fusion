@@ -13,6 +13,8 @@ public record SignalControlResponse(
 
         VehiclePlatform platform,
 
+        String lineNumber,
+
         LocalDateTime lastCommunicationAt,
 
         Integer signalDelayMinutes,
@@ -23,7 +25,11 @@ public record SignalControlResponse(
 
         ObservationSummary lastObservation,
 
-        CheckSummary lastCheck
+        CheckSummary lastCheck,
+
+        Long activeLetterId,
+
+        Long openMaintenanceId
 
 ) {
 

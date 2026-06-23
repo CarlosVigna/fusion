@@ -12,15 +12,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import { realtimeService } from "../services/realtime/realtimeService";
-
 import { useGridStore } from "../store/gridStore";
 
 import { triggerImport } from "../services/importStatusService";
 
 import StatusBadge from "../components/ui/StatusBadge";
 import PlatformBadge from "../components/ui/PlatformBadge";
-import OperationalFlags from "../components/ui/OperationalFlags";
 import ObservationModal from "../components/observations/ObservationModal";
 
 import { formatDelay } from "../utils/formatDelay";
@@ -44,6 +41,8 @@ const rowStyles = {
 };
 
 const COLUMN_STORAGE_KEY = "fusion_grid_columns";
+const COLUMN_WIDTHS_STORAGE_KEY = "fusion_grid_col_widths";
+const MIN_COLUMN_WIDTH = 60;
 
 // Colunas fixas não podem ser ocultadas. Colunas opcionais
 // (optional: true) podem ser togadas pelo usuário e persistem
@@ -54,11 +53,6 @@ const ALL_COLUMNS = [
     label: "Status",
     optional: true,
     sortValue: (v) => v.status ?? "",
-  },
-  {
-    key: "indicators",
-    label: "Indicadores",
-    sortable: false,
   },
   {
     key: "plate",
@@ -138,11 +132,6 @@ const ALL_COLUMNS = [
         b.lastObservationText
       ),
   },
-  {
-    key: "realtime",
-    label: "Realtime",
-    sortable: false,
-  },
 ];
 
 const OPTIONAL_COLUMNS = ALL_COLUMNS.filter(
@@ -178,6 +167,22 @@ function loadStoredColumns() {
 
 }
 
+function loadStoredWidths() {
+
+  try {
+
+    return JSON.parse(
+      localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY) || "{}"
+    );
+
+  } catch {
+
+    return {};
+
+  }
+
+}
+
 export default function Grid() {
 
   const {
@@ -189,8 +194,6 @@ export default function Grid() {
     loadGrid,
 
     lastLoadedAt,
-
-    prependRealtimeEvent,
 
   } = useGridStore();
 
@@ -206,9 +209,12 @@ export default function Grid() {
 
   const [columnFilters, setColumnFilters] =
     useState({
+      plate: "",
       insuredName: "",
+      platform: "",
       status: "",
       operator: "",
+      observation: "",
     });
 
   const [visibleColumns, setVisibleColumns] =
@@ -221,6 +227,87 @@ export default function Grid() {
     useState({ key: null, direction: null });
 
   const columnMenuRef = useRef(null);
+
+  const [columnWidths, setColumnWidths] =
+    useState(loadStoredWidths);
+
+  const resizingRef = useRef(null);
+
+  useEffect(() => {
+
+    localStorage.setItem(
+      COLUMN_WIDTHS_STORAGE_KEY,
+      JSON.stringify(columnWidths)
+    );
+
+  }, [columnWidths]);
+
+  function handleResizeMove(e) {
+
+    const resizing = resizingRef.current;
+
+    if (!resizing) {
+      return;
+    }
+
+    const delta = e.clientX - resizing.startX;
+
+    const newWidth = Math.max(
+      MIN_COLUMN_WIDTH,
+      resizing.startWidth + delta
+    );
+
+    setColumnWidths((current) => ({
+      ...current,
+      [resizing.key]: newWidth,
+    }));
+
+  }
+
+  function handleResizeEnd() {
+
+    resizingRef.current = null;
+
+    document.removeEventListener(
+      "mousemove",
+      handleResizeMove
+    );
+
+    document.removeEventListener(
+      "mouseup",
+      handleResizeEnd
+    );
+
+  }
+
+  function handleResizeStart(e, key) {
+
+    e.preventDefault();
+
+    e.stopPropagation();
+
+    const th = e.currentTarget.closest("th");
+
+    const startWidth =
+      columnWidths[key] ?? th.offsetWidth;
+
+    resizingRef.current = {
+      key,
+      startX: e.clientX,
+      startWidth,
+    };
+
+    document.addEventListener(
+      "mousemove",
+      handleResizeMove
+    );
+
+    document.addEventListener(
+      "mouseup",
+      handleResizeEnd
+    );
+
+  }
 
   useEffect(() => {
 
@@ -286,11 +373,23 @@ export default function Grid() {
 
     return vehicles.filter((vehicle) => {
 
+      const matchesPlate =
+        !columnFilters.plate ||
+        vehicle.plate
+          ?.toLowerCase()
+          .includes(columnFilters.plate.toLowerCase());
+
       const matchesInsuredName =
         !columnFilters.insuredName ||
         vehicle.insuredName
           ?.toLowerCase()
           .includes(columnFilters.insuredName.toLowerCase());
+
+      const matchesPlatform =
+        !columnFilters.platform ||
+        vehicle.platform
+          ?.toLowerCase()
+          .includes(columnFilters.platform.toLowerCase());
 
       const matchesStatus =
         !columnFilters.status ||
@@ -302,10 +401,19 @@ export default function Grid() {
           ?.toLowerCase()
           .includes(columnFilters.operator.toLowerCase());
 
+      const matchesObservation =
+        !columnFilters.observation ||
+        vehicle.lastObservationText
+          ?.toLowerCase()
+          .includes(columnFilters.observation.toLowerCase());
+
       return (
+        matchesPlate &&
         matchesInsuredName &&
+        matchesPlatform &&
         matchesStatus &&
-        matchesOperator
+        matchesOperator &&
+        matchesObservation
       );
 
     });
@@ -362,43 +470,6 @@ export default function Grid() {
     // 30 minutos — navegar entre páginas e voltar para o Grid não
     // deve disparar uma nova requisição.
     useGridStore.getState().loadGridIfStale();
-
-  }, []);
-
-  useEffect(() => {
-
-    // Eventos de alerta só atualizam o indicador "LIVE" da linha
-    // (client-side, sem custo). O grid em si só recarrega na carga
-    // inicial ou no clique manual em "Atualizar agora".
-    const unsubscribe =
-      realtimeService.onDashboardEvent(
-        (event) => {
-
-          if (event.message) {
-
-            const parts =
-              event.message.split(
-                " - "
-              );
-
-            const plate =
-              parts[0];
-
-            prependRealtimeEvent(
-              plate,
-              event.type
-            );
-
-          }
-
-        }
-      );
-
-    return () => {
-
-      unsubscribe();
-
-    };
 
   }, []);
 
@@ -476,9 +547,6 @@ export default function Grid() {
           <StatusBadge status={vehicle.status} />
         );
 
-      case "indicators":
-        return <OperationalFlags vehicle={vehicle} />;
-
       case "plate":
         return (
           <Link
@@ -550,24 +618,6 @@ export default function Grid() {
           </button>
         );
 
-      case "realtime":
-        return (
-          vehicle.realtimeEvent && (
-            <div
-              className="
-                inline-flex rounded-full
-                bg-green-500/10
-                px-2 py-1
-                text-[10px]
-                font-semibold
-                text-green-400
-              "
-            >
-              LIVE
-            </div>
-          )
-        );
-
       default:
         return null;
 
@@ -601,8 +651,11 @@ export default function Grid() {
     }
 
     if (
+      col.key === "plate" ||
       col.key === "insuredName" ||
-      col.key === "operator"
+      col.key === "platform" ||
+      col.key === "operator" ||
+      col.key === "observation"
     ) {
       return (
         <input
@@ -792,8 +845,17 @@ export default function Grid() {
                       (col.sortValue || col.compare) &&
                       handleSort(col.key)
                     }
+                    style={
+                      columnWidths[col.key]
+                        ? {
+                            width: columnWidths[col.key],
+                            minWidth: columnWidths[col.key],
+                            maxWidth: columnWidths[col.key],
+                          }
+                        : undefined
+                    }
                     className={`
-                      px-4 py-4
+                      relative px-4 py-4
                       ${col.sticky ? "sticky left-0 z-20 bg-zinc-950" : ""}
                       ${col.sortable !== false && (col.sortValue || col.compare) ? "cursor-pointer select-none hover:text-white" : ""}
                     `}
@@ -803,6 +865,19 @@ export default function Grid() {
                       {col.label}
                       {renderSortIcon(col)}
                     </span>
+
+                    <span
+                      onMouseDown={(e) =>
+                        handleResizeStart(e, col.key)
+                      }
+                      onClick={(e) => e.stopPropagation()}
+                      className="
+                        absolute right-0 top-0 z-10
+                        h-full w-1.5 cursor-col-resize
+                        select-none
+                        hover:bg-zinc-700
+                      "
+                    />
 
                   </th>
 
@@ -816,6 +891,15 @@ export default function Grid() {
 
                   <th
                     key={col.key}
+                    style={
+                      columnWidths[col.key]
+                        ? {
+                            width: columnWidths[col.key],
+                            minWidth: columnWidths[col.key],
+                            maxWidth: columnWidths[col.key],
+                          }
+                        : undefined
+                    }
                     className={`
                       px-4 py-2
                       ${col.sticky ? "sticky left-0 z-20 bg-zinc-950/60" : ""}
@@ -881,6 +965,17 @@ export default function Grid() {
 
                       <td
                         key={col.key}
+                        style={
+                          columnWidths[col.key]
+                            ? {
+                                width: columnWidths[col.key],
+                                minWidth: columnWidths[col.key],
+                                maxWidth: columnWidths[col.key],
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }
+                            : undefined
+                        }
                         className={`
                           px-4 py-4
                           ${col.sticky ? "sticky left-0 bg-zinc-900 font-mono font-semibold" : ""}

@@ -5,6 +5,8 @@ import {
     Car,
     ShieldCheck,
     RadioTower,
+    Mail,
+    Wrench,
     ChevronLeft,
     ChevronRight,
 } from "lucide-react";
@@ -31,6 +33,16 @@ const items = [
         icon: RadioTower,
         path: "/signal-control",
         badgeKey: "signalControl",
+    },
+    {
+        label: "Cartas de Suspensão",
+        icon: Mail,
+        path: "/letters",
+    },
+    {
+        label: "Manutenção",
+        icon: Wrench,
+        path: "/maintenance",
     },
     {
         label: "Importações",

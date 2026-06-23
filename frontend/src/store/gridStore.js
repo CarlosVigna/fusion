@@ -76,39 +76,4 @@ export const useGridStore =
 
     },
 
-    prependRealtimeEvent(
-      plate,
-      eventType
-    ) {
-
-      set((state) => ({
-
-        vehicles:
-          state.vehicles.map(
-            (vehicle) => {
-
-              if (
-                vehicle.plate !== plate
-              ) {
-
-                return vehicle;
-
-              }
-
-              return {
-
-                ...vehicle,
-
-                realtimeEvent:
-                  eventType,
-
-              };
-
-            }
-          ),
-
-      }));
-
-    },
-
   }));

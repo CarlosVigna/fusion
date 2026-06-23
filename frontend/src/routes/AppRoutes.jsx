@@ -12,6 +12,8 @@ import Imports from "../pages/Imports";
 import Vehicles from "../pages/Vehicles";
 import Monitoring from "../pages/Monitoring";
 import SignalControl from "../pages/SignalControl";
+import Letters from "../pages/Letters";
+import Maintenance from "../pages/Maintenance";
 import Login from "../pages/Login";
 import VehicleDetails from "../pages/VehicleDetails";
 
@@ -71,6 +73,16 @@ export default function AppRoutes() {
                 <Route
                     path="signal-control"
                     element={<SignalControl />}
+                />
+
+                <Route
+                    path="letters"
+                    element={<Letters />}
+                />
+
+                <Route
+                    path="maintenance"
+                    element={<Maintenance />}
                 />
             </Route>
 
