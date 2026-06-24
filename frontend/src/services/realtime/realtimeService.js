@@ -7,6 +7,10 @@ from "@stomp/stompjs";
 import toast
 from "react-hot-toast";
 
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:8080";
+
 class RealtimeService {
 
   constructor() {
@@ -29,7 +33,7 @@ class RealtimeService {
 
     const socket =
       new SockJS(
-        "http://localhost:8080/ws"
+        `${API_BASE}/ws`
       );
 
     this.client =
