@@ -21,7 +21,8 @@ public class CorsConfig {
         config.setAllowedOrigins(
                 List.of(
                         "http://localhost:5173",
-                        "http://localhost:5174"
+                        "http://localhost:5174",
+                        "https://fusion-pi-tan.vercel.app"
                 )
         );
 

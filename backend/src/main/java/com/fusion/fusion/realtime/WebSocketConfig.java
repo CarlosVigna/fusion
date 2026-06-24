@@ -40,7 +40,11 @@ public class WebSocketConfig
     ) {
 
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOriginPatterns(
+                        "http://localhost:5173",
+                        "http://localhost:5174",
+                        "https://fusion-pi-tan.vercel.app"
+                )
                 .withSockJS();
 
     }
