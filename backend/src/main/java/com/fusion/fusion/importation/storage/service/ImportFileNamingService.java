@@ -4,6 +4,7 @@ import com.fusion.fusion.importation.storage.enums.ImportFileType;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 @Service
@@ -14,7 +15,7 @@ public class ImportFileNamingService {
             String extension
     ) {
 
-        String timestamp = LocalDateTime.now()
+        String timestamp = LocalDateTime.now(ZoneOffset.UTC)
                 .format(
                         DateTimeFormatter.ofPattern(
                                 "yyyy-MM-dd_HH-mm"

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -84,7 +85,7 @@ public class NeverCommunicatedService {
                 linkage.getStartAt() != null
                         ? Duration.between(
                         linkage.getStartAt(),
-                        LocalDateTime.now()
+                        LocalDateTime.now(ZoneOffset.UTC)
                 ).toDays()
                         : 0;
 

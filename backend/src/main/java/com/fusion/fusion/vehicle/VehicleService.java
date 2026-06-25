@@ -325,7 +325,7 @@ public class VehicleService {
                         );
 
         vehicle.setDeletedAt(
-                java.time.LocalDateTime.now()
+                java.time.LocalDateTime.now(java.time.ZoneOffset.UTC)
         );
 
         repository.save(vehicle);

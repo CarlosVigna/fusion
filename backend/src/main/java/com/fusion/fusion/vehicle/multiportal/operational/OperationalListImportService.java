@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -216,7 +217,7 @@ public class OperationalListImportService {
                     vehiclesToSave.add(vehicle);
                 }
 
-                state.setUpdatedAt(LocalDateTime.now());
+                state.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
 
                 statesToSave.add(state);
 

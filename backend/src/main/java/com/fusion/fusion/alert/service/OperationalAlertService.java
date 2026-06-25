@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 @Slf4j
@@ -71,7 +72,7 @@ public class OperationalAlertService {
                                 OperationalAlertStatus.OPEN
                         )
                         .message(message)
-                        .openedAt(LocalDateTime.now())
+                        .openedAt(LocalDateTime.now(ZoneOffset.UTC))
                         .build();
 
         repository.save(alert);
@@ -119,7 +120,7 @@ public class OperationalAlertService {
         );
 
         alert.setResolvedAt(
-                LocalDateTime.now()
+                LocalDateTime.now(ZoneOffset.UTC)
         );
 
         repository.save(alert);

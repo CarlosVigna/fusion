@@ -20,6 +20,7 @@ import com.fusion.fusion.operational.snapshot.OperationalSnapshotService;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,7 +152,7 @@ public class OperationalStateEngineService {
         );
 
         state.setUpdatedAt(
-                LocalDateTime.now()
+                LocalDateTime.now(ZoneOffset.UTC)
         );
 
         repository.save(state);
@@ -274,7 +275,7 @@ public class OperationalStateEngineService {
         long minutes =
                 Duration.between(
                         state.getLastCommunicationAt(),
-                        LocalDateTime.now()
+                        LocalDateTime.now(ZoneOffset.UTC)
                 ).toMinutes();
 
         state.setSignalDelayMinutes(

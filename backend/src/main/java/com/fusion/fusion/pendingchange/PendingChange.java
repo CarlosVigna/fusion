@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "pending_changes")
@@ -41,7 +42,7 @@ public class PendingChange {
 
     @PrePersist
     public void prePersist() {
-        detectedAt = LocalDateTime.now();
+        detectedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
 }

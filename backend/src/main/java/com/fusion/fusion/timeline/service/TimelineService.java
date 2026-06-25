@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +28,7 @@ public class TimelineService {
                         .occurrence(occurrence)
                         .type(type)
                         .description(description)
-                        .createdAt(LocalDateTime.now())
+                        .createdAt(LocalDateTime.now(ZoneOffset.UTC))
                         .build();
 
         repository.save(event);

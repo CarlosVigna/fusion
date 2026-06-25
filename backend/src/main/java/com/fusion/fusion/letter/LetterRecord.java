@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "letter_records")
@@ -50,7 +51,7 @@ public class LetterRecord {
     @PrePersist
     public void prePersist() {
 
-        createdAt = LocalDateTime.now();
+        createdAt = LocalDateTime.now(ZoneOffset.UTC);
 
         if (dataRetornoSinal == null || dataRetornoSinal.isBlank()) {
             dataRetornoSinal = "Sem retorno.";
@@ -60,7 +61,7 @@ public class LetterRecord {
 
     @PreUpdate
     public void preUpdate() {
-        updatedAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
 }

@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Service
@@ -38,7 +39,7 @@ public class OccurrenceCommentService {
                         .occurrence(occurrence)
                         .author(request.getAuthor())
                         .content(request.getContent())
-                        .createdAt(LocalDateTime.now())
+                        .createdAt(LocalDateTime.now(ZoneOffset.UTC))
                         .build();
 
         repository.save(comment);

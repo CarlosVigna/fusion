@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +75,7 @@ public class SignalReturnAlertService {
 
         alert.setDismissed(true);
 
-        alert.setDismissedAt(LocalDateTime.now());
+        alert.setDismissedAt(LocalDateTime.now(ZoneOffset.UTC));
 
         alert.setDismissedBy(
                 currentUserService.getCurrentUserName()

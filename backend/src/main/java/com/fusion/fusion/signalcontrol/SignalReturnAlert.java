@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Entity
 @Table(name = "signal_return_alerts")
@@ -37,7 +38,7 @@ public class SignalReturnAlert {
 
     @PrePersist
     public void prePersist() {
-        detectedAt = LocalDateTime.now();
+        detectedAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
 }

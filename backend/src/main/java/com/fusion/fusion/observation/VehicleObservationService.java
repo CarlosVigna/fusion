@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +68,7 @@ public class VehicleObservationService {
 
         observation.setCheckedOff(true);
 
-        observation.setCheckedAt(LocalDateTime.now());
+        observation.setCheckedAt(LocalDateTime.now(ZoneOffset.UTC));
 
         observation.setCheckedBy(
                 currentUserService.getCurrentUserName()

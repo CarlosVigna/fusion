@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Component
 @RequiredArgsConstructor
@@ -32,7 +33,7 @@ public class StaleUpdateDetector
         boolean stale =
                 state.getLastCommunicationAt()
                         .isBefore(
-                                LocalDateTime.now()
+                                LocalDateTime.now(ZoneOffset.UTC)
                                         .minusHours(
                                                 properties.getStaleUpdateHours()
                                         )

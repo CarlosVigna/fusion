@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -118,7 +119,7 @@ public class MultiportalOperationalService {
             );
 
             state.setUpdatedAt(
-                    LocalDateTime.now()
+                    LocalDateTime.now(ZoneOffset.UTC)
             );
 
             operationalRepository.save(state);
@@ -129,7 +130,7 @@ public class MultiportalOperationalService {
 
         importHistoryService.register(
                 ImportType.MULTIPORTAL_OPERATIONAL,
-                "paste-" + LocalDateTime.now(),
+                "paste-" + LocalDateTime.now(ZoneOffset.UTC),
                 updated
         );
 

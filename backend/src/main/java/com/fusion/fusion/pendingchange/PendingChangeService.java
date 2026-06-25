@@ -13,6 +13,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -108,7 +109,7 @@ public class PendingChangeService {
         applyChange(change);
 
         change.setStatus(PendingChangeStatus.APPROVED);
-        change.setResolvedAt(LocalDateTime.now());
+        change.setResolvedAt(LocalDateTime.now(ZoneOffset.UTC));
         change.setResolvedBy(currentUser());
 
         repository.save(change);
@@ -120,7 +121,7 @@ public class PendingChangeService {
         PendingChange change = findPendingById(id);
 
         change.setStatus(PendingChangeStatus.REJECTED);
-        change.setResolvedAt(LocalDateTime.now());
+        change.setResolvedAt(LocalDateTime.now(ZoneOffset.UTC));
         change.setResolvedBy(currentUser());
 
         repository.save(change);

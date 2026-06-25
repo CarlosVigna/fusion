@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Service
 @RequiredArgsConstructor
@@ -50,7 +51,7 @@ public class VehicleOperationalProjectionService {
             staleUpdate =
                     operational.getLastCommunicationAt()
                             .isBefore(
-                                    LocalDateTime.now()
+                                    LocalDateTime.now(ZoneOffset.UTC)
                                             .minusHours(
                                                     properties.getStaleUpdateHours()
                                             )

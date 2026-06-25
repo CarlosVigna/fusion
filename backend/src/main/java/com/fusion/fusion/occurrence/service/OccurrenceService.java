@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 @Service
@@ -39,8 +40,8 @@ public class OccurrenceService {
                         .title(title)
                         .description(description)
                         .status(OccurrenceStatus.OPEN)
-                        .createdAt(LocalDateTime.now())
-                        .updatedAt(LocalDateTime.now())
+                        .createdAt(LocalDateTime.now(ZoneOffset.UTC))
+                        .updatedAt(LocalDateTime.now(ZoneOffset.UTC))
                         .build();
 
         repository.save(occurrence);

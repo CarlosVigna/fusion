@@ -22,6 +22,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -157,11 +158,11 @@ public class TracknMeImportService {
                 operational.setOnline(online);
 
                 operational.setLastCommunicationAt(
-                        LocalDateTime.now()
+                        LocalDateTime.now(ZoneOffset.UTC)
                 );
 
                 operational.setUpdatedAt(
-                        LocalDateTime.now()
+                        LocalDateTime.now(ZoneOffset.UTC)
                 );
 
                 String lastCommunication =
@@ -180,7 +181,7 @@ public class TracknMeImportService {
                 }
 
                 operational.setUpdatedAt(
-                        LocalDateTime.now()
+                        LocalDateTime.now(ZoneOffset.UTC)
                 );
 
                 operationalRepository.save(operational);
