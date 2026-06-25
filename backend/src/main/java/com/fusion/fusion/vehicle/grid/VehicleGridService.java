@@ -155,15 +155,7 @@ public class VehicleGridService {
                         : null,
 
                 snapshot != null
-                        && snapshot.getLastCommunicationAt() != null
                         ? snapshot.getLastCommunicationAt()
-                        .toLocalDate()
-                        : null,
-
-                snapshot != null
-                        && snapshot.getLastCommunicationAt() != null
-                        ? snapshot.getLastCommunicationAt()
-                        .toLocalTime()
                         : null,
 
                 vehicle.getInMaintenance(),

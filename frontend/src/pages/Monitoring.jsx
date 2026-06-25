@@ -12,22 +12,14 @@ import {
 
 import { getNeverCommunicated } from "../services/signalControlService";
 
+import { formatLocalDateTime } from "../utils/dateUtils";
+
 const IMPORT_TYPE_LABELS = {
   MULTIPORTAL_DEVICE: "Dispositivos",
   MULTIPORTAL_LINKAGE: "Vínculo",
   MULTIPORTAL_OPERATIONAL: "Última Posição",
   TRACKNME: "TracknMe",
 };
-
-function formatDateTime(value) {
-
-  if (!value) {
-    return "--";
-  }
-
-  return new Date(value).toLocaleString("pt-BR");
-
-}
 
 export default function Monitoring() {
 
@@ -207,7 +199,7 @@ export default function Monitoring() {
                     </td>
 
                     <td className="px-4 py-4">
-                      {formatDateTime(item.createdAt)}
+                      {formatLocalDateTime(item.createdAt)}
                     </td>
 
                     <td className="px-4 py-4">
@@ -297,7 +289,7 @@ export default function Monitoring() {
                     </td>
 
                     <td className="px-4 py-4 text-zinc-400">
-                      {formatDateTime(change.detectedAt)}
+                      {formatLocalDateTime(change.detectedAt)}
                     </td>
 
                     <td className="px-4 py-4">
@@ -388,7 +380,7 @@ export default function Monitoring() {
                     </td>
 
                     <td className="px-4 py-4 text-zinc-400">
-                      {formatDateTime(vehicle.linkedSince)}
+                      {formatLocalDateTime(vehicle.linkedSince)}
                     </td>
 
                     <td className="px-4 py-4">

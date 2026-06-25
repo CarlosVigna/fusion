@@ -35,7 +35,7 @@ export function formatDateTimeForExport(value) {
     return "";
   }
 
-  const date = new Date(value);
+  const date = new Date(value + "Z"); // força interpretação como UTC
 
   const pad = (n) => String(n).padStart(2, "0");
 

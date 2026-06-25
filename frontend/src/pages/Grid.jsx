@@ -10,18 +10,26 @@ import {
   ArrowUpDown,
   Columns3,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 
 import { useGridStore } from "../store/gridStore";
 
 import { triggerImport } from "../services/importStatusService";
 
+import {
+  getPreference,
+  savePreference,
+} from "../services/preferencesService";
+
 import StatusBadge from "../components/ui/StatusBadge";
 import PlatformBadge from "../components/ui/PlatformBadge";
 import ObservationModal from "../components/observations/ObservationModal";
+import ColumnSettingsModal from "../components/grid/ColumnSettingsModal";
 
 import { formatDelay } from "../utils/formatDelay";
 import { specialFirstCompare } from "../utils/specialFirstCompare";
+import { formatLocalDateTime } from "../utils/dateUtils";
 
 const rowStyles = {
   ONLINE:
@@ -42,7 +50,10 @@ const rowStyles = {
 
 const COLUMN_STORAGE_KEY = "fusion_grid_columns";
 const COLUMN_WIDTHS_STORAGE_KEY = "fusion_grid_col_widths";
+const COLUMN_ORDER_STORAGE_KEY = "fusion_grid_column_order";
 const MIN_COLUMN_WIDTH = 60;
+const GRID_COLUMNS_PREFERENCE_KEY = "grid_columns";
+const PREFERENCE_SAVE_DEBOUNCE_MS = 1000;
 
 // Colunas fixas não podem ser ocultadas. Colunas opcionais
 // (optional: true) podem ser togadas pelo usuário e persistem
@@ -113,8 +124,7 @@ const ALL_COLUMNS = [
   {
     key: "position",
     label: "Última Posição",
-    sortValue: (v) =>
-      `${v.positionDate ?? ""} ${v.positionTime ?? ""}`,
+    sortValue: (v) => v.lastCommunicationAt ?? "",
   },
   {
     key: "signalDelayMinutes",
@@ -149,6 +159,8 @@ const DEFAULT_VISIBLE_COLUMNS = {
   inMaintenance: false,
 };
 
+const DEFAULT_COLUMN_ORDER = ALL_COLUMNS.map((c) => c.key);
+
 function loadStoredColumns() {
 
   try {
@@ -180,6 +192,98 @@ function loadStoredWidths() {
     return {};
 
   }
+
+}
+
+function loadStoredOrder() {
+
+  try {
+
+    const saved = JSON.parse(
+      localStorage.getItem(COLUMN_ORDER_STORAGE_KEY) || "null"
+    );
+
+    if (!Array.isArray(saved) || saved.length === 0) {
+      return DEFAULT_COLUMN_ORDER;
+    }
+
+    const known = new Set(DEFAULT_COLUMN_ORDER);
+
+    const filtered = saved.filter((key) => known.has(key));
+
+    const missing = DEFAULT_COLUMN_ORDER.filter(
+      (key) => !filtered.includes(key)
+    );
+
+    return [...filtered, ...missing];
+
+  } catch {
+
+    return DEFAULT_COLUMN_ORDER;
+
+  }
+
+}
+
+function buildColumnPreferencePayload(order, visibility, widths) {
+
+  return JSON.stringify({
+    columns: order.map((key) => {
+
+      const column = ALL_COLUMNS.find((c) => c.key === key);
+
+      return {
+        key,
+        visible: column?.optional ? !!visibility[key] : true,
+        width: widths[key] ?? null,
+      };
+
+    }),
+  });
+
+}
+
+function applyColumnPreference(raw) {
+
+  const parsed = JSON.parse(raw);
+
+  if (!Array.isArray(parsed?.columns)) {
+    return null;
+  }
+
+  const known = new Set(DEFAULT_COLUMN_ORDER);
+
+  const savedOrder = parsed.columns
+    .map((c) => c.key)
+    .filter((key) => known.has(key));
+
+  const missing = DEFAULT_COLUMN_ORDER.filter(
+    (key) => !savedOrder.includes(key)
+  );
+
+  const order = [...savedOrder, ...missing];
+
+  const visibility = { ...DEFAULT_VISIBLE_COLUMNS };
+
+  const widths = {};
+
+  parsed.columns.forEach((c) => {
+
+    if (!known.has(c.key)) {
+      return;
+    }
+
+    if (c.visible != null) {
+      visibility[c.key] = c.visible;
+    }
+
+    if (c.width != null) {
+      widths[c.key] = c.width;
+    }
+
+  });
+
+  return { order, visibility, widths };
 
 }
 
@@ -220,7 +324,16 @@ export default function Grid() {
   const [visibleColumns, setVisibleColumns] =
     useState(loadStoredColumns);
 
+  const [columnOrder, setColumnOrder] =
+    useState(loadStoredOrder);
+
   const [columnMenuOpen, setColumnMenuOpen] =
+    useState(false);
+
+  const [columnSettingsOpen, setColumnSettingsOpen] =
+    useState(false);
+
+  const [preferencesLoaded, setPreferencesLoaded] =
     useState(false);
 
   const [sortConfig, setSortConfig] =
@@ -233,6 +346,46 @@ export default function Grid() {
 
   const resizingRef = useRef(null);
 
+  const preferenceSaveTimeoutRef = useRef(null);
+
+  useEffect(() => {
+
+    async function loadColumnPreferences() {
+
+      try {
+
+        const raw = await getPreference(
+          GRID_COLUMNS_PREFERENCE_KEY
+        );
+
+        const applied = raw ? applyColumnPreference(raw) : null;
+
+        if (applied) {
+
+          setColumnOrder(applied.order);
+
+          setVisibleColumns(applied.visibility);
+
+          setColumnWidths(applied.widths);
+
+        }
+
+      } catch (error) {
+
+        console.error(error);
+
+      } finally {
+
+        setPreferencesLoaded(true);
+
+      }
+
+    }
+
+    loadColumnPreferences();
+
+  }, []);
+
   useEffect(() => {
 
     localStorage.setItem(
@@ -241,6 +394,44 @@ export default function Grid() {
     );
 
   }, [columnWidths]);
+
+  useEffect(() => {
+
+    localStorage.setItem(
+      COLUMN_ORDER_STORAGE_KEY,
+      JSON.stringify(columnOrder)
+    );
+
+  }, [columnOrder]);
+
+  // Salva no banco com debounce de 1s para não disparar uma
+  // requisição a cada pixel arrastado durante o resize de coluna.
+  useEffect(() => {
+
+    if (!preferencesLoaded) {
+      return;
+    }
+
+    if (preferenceSaveTimeoutRef.current) {
+      clearTimeout(preferenceSaveTimeoutRef.current);
+    }
+
+    preferenceSaveTimeoutRef.current = setTimeout(() => {
+
+      savePreference(
+        GRID_COLUMNS_PREFERENCE_KEY,
+        buildColumnPreferencePayload(
+          columnOrder,
+          visibleColumns,
+          columnWidths
+        )
+      ).catch((error) => console.error(error));
+
+    }, PREFERENCE_SAVE_DEBOUNCE_MS);
+
+    return () => clearTimeout(preferenceSaveTimeoutRef.current);
+
+  }, [columnOrder, visibleColumns, columnWidths, preferencesLoaded]);
 
   function handleResizeMove(e) {
 
@@ -352,13 +543,49 @@ export default function Grid() {
 
   }
 
+  function handleColumnSettingsSave({ order, visibility, widths }) {
+
+    setColumnOrder(order);
+
+    setVisibleColumns(visibility);
+
+    setColumnWidths(widths);
+
+    setColumnSettingsOpen(false);
+
+    if (preferenceSaveTimeoutRef.current) {
+      clearTimeout(preferenceSaveTimeoutRef.current);
+    }
+
+    savePreference(
+      GRID_COLUMNS_PREFERENCE_KEY,
+      buildColumnPreferencePayload(order, visibility, widths)
+    )
+      .then(() => toast.success("Preferências de colunas salvas"))
+      .catch((error) => {
+        console.error(error);
+        toast.error("Erro ao salvar preferências de colunas");
+      });
+
+  }
+
+  const columnsByKey = useMemo(
+    () =>
+      Object.fromEntries(
+        ALL_COLUMNS.map((col) => [col.key, col])
+      ),
+    []
+  );
+
   const columns = useMemo(() => {
 
-    return ALL_COLUMNS.filter(
-      (col) => !col.optional || visibleColumns[col.key]
-    );
+    return columnOrder
+      .map((key) => columnsByKey[key])
+      .filter(
+        (col) => col && (!col.optional || visibleColumns[col.key])
+      );
 
-  }, [visibleColumns]);
+  }, [visibleColumns, columnOrder, columnsByKey]);
 
   function setColumnFilter(field, value) {
 
@@ -587,9 +814,7 @@ export default function Grid() {
         return vehicle.inMaintenance ? "Sim" : "Não";
 
       case "position":
-        return vehicle.positionDate
-          ? `${vehicle.positionDate} ${vehicle.positionTime ?? ""}`
-          : "--";
+        return formatLocalDateTime(vehicle.lastCommunicationAt);
 
       case "signalDelayMinutes":
         return (
@@ -789,6 +1014,22 @@ export default function Grid() {
             )}
 
           </div>
+
+          <button
+            onClick={() => setColumnSettingsOpen(true)}
+            className="
+              flex items-center gap-2
+              rounded-2xl border
+              border-zinc-700
+              bg-zinc-950 px-5 py-3
+              text-sm font-semibold
+              transition
+              hover:bg-zinc-800
+            "
+          >
+            <Settings size={16} />
+            Configurar colunas
+          </button>
 
           <button
             onClick={handleRefreshFromEtl}
@@ -999,6 +1240,21 @@ export default function Grid() {
         </div>
 
       </div>
+
+      {columnSettingsOpen && (
+
+        <ColumnSettingsModal
+          allColumns={ALL_COLUMNS}
+          order={columnOrder}
+          visibility={visibleColumns}
+          widths={columnWidths}
+          defaultOrder={DEFAULT_COLUMN_ORDER}
+          defaultVisibility={DEFAULT_VISIBLE_COLUMNS}
+          onClose={() => setColumnSettingsOpen(false)}
+          onSave={handleColumnSettingsSave}
+        />
+
+      )}
 
       {observationModalPlate && (
 

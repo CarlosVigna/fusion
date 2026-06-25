@@ -4,9 +4,7 @@ import com.fusion.fusion.vehicle.OperationalStatus;
 import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.UUID;
 
 public record GridVehicleResponse(
@@ -23,9 +21,7 @@ public record GridVehicleResponse(
 
         Integer batteryLevel,
 
-        LocalDate positionDate,
-
-        LocalTime positionTime,
+        LocalDateTime lastCommunicationAt,
 
         Boolean inMaintenance,
 

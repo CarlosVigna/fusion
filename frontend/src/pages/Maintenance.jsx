@@ -17,15 +17,7 @@ import {
 
 import MaintenanceModal from "../components/maintenance/MaintenanceModal";
 
-function formatDate(value) {
-
-  if (!value) {
-    return "--";
-  }
-
-  return new Date(value).toLocaleDateString("pt-BR");
-
-}
+import { formatLocalDate as formatDate } from "../utils/dateUtils";
 
 function daysUntil(value) {
 

@@ -27,15 +27,7 @@ import {
 import SignalStageBadge from "../components/signalcontrol/SignalStageBadge";
 import ObservationModal from "../components/observations/ObservationModal";
 
-function formatDateTime(value) {
-
-  if (!value) {
-    return "--";
-  }
-
-  return new Date(value).toLocaleString("pt-BR");
-
-}
+import { formatLocalDateTime } from "../utils/dateUtils";
 
 export default function SignalControl() {
 
@@ -427,7 +419,7 @@ export default function SignalControl() {
                       </td>
 
                       <td className="px-4 py-4 text-zinc-400">
-                        {formatDateTime(vehicle.lastCommunicationAt)}
+                        {formatLocalDateTime(vehicle.lastCommunicationAt)}
                       </td>
 
                       <td
@@ -448,7 +440,7 @@ export default function SignalControl() {
                       <td className="px-4 py-4">
                         {vehicle.lastCheck ? (
                           <span
-                            title={`${vehicle.lastCheck.checkedBy} em ${formatDateTime(vehicle.lastCheck.checkedAt)}`}
+                            title={`${vehicle.lastCheck.checkedBy} em ${formatLocalDateTime(vehicle.lastCheck.checkedAt)}`}
                             className="text-green-400"
                           >
                             <Check size={16} />
@@ -585,13 +577,13 @@ export default function SignalControl() {
                                   <p>{obs.text}</p>
 
                                   <p className="mt-2 border-t border-zinc-800 pt-2 text-xs text-zinc-500">
-                                    {obs.createdBy} em {formatDateTime(obs.createdAt)}
+                                    {obs.createdBy} em {formatLocalDateTime(obs.createdAt)}
                                     {obs.checkedOff ? (
                                       <>
                                         {" · conferido por "}
                                         {obs.checkedBy}
                                         {" em "}
-                                        {formatDateTime(obs.checkedAt)}
+                                        {formatLocalDateTime(obs.checkedAt)}
                                       </>
                                     ) : (
                                       " · não conferido"
