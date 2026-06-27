@@ -55,6 +55,12 @@ public class SecurityConfig {
                                 "/ws/**"
                         ).permitAll()
 
+                        // Health check do Render — sem isso o Render nao
+                        // consegue checar se o servico esta de pe.
+                        .requestMatchers(
+                                "/actuator/health"
+                        ).permitAll()
+
                         // Autenticado por API key (X-ETL-Key) dentro do
                         // proprio controller, nao por JWT — o ETL local
                         // nao tem usuario logado nem token de sessao.
