@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -37,6 +38,13 @@ public class OperationalListImportService {
 
     private static final DateTimeFormatter DATE_FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
+
+    // "Data GSM"/"Data Posicao" da planilha do Multiportal vem em horario
+    // de Brasilia, sem indicador de fuso — precisa converter para UTC
+    // antes de salvar, ja que o resto do sistema (motor operacional,
+    // frontend) trata todo LocalDateTime como UTC.
+    private static final ZoneId MULTIPORTAL_ZONE =
+            ZoneId.of("America/Sao_Paulo");
 
     private final VehicleRepository vehicleRepository;
     private final VehicleOperationalStateRepository operationalRepository;
@@ -371,10 +379,17 @@ public class OperationalListImportService {
         }
 
         try {
-            return LocalDateTime.parse(
+
+            LocalDateTime brasiliaLocal = LocalDateTime.parse(
                     value.trim(),
                     DATE_FORMATTER
             );
+
+            return brasiliaLocal
+                    .atZone(MULTIPORTAL_ZONE)
+                    .withZoneSameInstant(ZoneOffset.UTC)
+                    .toLocalDateTime();
+
         } catch (Exception e) {
             return null;
         }
