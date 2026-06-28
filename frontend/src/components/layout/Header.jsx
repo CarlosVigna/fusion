@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
+import { useLocation } from "react-router-dom";
+
 import toast from "react-hot-toast";
 
 import { Bell, LogOut, Search } from "lucide-react";
@@ -15,6 +17,28 @@ import { formatDelay } from "../../utils/formatDelay";
 
 const POLL_INTERVAL_MS = 60000;
 
+// Fonte única do título exibido no topo — cada página não renderiza
+// mais seu próprio <h1>, evitando títulos duplicados/divergentes.
+const PAGE_TITLES = [
+  { match: /^\/(grid)?$/, title: "Grid Operacional", subtitle: "Consolidação operacional realtime" },
+  { match: /^\/dashboard$/, title: "Dashboard", subtitle: "Central operacional realtime" },
+  { match: /^\/imports$/, title: "Import Center", subtitle: "Central operacional de importações" },
+  { match: /^\/vehicles\/.+$/, title: "Detalhes do Veículo", subtitle: "" },
+  { match: /^\/vehicles$/, title: "Veículos", subtitle: "Cadastro operacional consolidado" },
+  { match: /^\/audit$/, title: "Monitoramento", subtitle: "Histórico de importações, mudanças pendentes e integridade dos dados" },
+  { match: /^\/signal-control$/, title: "Controle de Sinais", subtitle: "Veículos sem comunicação há mais de 24h — fluxo de atendimento" },
+  { match: /^\/letters$/, title: "Cartas de Suspensão", subtitle: "Controle de cartas de suspensão por cobertura" },
+  { match: /^\/maintenance$/, title: "Manutenção", subtitle: "Veículos em manutenção de equipamento" },
+];
+
+function getPageTitle(pathname) {
+
+  const found = PAGE_TITLES.find((entry) => entry.match.test(pathname));
+
+  return found || { title: "Fusion", subtitle: "" };
+
+}
+
 function formatDateTime(value) {
 
   if (!value) {
@@ -26,6 +50,10 @@ function formatDateTime(value) {
 }
 
 export default function Header() {
+  const location = useLocation();
+
+  const { title, subtitle } = getPageTitle(location.pathname);
+
   const user = useAuthStore(
     (state) => state.user
   );
@@ -134,12 +162,14 @@ export default function Header() {
     >
       <div>
         <h2 className="text-xl font-semibold text-white">
-          Grid Operacional
+          {title}
         </h2>
 
-        <p className="text-sm text-zinc-400">
-          Consolidação operacional realtime
-        </p>
+        {subtitle && (
+          <p className="text-sm text-zinc-400">
+            {subtitle}
+          </p>
+        )}
       </div>
 
       <div className="flex items-center gap-4">

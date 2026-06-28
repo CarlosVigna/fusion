@@ -13,7 +13,7 @@ import {
 
 import { useEffect, useState } from "react";
 
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 
 import { getSignalControl } from "../../services/signalControlService";
 
@@ -63,10 +63,29 @@ const items = [
 
 const POLL_INTERVAL_MS = 60000;
 
+const GRID_PATHS = ["/", "/grid"];
+
 export default function Sidebar() {
-    const [collapsed, setCollapsed] = useState(false);
+    const location = useLocation();
+
+    const isGridPage = GRID_PATHS.includes(location.pathname);
+
+    // null = segue a regra automatica (recolhida em paginas com Grid,
+    // aberta nas demais). Um clique no toggle fixa a preferencia do
+    // usuario, sem precisar de efeito pra sincronizar com a rota.
+    const [manualOverride, setManualOverride] = useState(null);
+
+    const [hovering, setHovering] = useState(false);
 
     const [signalControlCount, setSignalControlCount] = useState(0);
+
+    const collapsed =
+        manualOverride !== null ? manualOverride : isGridPage;
+
+    // Passar o mouse expande temporariamente sem mudar o estado
+    // "recolhido" de base — ao tirar o mouse, volta a recolher se a
+    // regra automatica (pagina do Grid) ainda se aplicar.
+    const expanded = !collapsed || hovering;
 
     useEffect(() => {
 
@@ -100,17 +119,19 @@ export default function Sidebar() {
 
     return (
         <aside
+            onMouseEnter={() => setHovering(true)}
+            onMouseLeave={() => setHovering(false)}
             className={`
         relative flex flex-col
         border-r border-zinc-800
         bg-zinc-950
         transition-all duration-200
-        ${collapsed ? "w-20" : "w-72"}
+        ${expanded ? "w-72" : "w-20"}
       `}
         >
             <button
-                onClick={() => setCollapsed(!collapsed)}
-                title={collapsed ? "Expandir menu" : "Recolher menu"}
+                onClick={() => setManualOverride(!collapsed)}
+                title={collapsed ? "Fixar menu aberto" : "Recolher menu"}
                 className="
           absolute -right-3 top-8 z-10
           flex h-6 w-6 items-center justify-center
@@ -119,10 +140,10 @@ export default function Sidebar() {
           transition hover:bg-zinc-800 hover:text-white
         "
             >
-                {collapsed ? (
-                    <ChevronRight size={14} />
-                ) : (
+                {expanded ? (
                     <ChevronLeft size={14} />
+                ) : (
+                    <ChevronRight size={14} />
                 )}
             </button>
 
@@ -138,7 +159,7 @@ export default function Sidebar() {
                         F
                     </div>
 
-                    {!collapsed && (
+                    {expanded && (
                         <div>
                             <h1 className="text-xl font-bold text-white">
                                 Fusion
@@ -160,13 +181,13 @@ export default function Sidebar() {
                         <NavLink
                             key={item.path}
                             to={item.path}
-                            title={collapsed ? item.label : undefined}
+                            title={!expanded ? item.label : undefined}
                             className={({ isActive }) =>
                                 `
                 group flex items-center gap-3
                 rounded-2xl px-4 py-3
                 transition-all duration-200
-                ${collapsed ? "justify-center" : ""}
+                ${!expanded ? "justify-center" : ""}
                 ${isActive
                                     ? "bg-white text-black shadow-lg"
                                     : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
@@ -176,7 +197,7 @@ export default function Sidebar() {
                         >
                             <Icon size={20} />
 
-                            {!collapsed && (
+                            {expanded && (
                                 <span className="flex-1 font-medium">
                                     {item.label}
                                 </span>
@@ -199,7 +220,7 @@ export default function Sidebar() {
                 })}
             </nav>
 
-            {!collapsed && (
+            {expanded && (
                 <div className="border-t border-zinc-800 p-4">
                     <div
                         className="

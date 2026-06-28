@@ -44,6 +44,10 @@ async function request(
       "fusion_token"
     );
 
+    localStorage.removeItem(
+      "fusion_user"
+    );
+
     window.location.href =
       "/login";
 

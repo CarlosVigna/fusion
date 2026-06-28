@@ -15,6 +15,8 @@ import {
 
 import { useGridStore } from "../store/gridStore";
 
+import { realtimeService } from "../services/realtime/realtimeService";
+
 import { triggerImport } from "../services/importStatusService";
 
 import {
@@ -697,6 +699,21 @@ export default function Grid() {
     // 30 minutos — navegar entre páginas e voltar para o Grid não
     // deve disparar uma nova requisição.
     useGridStore.getState().loadGridIfStale();
+
+    // Quando o ETL termina um import de última posição, o backend avisa
+    // via WebSocket (/topic/dashboard, type GRID_UPDATED) — o Grid se
+    // atualiza sozinho, sem precisar de F5.
+    const unsubscribe = realtimeService.onDashboardEvent((event) => {
+
+      if (event?.type === "GRID_UPDATED") {
+
+        loadGrid();
+
+      }
+
+    });
+
+    return () => unsubscribe();
 
   }, []);
 

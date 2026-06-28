@@ -249,18 +249,6 @@ export default function SignalControl() {
   return (
     <div className="space-y-6">
 
-      <div>
-
-        <h1 className="text-3xl font-bold">
-          Controle de Sinais
-        </h1>
-
-        <p className="mt-1 text-zinc-400">
-          Veículos sem comunicação há mais de 24h — fluxo de atendimento
-        </p>
-
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-4">
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">

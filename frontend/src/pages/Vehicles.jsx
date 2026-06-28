@@ -27,16 +27,6 @@ export default function Vehicles() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-3xl font-bold">
-                    Veículos
-                </h1>
-
-                <p className="mt-1 text-zinc-400">
-                    Cadastro operacional consolidado
-                </p>
-            </div>
-
             <div
                 className="
           overflow-x-auto rounded-2xl

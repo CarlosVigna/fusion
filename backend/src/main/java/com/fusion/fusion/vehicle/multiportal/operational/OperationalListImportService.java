@@ -8,6 +8,7 @@ import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
+import com.fusion.fusion.realtime.DashboardRealtimeService;
 import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
@@ -53,6 +54,7 @@ public class OperationalListImportService {
     private final ImportBackupService backupService;
     private final ImportFileNamingService namingService;
     private final ImportHistoryService importHistoryService;
+    private final DashboardRealtimeService realtimeService;
 
     @Transactional
     public OperationalListImportResponse importFile(
@@ -259,6 +261,13 @@ public class OperationalListImportService {
                     ImportType.MULTIPORTAL_OPERATIONAL,
                     backupName,
                     updated
+            );
+
+            // Avisa o frontend (via WS) que ha posicoes novas — o Grid
+            // escuta isso pra se atualizar sozinho, sem precisar de F5.
+            realtimeService.publish(
+                    "GRID_UPDATED",
+                    "Última posição atualizada (" + updated + " veículos)"
             );
 
         } catch (Exception e) {

@@ -114,18 +114,6 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
 
-      <div>
-
-        <h1 className="text-3xl font-bold">
-          Dashboard
-        </h1>
-
-        <p className="mt-1 text-zinc-400">
-          Central operacional realtime
-        </p>
-
-      </div>
-
       <div
         className="
           rounded-2xl border border-zinc-800

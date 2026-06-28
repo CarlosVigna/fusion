@@ -147,16 +147,6 @@ export default function Monitoring() {
   return (
     <div className="space-y-6">
 
-      <div>
-        <h1 className="text-3xl font-bold">
-          Monitoramento
-        </h1>
-
-        <p className="mt-1 text-zinc-400">
-          Histórico de importações, mudanças pendentes e integridade dos dados
-        </p>
-      </div>
-
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
 
         <div className="border-b border-zinc-800 p-6">
