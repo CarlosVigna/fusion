@@ -72,4 +72,22 @@ public class AuthController {
 
     }
 
+    @PutMapping("/me")
+    public MeResponse updateProfile(
+            @RequestBody UpdateProfileRequest request
+    ) {
+
+        return authService.updateProfile(request);
+
+    }
+
+    @PutMapping("/me/password")
+    public void changePassword(
+            @RequestBody ChangePasswordRequest request
+    ) {
+
+        authService.changePassword(request);
+
+    }
+
 }

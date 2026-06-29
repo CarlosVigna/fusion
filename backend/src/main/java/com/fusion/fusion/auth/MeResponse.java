@@ -12,7 +12,9 @@ public record MeResponse(
 
         String email,
 
-        Role role
+        Role role,
+
+        String photoUrl
 
 ) {
 }

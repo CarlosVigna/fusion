@@ -8,6 +8,7 @@ import {
     Mail,
     Wrench,
     Workflow,
+    UserCircle,
     ChevronLeft,
     ChevronRight,
 } from "lucide-react";
@@ -64,6 +65,11 @@ const items = [
         label: "ETL",
         icon: Workflow,
         path: "/etl",
+    },
+    {
+        label: "Minha Conta",
+        icon: UserCircle,
+        path: "/account",
     },
 ];
 

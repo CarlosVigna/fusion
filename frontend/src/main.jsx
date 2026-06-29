@@ -1,5 +1,13 @@
 window.global = window;
 
+// Aplica o tema salvo ANTES do primeiro paint, pra nao "flashar" o
+// tema escuro padrao por uma fracao de segundo antes do React montar
+// e buscar a preferencia real no backend.
+document.documentElement.setAttribute(
+  "data-theme",
+  localStorage.getItem("fusion_theme") || "dark"
+);
+
 import React from "react";
 
 import ReactDOM from "react-dom/client";

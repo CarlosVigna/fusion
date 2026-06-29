@@ -70,6 +70,17 @@ export const useAuthStore =
 
     },
 
+    setUser: (user) => {
+
+      localStorage.setItem(
+        "fusion_user",
+        JSON.stringify(user)
+      );
+
+      set({ user });
+
+    },
+
     logout: () => {
 
       localStorage.removeItem(

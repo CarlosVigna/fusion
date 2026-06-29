@@ -33,6 +33,12 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    // Data URL (base64) da foto de perfil — sem storage externo
+    // configurado, guarda direto no banco; o frontend reduz a imagem
+    // antes de enviar pra nao gerar linhas gigantes.
+    @Column(columnDefinition = "TEXT")
+    private String photoUrl;
+
     @Builder.Default
     private Boolean active = true;
 

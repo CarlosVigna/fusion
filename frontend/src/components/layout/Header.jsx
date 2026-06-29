@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
@@ -30,6 +30,7 @@ const PAGE_TITLES = [
   { match: /^\/letters$/, title: "Cartas de Suspensão", subtitle: "Controle de cartas de suspensão por cobertura" },
   { match: /^\/maintenance$/, title: "Manutenção", subtitle: "Veículos em manutenção de equipamento" },
   { match: /^\/etl$/, title: "Monitor do ETL", subtitle: "Status, histórico e execuções dos scrapers" },
+  { match: /^\/account$/, title: "Minha Conta", subtitle: "Dados pessoais, senha e tema" },
 ];
 
 function getPageTitle(pathname) {
@@ -359,21 +360,31 @@ export default function Header() {
 
         </div>
 
-        <div
+        <Link
+          to="/account"
           className="
             flex items-center gap-3
             rounded-xl border border-zinc-800
             bg-zinc-950 px-4 py-2
+            transition hover:bg-zinc-800
           "
         >
           <div
             className="
-              flex h-9 w-9 items-center
-              justify-center rounded-full
+              flex h-9 w-9 shrink-0 items-center
+              justify-center overflow-hidden rounded-full
               bg-zinc-800 font-bold
             "
           >
-            {user?.name?.[0] || "U"}
+            {user?.photoUrl ? (
+              <img
+                src={user.photoUrl}
+                alt="Foto de perfil"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              user?.name?.[0] || "U"
+            )}
           </div>
 
           <div>
@@ -385,7 +396,7 @@ export default function Header() {
               {user?.role || "Operador"}
             </p>
           </div>
-        </div>
+        </Link>
 
         <button
           onClick={logout}

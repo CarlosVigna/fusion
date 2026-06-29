@@ -2,15 +2,21 @@ import { useState } from "react";
 
 import { useNavigate } from "react-router-dom";
 
-import { login } from "../services/authService";
+import { getMe, login } from "../services/authService";
 
 import { useAuthStore } from "../store/authStore";
+
+import { useThemeStore } from "../store/themeStore";
 
 export default function Login() {
   const navigate = useNavigate();
 
   const setAuth = useAuthStore(
     (state) => state.setAuth
+  );
+
+  const loadTheme = useThemeStore(
+    (state) => state.loadTheme
   );
 
   const [email, setEmail] = useState("");
@@ -37,6 +43,20 @@ export default function Login() {
       });
 
       setAuth(response);
+
+      try {
+
+        const me = await getMe();
+
+        setAuth({ token: response.token, user: me });
+
+        await loadTheme();
+
+      } catch (meError) {
+
+        console.error(meError);
+
+      }
 
       navigate("/");
     } catch (error) {
