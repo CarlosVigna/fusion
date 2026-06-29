@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
-import { Check, Download, Mail, Pencil, Wrench } from "lucide-react";
+import { Check, FileText, FileSpreadsheet, Mail, Pencil, Wrench } from "lucide-react";
 
 import {
   getSignalControl,
@@ -18,7 +18,6 @@ import {
 import { formatDelay } from "../utils/formatDelay";
 
 import {
-  exportRowsToXlsx,
   formatDateTimeForExport,
   formatDelayDaysHours,
   todayForFilename,
@@ -216,7 +215,15 @@ export default function SignalControl() {
 
   }
 
-  function handleExport() {
+  const STAGE_LABELS = {
+    AWAITING_COMMAND: "1-2 dias",
+    CONTACT_INSURED: "3-4 dias",
+    SUSPENSION_PENDING: "5+ dias — suspensão",
+    MAINTENANCE_PENDING: "5+ dias — manutenção",
+    SIGNAL_RETURNED: "Sinal retornou",
+  };
+
+  function buildExportData() {
 
     const headers = [
       "PLACA",
@@ -234,11 +241,45 @@ export default function SignalControl() {
       vehicle.lastObservation?.text || "",
     ]);
 
-    exportRowsToXlsx(
-      `SINAIS_${todayForFilename()}.xlsx`,
+    const filters = {
+      Etapa: stageFilter ? STAGE_LABELS[stageFilter] : null,
+      Placa: plateFilter || null,
+      Segurado: insuredFilter || null,
+    };
+
+    return { headers, rows, filters };
+
+  }
+
+  async function handleExportExcel() {
+
+    const { headers, rows, filters } = buildExportData();
+
+    const { exportReportToExcel } = await import("../utils/reportExport");
+
+    exportReportToExcel({
+      title: "Controle de Sinais",
       headers,
-      rows
-    );
+      rows,
+      filters,
+      filename: `SINAIS_${todayForFilename()}.xlsx`,
+    });
+
+  }
+
+  async function handleExportPdf() {
+
+    const { headers, rows, filters } = buildExportData();
+
+    const { exportReportToPdf } = await import("../utils/reportExport");
+
+    exportReportToPdf({
+      title: "Controle de Sinais",
+      headers,
+      rows,
+      filters,
+      filename: `SINAIS_${todayForFilename()}.pdf`,
+    });
 
   }
 
@@ -335,7 +376,7 @@ export default function SignalControl() {
         />
 
         <button
-          onClick={handleExport}
+          onClick={handleExportExcel}
           className="
             flex items-center justify-center gap-2
             rounded-xl border border-zinc-700
@@ -344,8 +385,22 @@ export default function SignalControl() {
             transition hover:bg-zinc-800
           "
         >
-          <Download size={16} />
-          Exportar
+          <FileSpreadsheet size={16} />
+          Excel
+        </button>
+
+        <button
+          onClick={handleExportPdf}
+          className="
+            flex items-center justify-center gap-2
+            rounded-xl border border-zinc-700
+            bg-zinc-950 px-5 py-2.5
+            text-sm font-semibold
+            transition hover:bg-zinc-800
+          "
+        >
+          <FileText size={16} />
+          PDF
         </button>
 
       </div>

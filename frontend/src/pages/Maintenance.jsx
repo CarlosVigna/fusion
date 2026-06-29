@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { Download, Plus, Trash2, X } from "lucide-react";
+import { FileSpreadsheet, FileText, Plus, Trash2, X } from "lucide-react";
 
 import {
   closeMaintenanceRecord,
@@ -11,7 +11,6 @@ import {
 } from "../services/maintenanceService";
 
 import {
-  exportRowsToXlsx,
   todayForFilename,
 } from "../utils/exportXlsx";
 
@@ -174,7 +173,7 @@ export default function Maintenance() {
 
   }
 
-  function handleExport() {
+  function buildExportData() {
 
     const headers = [
       "DATA",
@@ -204,11 +203,43 @@ export default function Maintenance() {
       formatDate(record.dataEncerramento),
     ]);
 
-    exportRowsToXlsx(
-      `MANUTENCAO_${todayForFilename()}.xlsx`,
+    const filters = {
+      "Mostrar encerradas": showClosed ? "Sim" : "Não",
+    };
+
+    return { headers, rows, filters };
+
+  }
+
+  async function handleExportExcel() {
+
+    const { headers, rows, filters } = buildExportData();
+
+    const { exportReportToExcel } = await import("../utils/reportExport");
+
+    exportReportToExcel({
+      title: "Manutenção",
       headers,
-      rows
-    );
+      rows,
+      filters,
+      filename: `MANUTENCAO_${todayForFilename()}.xlsx`,
+    });
+
+  }
+
+  async function handleExportPdf() {
+
+    const { headers, rows, filters } = buildExportData();
+
+    const { exportReportToPdf } = await import("../utils/reportExport");
+
+    exportReportToPdf({
+      title: "Manutenção",
+      headers,
+      rows,
+      filters,
+      filename: `MANUTENCAO_${todayForFilename()}.pdf`,
+    });
 
   }
 
@@ -237,7 +268,7 @@ export default function Maintenance() {
           </label>
 
           <button
-            onClick={handleExport}
+            onClick={handleExportExcel}
             className="
               flex items-center gap-2
               rounded-2xl border border-zinc-700
@@ -246,8 +277,22 @@ export default function Maintenance() {
               transition hover:bg-zinc-800
             "
           >
-            <Download size={16} />
-            Exportar
+            <FileSpreadsheet size={16} />
+            Excel
+          </button>
+
+          <button
+            onClick={handleExportPdf}
+            className="
+              flex items-center gap-2
+              rounded-2xl border border-zinc-700
+              bg-zinc-950 px-5 py-3
+              text-sm font-semibold
+              transition hover:bg-zinc-800
+            "
+          >
+            <FileText size={16} />
+            PDF
           </button>
 
           <button
