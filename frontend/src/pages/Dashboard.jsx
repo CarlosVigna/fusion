@@ -24,6 +24,7 @@ import DelayedSignalsPanel from "../components/operational/panels/DelayedSignals
 import LettersReturnedPanel from "../components/operational/panels/LettersReturnedPanel";
 import OverdueMaintenancePanel from "../components/operational/panels/OverdueMaintenancePanel";
 import PendingChangesPanel from "../components/operational/panels/PendingChangesPanel";
+import NeverCommunicatedPanel from "../components/operational/panels/NeverCommunicatedPanel";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
@@ -32,6 +33,7 @@ const TABS = [
   { key: "letters", label: "Cartas" },
   { key: "maintenance", label: "Manutenções" },
   { key: "pending", label: "Mudanças pendentes" },
+  { key: "neverCommunicated", label: "Sem comunicação" },
 ];
 
 export default function Dashboard() {
@@ -129,7 +131,7 @@ export default function Dashboard() {
       icon: RefreshCw,
       label: "Importações hoje",
       value: dashboard?.importsTodayCount,
-      to: "/audit",
+      to: "/etl",
     },
     {
       key: "lastEtlUpdate",
@@ -277,6 +279,10 @@ export default function Dashboard() {
 
           {activeTab === "pending" && (
             <PendingChangesPanel onChanged={loadDashboard} />
+          )}
+
+          {activeTab === "neverCommunicated" && (
+            <NeverCommunicatedPanel />
           )}
 
         </div>

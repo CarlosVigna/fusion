@@ -3,7 +3,6 @@ import {
     ClipboardList,
     Upload,
     Car,
-    ShieldCheck,
     RadioTower,
     Mail,
     Wrench,
@@ -55,11 +54,6 @@ const items = [
         label: "Veículos",
         icon: Car,
         path: "/vehicles",
-    },
-    {
-        label: "Monitoramento",
-        icon: ShieldCheck,
-        path: "/audit",
     },
     {
         label: "ETL",

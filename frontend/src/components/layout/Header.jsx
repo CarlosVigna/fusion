@@ -25,7 +25,6 @@ const PAGE_TITLES = [
   { match: /^\/imports$/, title: "Import Center", subtitle: "Central operacional de importações" },
   { match: /^\/vehicles\/.+$/, title: "Detalhes do Veículo", subtitle: "" },
   { match: /^\/vehicles$/, title: "Veículos", subtitle: "Cadastro operacional consolidado" },
-  { match: /^\/audit$/, title: "Monitoramento", subtitle: "Histórico de importações, mudanças pendentes e integridade dos dados" },
   { match: /^\/signal-control$/, title: "Controle de Sinais", subtitle: "Veículos sem comunicação há mais de 24h — fluxo de atendimento" },
   { match: /^\/letters$/, title: "Cartas de Suspensão", subtitle: "Controle de cartas de suspensão por cobertura" },
   { match: /^\/maintenance$/, title: "Manutenção", subtitle: "Veículos em manutenção de equipamento" },

@@ -10,7 +10,6 @@ import Dashboard from "../pages/Dashboard";
 import Grid from "../pages/Grid";
 import Imports from "../pages/Imports";
 import Vehicles from "../pages/Vehicles";
-import Monitoring from "../pages/Monitoring";
 import SignalControl from "../pages/SignalControl";
 import Letters from "../pages/Letters";
 import Maintenance from "../pages/Maintenance";
@@ -65,11 +64,6 @@ export default function AppRoutes() {
                 <Route
                     path="vehicles/:plate"
                     element={<VehicleDetails />}
-                />
-
-                <Route
-                    path="audit"
-                    element={<Monitoring />}
                 />
 
                 <Route
