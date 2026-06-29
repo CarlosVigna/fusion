@@ -65,7 +65,9 @@ public class SecurityConfig {
                         // proprio controller, nao por JWT — o ETL local
                         // nao tem usuario logado nem token de sessao.
                         .requestMatchers(
-                                "/imports/upload"
+                                "/imports/upload",
+                                "/etl/poll",
+                                "/etl/heartbeat"
                         ).permitAll()
 
                         .requestMatchers(

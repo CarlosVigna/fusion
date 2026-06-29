@@ -7,6 +7,7 @@ import {
     RadioTower,
     Mail,
     Wrench,
+    Workflow,
     ChevronLeft,
     ChevronRight,
 } from "lucide-react";
@@ -58,6 +59,11 @@ const items = [
         label: "Monitoramento",
         icon: ShieldCheck,
         path: "/audit",
+    },
+    {
+        label: "ETL",
+        icon: Workflow,
+        path: "/etl",
     },
 ];
 

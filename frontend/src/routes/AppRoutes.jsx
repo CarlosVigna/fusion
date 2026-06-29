@@ -14,6 +14,7 @@ import Monitoring from "../pages/Monitoring";
 import SignalControl from "../pages/SignalControl";
 import Letters from "../pages/Letters";
 import Maintenance from "../pages/Maintenance";
+import EtlMonitor from "../pages/EtlMonitor";
 import Login from "../pages/Login";
 import VehicleDetails from "../pages/VehicleDetails";
 
@@ -83,6 +84,11 @@ export default function AppRoutes() {
                 <Route
                     path="maintenance"
                     element={<Maintenance />}
+                />
+
+                <Route
+                    path="etl"
+                    element={<EtlMonitor />}
                 />
             </Route>
 

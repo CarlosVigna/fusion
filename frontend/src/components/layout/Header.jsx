@@ -29,6 +29,7 @@ const PAGE_TITLES = [
   { match: /^\/signal-control$/, title: "Controle de Sinais", subtitle: "Veículos sem comunicação há mais de 24h — fluxo de atendimento" },
   { match: /^\/letters$/, title: "Cartas de Suspensão", subtitle: "Controle de cartas de suspensão por cobertura" },
   { match: /^\/maintenance$/, title: "Manutenção", subtitle: "Veículos em manutenção de equipamento" },
+  { match: /^\/etl$/, title: "Monitor do ETL", subtitle: "Status, histórico e execuções dos scrapers" },
 ];
 
 function getPageTitle(pathname) {
@@ -70,6 +71,9 @@ export default function Header() {
 
   const [dismissingId, setDismissingId] =
     useState(null);
+
+  const [dismissingAll, setDismissingAll] =
+    useState(false);
 
   const alertsRef = useRef(null);
 
@@ -147,6 +151,38 @@ export default function Header() {
     } finally {
 
       setDismissingId(null);
+
+    }
+
+  }
+
+  async function handleDismissAll() {
+
+    const idsToDismiss = alerts.map((alert) => alert.id);
+
+    setDismissingAll(true);
+
+    try {
+
+      await Promise.all(
+        idsToDismiss.map((id) => dismissSignalReturnAlert(id))
+      );
+
+      setAlerts((current) =>
+        current.filter((alert) => !idsToDismiss.includes(alert.id))
+      );
+
+      toast.success("Todas as notificações foram dispensadas");
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao dispensar notificações");
+
+    } finally {
+
+      setDismissingAll(false);
 
     }
 
@@ -233,9 +269,27 @@ export default function Header() {
               "
             >
 
-              <p className="px-2 py-1 text-xs font-semibold text-zinc-500">
-                RETORNO DE SINAL
-              </p>
+              <div className="flex items-center justify-between px-2 py-1">
+
+                <p className="text-xs font-semibold text-zinc-500">
+                  RETORNO DE SINAL
+                </p>
+
+                {alerts.length > 0 && (
+                  <button
+                    onClick={handleDismissAll}
+                    disabled={dismissingAll}
+                    className="
+                      text-xs font-semibold text-zinc-400
+                      transition hover:text-white
+                      disabled:opacity-50
+                    "
+                  >
+                    Dispensar todas
+                  </button>
+                )}
+
+              </div>
 
               {alerts.length === 0 ? (
 

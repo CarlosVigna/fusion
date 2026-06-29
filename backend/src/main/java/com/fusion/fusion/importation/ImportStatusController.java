@@ -1,5 +1,6 @@
 package com.fusion.fusion.importation;
 
+import com.fusion.fusion.etl.EtlTriggerService;
 import com.fusion.fusion.importation.orchestrator.ImportOrchestratorService;
 import com.fusion.fusion.vehicle.multiportal.device.DeviceImportService;
 import com.fusion.fusion.vehicle.multiportal.linkage.LinkageImportService;
@@ -16,11 +17,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -43,16 +39,10 @@ public class ImportStatusController {
 
     private final LinkageImportService linkageImportService;
 
-    @Value("${fusion.etl.server-url}")
-    private String etlServerUrl;
+    private final EtlTriggerService etlTriggerService;
 
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
-
-    private static final HttpClient HTTP_CLIENT =
-            HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(5))
-                    .build();
 
     @GetMapping("/last-sync")
     public LastSyncResponse lastSync(
@@ -78,6 +68,13 @@ public class ImportStatusController {
 
     }
 
+    // O backend nao chama mais o ETL diretamente (ele esta atras de NAT,
+    // inalcancavel sem tunel) — so enfileira o pedido. O ETL local
+    // reivindica via GET /etl/poll, roda o scraper, e entrega o
+    // resultado por /imports/upload, como ja fazia. O Grid se atualiza
+    // sozinho via o evento GRID_UPDATED (WebSocket) quando o import
+    // terminar — por isso a resposta aqui e' imediata, sem esperar
+    // o scrape de fato rodar.
     @PostMapping("/trigger")
     public ResponseEntity<Map<String, String>> trigger(
             @RequestParam(required = false) ImportType type
@@ -85,81 +82,27 @@ public class ImportStatusController {
 
         try {
 
-            triggerScrapeIfApplicable(type);
+            if (type != null) {
+                etlTriggerService.request(type);
+            }
 
             orchestratorService.execute();
 
             return ResponseEntity.ok(Map.of(
                     "status", "SUCCESS",
-                    "message", "Reprocessamento de imports/pending concluído"
+                    "message", type != null
+                            ? "Atualização solicitada — o ETL vai processar em breve"
+                            : "Reprocessamento de imports/pending concluído"
             ));
 
         } catch (Exception e) {
 
-            log.error("Erro ao acionar scraper/reprocessar imports para {}", type, e);
+            log.error("Erro ao solicitar atualização/reprocessar imports para {}", type, e);
 
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(Map.of(
                     "status", "ERROR",
-                    "message", "Falha ao acionar o ETL: " + e.getMessage()
+                    "message", "Falha ao solicitar atualização: " + e.getMessage()
             ));
-
-        }
-
-    }
-
-    private void triggerScrapeIfApplicable(ImportType type) {
-
-        if (type == null) {
-            return; // reprocessa só o que já está em pending/
-        }
-
-        String scrapeEndpoint = switch (type) {
-            case MULTIPORTAL_DEVICE -> "/scrape/device";
-            case MULTIPORTAL_LINKAGE -> "/scrape/linkage";
-            case MULTIPORTAL_OPERATIONAL -> "/scrape/operational";
-            default -> null;
-        };
-
-        if (scrapeEndpoint == null) {
-            return; // sem type, ou TRACKNME: só reprocessa pending/
-        }
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(etlServerUrl + scrapeEndpoint))
-                .timeout(Duration.ofSeconds(120))
-                .POST(HttpRequest.BodyPublishers.noBody())
-                .build();
-
-        HttpResponse<String> response;
-
-        try {
-
-            response = HTTP_CLIENT.send(
-                    request,
-                    HttpResponse.BodyHandlers.ofString()
-            );
-
-        } catch (Exception e) {
-
-            throw new RuntimeException(
-                    "Não foi possível conectar ao ETL em " + etlServerUrl,
-                    e
-            );
-
-        }
-
-        log.info(
-                "Scraper ETL ({}) respondeu {}: {}",
-                type,
-                response.statusCode(),
-                response.body()
-        );
-
-        if (response.statusCode() != 200) {
-
-            throw new RuntimeException(
-                    "Scraper ETL para " + type + " falhou: " + response.body()
-            );
 
         }
 

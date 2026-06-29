@@ -8,16 +8,19 @@ placa PDK9F20, ~40h sem nenhuma sincronização).
 
 ## Como funciona
 - `start.js` — processo único que sobe `scheduler.js` (cron de 30min/diário)
-  e `server.js` (API HTTP na porta 3001, usada pelos botões "Atualizar
-  agora" do Monitoramento) juntos, na mesma janela/processo.
+  e `src/triggerPoller.js` (polling que pergunta ao backend a cada 15s se
+  há um pedido de "Atualizar agora" pendente) juntos, na mesma janela/processo.
 - `start-etl.bat` — define o PATH do Node e chama `start.js`.
-- Uma Tarefa Agendada do Windows ("FusionETL") roda esse `.bat`
+- `start-etl-hidden.vbs` — roda o `.bat` sem nenhuma janela de console
+  visível (é isso que a Tarefa Agendada executa, não o `.bat` direto).
+- Uma Tarefa Agendada do Windows ("FusionETL") roda esse `.vbs`
   automaticamente sempre que você faz logon, e reinicia até 3 vezes
   (1 min de intervalo) se o processo cair sozinho.
 
-Optamos por um processo único (`start.js`) em vez de dois separados —
-mais simples de monitorar e reiniciar do que dois processos
-independentes.
+Não existe mais nenhum servidor HTTP local (`server.js` foi removido):
+o ETL só faz chamadas de **saída** (poll no backend + upload do
+resultado), nunca recebe chamadas de fora — por isso não precisa mais
+de túnel/IP público pra "Atualizar agora" funcionar.
 
 ## 1. Instalar (rodar uma vez)
 Abra o PowerShell **como o seu usuário normal** (não precisa admin),
@@ -43,13 +46,11 @@ Confira também os logs:
   processo subiu.
 - `C:/FusionData/log/etl.log` — execuções reais dos scrapers. Procure por
   linhas com `[CRON]` para confirmar que o agendador automático está
-  disparando (não só execuções manuais/via HTTP, que aparecem como
-  `[server]` ou sem prefixo).
+  disparando, e `[POLL]` para confirmar pedidos de "Atualizar agora"
+  vindos do Fusion.
 
-Teste rápido da API:
-```powershell
-curl http://localhost:3001/health
-```
+Status e histórico de execuções também ficam visíveis dentro do próprio
+Fusion, na tela de monitoramento do ETL (menu lateral).
 
 ## 3. Reiniciar manualmente (sem precisar logout/login)
 ```powershell

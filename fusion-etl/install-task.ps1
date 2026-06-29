@@ -1,7 +1,8 @@
 <#
 .SYNOPSIS
     Registra a Tarefa Agendada do Windows que inicia o ETL Fusion
-    (scheduler.js + server.js) automaticamente ao fazer logon.
+    (scheduler.js + polling de atualizacao manual) automaticamente ao
+    fazer logon, sem abrir nenhuma janela de console visivel.
 
 .NOTES
     Execute este script UMA VEZ, logado como o proprio usuario que vai
@@ -11,6 +12,7 @@
 $TaskName = "FusionETL"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BatPath = Join-Path $ScriptDir "start-etl.bat"
+$VbsPath = Join-Path $ScriptDir "start-etl-hidden.vbs"
 $CurrentUser = "$env:USERDOMAIN\$env:USERNAME"
 
 if (-not (Test-Path $BatPath)) {
@@ -20,8 +22,13 @@ if (-not (Test-Path $BatPath)) {
 
 Write-Host "Registrando tarefa '$TaskName' para o usuario '$CurrentUser'..."
 
+# Executa via wscript.exe + .vbs em vez do .bat direto — assim a janela
+# de console do node.exe fica oculta. O .vbs espera o processo terminar
+# (Run ..., 0, True), entao a Tarefa Agendada ainda detecta queda e
+# reinicia normalmente.
 $Action = New-ScheduledTaskAction `
-    -Execute $BatPath `
+    -Execute "wscript.exe" `
+    -Argument "`"$VbsPath`"" `
     -WorkingDirectory $ScriptDir
 
 $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $CurrentUser
@@ -51,7 +58,7 @@ Register-ScheduledTask `
     -Trigger $Trigger `
     -Settings $Settings `
     -Principal $Principal `
-    -Description "Inicia scheduler e server do ETL Fusion ao fazer login" `
+    -Description "Inicia o ETL Fusion (scheduler + polling) ao fazer login, sem janela visivel" `
     -Force
 
 Write-Host ""

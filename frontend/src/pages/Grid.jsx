@@ -739,16 +739,18 @@ export default function Grid() {
 
       await triggerImport("MULTIPORTAL_OPERATIONAL");
 
-      toast.success("Posições atualizadas com sucesso");
-
-      await loadOperationalGrid();
+      // O backend so enfileira o pedido — o ETL local busca em ate ~15s
+      // e o Grid se atualiza sozinho via WebSocket quando terminar.
+      toast.success(
+        "Atualização solicitada — o Grid vai atualizar automaticamente em breve"
+      );
 
     } catch (error) {
 
       console.error(error);
 
       toast.error(
-        "Falha ao atualizar — verifique se o ETL está rodando"
+        "Falha ao solicitar atualização"
       );
 
     } finally {
