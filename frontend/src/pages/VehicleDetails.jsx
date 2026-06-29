@@ -1,198 +1,519 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+
+import { Link, useParams } from "react-router-dom";
+
+import toast from "react-hot-toast";
+
+import {
+  Battery,
+  Check,
+  Mail,
+  Pencil,
+  Printer,
+  Radio,
+  Wrench,
+} from "lucide-react";
+
 import PlatformBadge from "../components/ui/PlatformBadge";
-import { useParams } from "react-router-dom";
 
 import StatusBadge from "../components/ui/StatusBadge";
 
-import { getVehicleByPlate } from "../services/vehicleService";
+import ObservationModal from "../components/observations/ObservationModal";
 
-export default function VehicleDetails() {
-    const { plate } = useParams();
+import {
+  getVehicleDetail,
+} from "../services/vehicleService";
 
-    const [vehicle, setVehicle] =
-        useState(null);
+import {
+  checkObservation,
+  getObservationHistory,
+} from "../services/observationService";
 
-    const [loading, setLoading] =
-        useState(true);
+import { formatDelay } from "../utils/formatDelay";
 
-    useEffect(() => {
-        loadVehicle();
-    }, []);
+import {
+  formatLocalDate,
+  formatLocalDateTime,
+} from "../utils/dateUtils";
 
-    async function loadVehicle() {
-        try {
-            const data =
-                await getVehicleByPlate(plate);
+function InfoRow({ label, value }) {
 
-            setVehicle(data);
-        } catch (error) {
-            console.error(error);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    if (loading) {
-        return (
-            <div className="text-zinc-500">
-                Carregando veículo...
-            </div>
-        );
-    }
-
-    if (!vehicle) {
-        return (
-            <div className="text-zinc-500">
-                Veículo não encontrado
-            </div>
-        );
-    }
-
-    return (
-        <div className="space-y-6">
-            <div
-                className="
-          rounded-2xl border border-zinc-800
-          bg-zinc-900 p-6
-        "
-            >
-                <div className="flex items-start justify-between">
-                    <div>
-                        <h1
-                            className="
-                text-4xl font-bold
-                font-mono
-              "
-                        >
-                            {vehicle.plate}
-                        </h1>
-
-                        <p className="mt-2 text-zinc-400">
-                            {vehicle.insuredName}
-                        </p>
-                    </div>
-
-                    <StatusBadge
-                        status={vehicle.status}
-                    />
-                </div>
-
-                <div className="mt-8 grid gap-4 lg:grid-cols-3">
-                    <div
-                        className="
-    rounded-2xl border border-zinc-800
-    bg-zinc-950 p-4
-  "
-                    >
-                        <p className="text-sm text-zinc-500">
-                            PLATAFORMA
-                        </p>
-
-                        <div className="mt-3">
-                            <PlatformBadge
-                                platform={vehicle.platform}
-                            />
-                        </div>
-                    </div>
-
-                    <Card
-                        title="DISPOSITIVO"
-                        value={vehicle.activeDevice}
-                    />
-
-                    <Card
-                        title="BATERIA"
-                        value={`${vehicle.batteryLevel}%`}
-                    />
-
-                    <Card
-                        title="FABRICANTE"
-                        value={vehicle.manufacturer}
-                    />
-
-                    <Card
-                        title="MODELO"
-                        value={vehicle.model}
-                    />
-
-                    <Card
-                        title="LINHA"
-                        value={vehicle.lineNumber}
-                    />
-
-                    <Card
-                        title="OPERADORA"
-                        value={vehicle.operator}
-                    />
-
-                    <Card
-                        title="ONLINE"
-                        value={
-                            vehicle.online
-                                ? "SIM"
-                                : "NÃO"
-                        }
-                    />
-
-                    <Card
-                        title="MANUTENÇÃO"
-                        value={
-                            vehicle.inMaintenance
-                                ? "SIM"
-                                : "NÃO"
-                        }
-                    />
-
-                    <Card
-                        title="OPERADOR MANUTENÇÃO"
-                        value={
-                            vehicle.maintenanceOperator
-                        }
-                    />
-
-                    <Card
-                        title="ÚLTIMA POSIÇÃO"
-                        value={`${vehicle.positionDate} ${vehicle.positionTime}`}
-                    />
-
-                    <Card
-                        title="STALE UPDATE"
-                        value={
-                            vehicle.staleUpdate
-                                ? "SIM"
-                                : "NÃO"
-                        }
-                    />
-
-                    <Card
-                        title="LOW BATTERY"
-                        value={
-                            vehicle.lowBattery
-                                ? "SIM"
-                                : "NÃO"
-                        }
-                    />
-                </div>
-            </div>
-        </div>
-    );
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
+      <span className="text-zinc-500">{label}</span>
+      <span className="text-right font-medium text-zinc-100">
+        {value ?? "--"}
+      </span>
+    </div>
+  );
 }
 
-function Card({ title, value }) {
+function SectionCard({ icon: Icon, title, children }) {
+
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
+        {Icon && <Icon size={16} className="text-zinc-500" />}
+        {title}
+      </div>
+
+      <div className="divide-y divide-zinc-800/60">
+        {children}
+      </div>
+
+    </div>
+  );
+}
+
+function buildTimeline(detail, observationHistory) {
+
+  const events = [];
+
+  observationHistory.forEach((obs) => {
+
+    events.push({
+      date: obs.createdAt,
+      label: `Observação: ${obs.text}`,
+      detail: obs.createdBy,
+    });
+
+    if (obs.checkedOff && obs.checkedAt) {
+      events.push({
+        date: obs.checkedAt,
+        label: "Observação conferida",
+        detail: obs.checkedBy,
+      });
+    }
+
+  });
+
+  (detail.letterHistory || []).forEach((letter) => {
+
+    events.push({
+      date: letter.dataEnvio,
+      label: "Carta de suspensão enviada",
+      detail: letter.operador,
+      dateOnly: true,
+    });
+
+    if (letter.dataRetornoSinal && letter.dataRetornoSinal !== "Sem retorno.") {
+      events.push({
+        date: letter.dataRetornoSinal,
+        label: `Sinal retornou / baixa dada (${letter.dataRetornoSinal})`,
+        detail: null,
+        skipDateFormat: true,
+      });
+    }
+
+  });
+
+  (detail.maintenanceHistory || []).forEach((maintenance) => {
+
+    events.push({
+      date: maintenance.data,
+      label: "Manutenção aberta",
+      detail: maintenance.operador,
+      dateOnly: true,
+    });
+
+    if (maintenance.dataEncerramento) {
+      events.push({
+        date: maintenance.dataEncerramento,
+        label: "Manutenção encerrada",
+        detail: null,
+        dateOnly: true,
+      });
+    }
+
+  });
+
+  return events
+    .filter((event) => event.date)
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+
+}
+
+export default function VehicleDetails() {
+
+  const { plate } = useParams();
+
+  const [detail, setDetail] =
+    useState(null);
+
+  const [observationHistory, setObservationHistory] =
+    useState([]);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [modalOpen, setModalOpen] =
+    useState(false);
+
+  const [checkingId, setCheckingId] =
+    useState(null);
+
+  async function load() {
+
+    setLoading(true);
+
+    try {
+
+      const [detailData, historyData] = await Promise.all([
+        getVehicleDetail(plate),
+        getObservationHistory(plate),
+      ]);
+
+      setDetail(detailData);
+
+      setObservationHistory(historyData);
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao carregar veículo");
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }
+
+  useEffect(() => {
+
+    load();
+
+  }, [plate]);
+
+  const timeline = useMemo(() => {
+
+    if (!detail) {
+      return [];
+    }
+
+    return buildTimeline(detail, observationHistory);
+
+  }, [detail, observationHistory]);
+
+  async function handleCheck(id) {
+
+    setCheckingId(id);
+
+    try {
+
+      await checkObservation(id);
+
+      toast.success("Observação conferida");
+
+      await load();
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao conferir observação");
+
+    } finally {
+
+      setCheckingId(null);
+
+    }
+
+  }
+
+  if (loading) {
     return (
-        <div
-            className="
-        rounded-2xl border border-zinc-800
-        bg-zinc-950 p-4
-      "
-        >
-            <p className="text-sm text-zinc-500">
-                {title}
+      <div className="p-6 text-zinc-500">
+        Carregando veículo...
+      </div>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <div className="p-6 text-zinc-500">
+        Veículo não encontrado
+      </div>
+    );
+  }
+
+  const lastObservation = observationHistory[0];
+
+  return (
+    <div className="space-y-6 print:text-black">
+
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 print:border-zinc-300">
+
+        <div className="flex flex-wrap items-start justify-between gap-4">
+
+          <div>
+
+            <h1 className="font-mono text-4xl font-bold">
+              {detail.plate}
+            </h1>
+
+            <p className="mt-2 text-zinc-400">
+              {detail.insuredName || "Segurado não informado"}
             </p>
 
-            <p className="mt-2 text-lg font-semibold">
-                {value || "-"}
-            </p>
+          </div>
+
+          <div className="flex items-center gap-3 print:hidden">
+
+            <button
+              onClick={() => setModalOpen(true)}
+              className="
+                flex items-center gap-2
+                rounded-2xl border border-zinc-700
+                bg-zinc-950 px-4 py-2.5
+                text-sm font-semibold
+                transition hover:bg-zinc-800
+              "
+            >
+              <Pencil size={14} />
+              Observação
+            </button>
+
+            <button
+              onClick={() => window.print()}
+              className="
+                flex items-center gap-2
+                rounded-2xl border border-zinc-700
+                bg-zinc-950 px-4 py-2.5
+                text-sm font-semibold
+                transition hover:bg-zinc-800
+              "
+            >
+              <Printer size={14} />
+              Imprimir
+            </button>
+
+            <StatusBadge status={detail.status} />
+
+          </div>
+
         </div>
-    );
+
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+
+        <SectionCard title="Dados gerais">
+          <InfoRow
+            label="Plataforma"
+            value={<PlatformBadge platform={detail.platform} />}
+          />
+          <InfoRow label="Parceria" value={detail.partnership} />
+          <InfoRow label="Apólice" value={detail.policy} />
+          <InfoRow label="Corretora" value={detail.broker} />
+        </SectionCard>
+
+        <SectionCard icon={Radio} title="Comunicação">
+          <InfoRow
+            label="Status"
+            value={detail.online ? "Online" : "Offline"}
+          />
+          <InfoRow
+            label="Última comunicação"
+            value={formatLocalDateTime(detail.lastCommunicationAt)}
+          />
+          <InfoRow
+            label="Atraso"
+            value={formatDelay(detail.signalDelayMinutes)}
+          />
+          <InfoRow
+            label="Atualização desatualizada"
+            value={detail.staleUpdate ? "Sim" : "Não"}
+          />
+        </SectionCard>
+
+        <SectionCard icon={Battery} title="Dispositivo">
+          <InfoRow label="Dispositivo" value={detail.activeDevice} />
+          <InfoRow label="IMEI" value={detail.imei} />
+          <InfoRow label="Fabricante" value={detail.manufacturer} />
+          <InfoRow label="Modelo" value={detail.model} />
+          <InfoRow label="Linha" value={detail.lineNumber} />
+          <InfoRow label="Operadora" value={detail.operator} />
+          <InfoRow
+            label="Bateria"
+            value={
+              detail.batteryLevel != null
+                ? `${detail.batteryLevel}%${detail.lowBattery ? " (baixa)" : ""}`
+                : null
+            }
+          />
+        </SectionCard>
+
+      </div>
+
+      {(detail.activeLetter || detail.activeMaintenance) && (
+
+        <div className="grid gap-4 lg:grid-cols-2">
+
+          {detail.activeLetter && (
+            <Link to="/letters">
+              <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 transition hover:bg-red-500/15">
+                <div className="flex items-center gap-2 text-sm font-semibold text-red-400">
+                  <Mail size={16} />
+                  Carta de suspensão ativa
+                </div>
+                <p className="mt-2 text-sm text-zinc-300">
+                  Enviada em {formatLocalDate(detail.activeLetter.dataEnvio)}
+                  {detail.activeLetter.fimVigencia &&
+                    ` — vigência até ${formatLocalDate(detail.activeLetter.fimVigencia)}`}
+                </p>
+              </div>
+            </Link>
+          )}
+
+          {detail.activeMaintenance && (
+            <Link to="/maintenance">
+              <div className="rounded-2xl border border-blue-500/30 bg-blue-500/10 p-5 transition hover:bg-blue-500/15">
+                <div className="flex items-center gap-2 text-sm font-semibold text-blue-400">
+                  <Wrench size={16} />
+                  Manutenção em aberto
+                </div>
+                <p className="mt-2 text-sm text-zinc-300">
+                  Aberta em {formatLocalDate(detail.activeMaintenance.data)}
+                  {detail.activeMaintenance.prazoEncerramento &&
+                    ` — prazo ${formatLocalDate(detail.activeMaintenance.prazoEncerramento)}`}
+                </p>
+              </div>
+            </Link>
+          )}
+
+        </div>
+
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+
+          <h2 className="mb-3 text-sm font-semibold text-zinc-300">
+            Histórico de observações
+          </h2>
+
+          {observationHistory.length === 0 ? (
+
+            <p className="text-sm text-zinc-500">
+              Nenhuma observação registrada
+            </p>
+
+          ) : (
+
+            <ul className="max-h-96 space-y-3 overflow-y-auto pr-1">
+
+              {observationHistory.map((obs) => (
+
+                <li
+                  key={obs.id}
+                  className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm"
+                >
+
+                  <p>{obs.text}</p>
+
+                  <div className="mt-2 flex items-center justify-between border-t border-zinc-800 pt-2 text-xs text-zinc-500">
+
+                    <span>
+                      {obs.createdBy} em {formatLocalDateTime(obs.createdAt)}
+                      {obs.checkedOff
+                        ? ` · conferido por ${obs.checkedBy} em ${formatLocalDateTime(obs.checkedAt)}`
+                        : " · não conferido"}
+                    </span>
+
+                    {!obs.checkedOff && (
+                      <button
+                        onClick={() => handleCheck(obs.id)}
+                        disabled={checkingId === obs.id}
+                        title="Marcar como conferido"
+                        className="
+                          shrink-0 rounded-lg border border-zinc-700
+                          bg-zinc-900 p-1.5
+                          transition hover:bg-zinc-800
+                          disabled:opacity-40
+                          print:hidden
+                        "
+                      >
+                        <Check size={12} />
+                      </button>
+                    )}
+
+                  </div>
+
+                </li>
+
+              ))}
+
+            </ul>
+
+          )}
+
+        </div>
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+
+          <h2 className="mb-3 text-sm font-semibold text-zinc-300">
+            Linha do tempo
+          </h2>
+
+          {timeline.length === 0 ? (
+
+            <p className="text-sm text-zinc-500">
+              Nenhum evento registrado
+            </p>
+
+          ) : (
+
+            <ul className="max-h-96 space-y-3 overflow-y-auto pr-1">
+
+              {timeline.map((event, index) => (
+
+                <li
+                  key={index}
+                  className="border-l-2 border-zinc-700 pl-3"
+                >
+
+                  <p className="text-xs text-zinc-500">
+                    {event.skipDateFormat
+                      ? event.date
+                      : event.dateOnly
+                        ? formatLocalDate(event.date)
+                        : formatLocalDateTime(event.date)}
+                  </p>
+
+                  <p className="text-sm">{event.label}</p>
+
+                  {event.detail && (
+                    <p className="text-xs text-zinc-500">{event.detail}</p>
+                  )}
+
+                </li>
+
+              ))}
+
+            </ul>
+
+          )}
+
+        </div>
+
+      </div>
+
+      {modalOpen && (
+
+        <ObservationModal
+          plate={plate}
+          lastObservation={lastObservation}
+          onClose={() => setModalOpen(false)}
+          onSaved={load}
+        />
+
+      )}
+
+    </div>
+  );
 }

@@ -20,6 +20,7 @@ public class VehicleController {
     private final VehicleGridService gridService;
     private final TracknMeImportService tracknMeImportService;
     private final VehicleService service;
+    private final VehicleDetailService detailService;
 
     @PostMapping
     public VehicleResponse create(
@@ -43,6 +44,16 @@ public class VehicleController {
     ) {
 
         return service.findByPlate(plate);
+
+    }
+
+
+    @GetMapping("/{plate}/detail")
+    public VehicleDetailResponse detail(
+            @PathVariable String plate
+    ) {
+
+        return detailService.findByPlate(plate);
 
     }
 

@@ -31,4 +31,6 @@ public interface MaintenanceRecordRepository
             LocalDate prazoEncerramento
     );
 
+    List<MaintenanceRecord> findByVehicleOrderByDataDesc(Vehicle vehicle);
+
 }

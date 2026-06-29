@@ -14,6 +14,14 @@ export async function getVehicleByPlate(
   );
 }
 
+export async function getVehicleDetail(
+  plate
+) {
+  return apiClient.get(
+    `/vehicles/${plate}/detail`
+  );
+}
+
 export async function getOperationalGrid(
   filters = {}
 ) {

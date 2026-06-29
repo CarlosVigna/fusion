@@ -18,4 +18,6 @@ public interface LetterRecordRepository
 
     long countByDataRetornoSinal(String dataRetornoSinal);
 
+    List<LetterRecord> findByVehicleOrderByDataEnvioDesc(Vehicle vehicle);
+
 }
