@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import PlatformBadge from "../components/ui/PlatformBadge";
+import Pagination from "../components/ui/Pagination";
+import { usePagination } from "../hooks/usePagination";
 import { getVehicles } from "../services/vehicleService";
 
 export default function Vehicles() {
@@ -8,6 +10,15 @@ export default function Vehicles() {
 
     const [loading, setLoading] =
         useState(true);
+
+    const {
+        page,
+        setPage,
+        totalPages,
+        pageItems,
+        pageSize,
+        totalItems,
+    } = usePagination(vehicles);
 
     useEffect(() => {
         loadVehicles();
@@ -29,13 +40,14 @@ export default function Vehicles() {
         <div className="space-y-6">
             <div
                 className="
-          overflow-x-auto rounded-2xl
+          overflow-hidden rounded-2xl
           border border-zinc-800
           bg-zinc-900
         "
             >
+                <div className="max-h-[36rem] overflow-auto">
                 <table className="min-w-full">
-                    <thead className="bg-zinc-950">
+                    <thead className="sticky top-0 z-10 bg-zinc-950">
                         <tr className="text-left text-sm text-zinc-400">
                             <th className="px-4 py-4">
                                 Placa
@@ -93,7 +105,7 @@ export default function Vehicles() {
                                 </td>
                             </tr>
                         ) : (
-                            vehicles.map((vehicle) => (
+                            pageItems.map((vehicle) => (
                                 <tr
                                     key={vehicle.id}
                                     className="
@@ -140,6 +152,15 @@ export default function Vehicles() {
                         )}
                     </tbody>
                 </table>
+                </div>
+
+                <Pagination
+                    page={page}
+                    totalPages={totalPages}
+                    totalItems={totalItems}
+                    pageSize={pageSize}
+                    onPageChange={setPage}
+                />
             </div>
         </div>
     );

@@ -12,6 +12,10 @@ import {
 
 import { getNeverCommunicated } from "../services/signalControlService";
 
+import Pagination from "../components/ui/Pagination";
+
+import { usePagination } from "../hooks/usePagination";
+
 import { formatLocalDateTime } from "../utils/dateUtils";
 
 const IMPORT_TYPE_LABELS = {
@@ -112,6 +116,12 @@ export default function Monitoring() {
 
   }, []);
 
+  const historyPagination = usePagination(history);
+
+  const pendingPagination = usePagination(pendingChanges);
+
+  const neverCommunicatedPagination = usePagination(neverCommunicated);
+
   async function handleResolve(id, action) {
 
     setResolvingId(id);
@@ -153,9 +163,9 @@ export default function Monitoring() {
           <h2 className="text-xl font-semibold">Últimas importações</h2>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[28rem] overflow-auto">
           <table className="min-w-full">
-            <thead className="bg-zinc-950">
+            <thead className="sticky top-0 z-10 bg-zinc-950">
               <tr className="text-left text-sm text-zinc-400">
                 <th className="px-4 py-4">Tipo</th>
                 <th className="px-4 py-4">Data/Hora</th>
@@ -179,7 +189,7 @@ export default function Monitoring() {
                   </td>
                 </tr>
               ) : (
-                history.map((item, index) => (
+                historyPagination.pageItems.map((item, index) => (
                   <tr
                     key={index}
                     className="border-t border-zinc-800 transition hover:bg-zinc-800"
@@ -219,6 +229,14 @@ export default function Monitoring() {
           </table>
         </div>
 
+        <Pagination
+          page={historyPagination.page}
+          totalPages={historyPagination.totalPages}
+          totalItems={historyPagination.totalItems}
+          pageSize={historyPagination.pageSize}
+          onPageChange={historyPagination.setPage}
+        />
+
       </div>
 
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
@@ -230,9 +248,9 @@ export default function Monitoring() {
           </p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[28rem] overflow-auto">
           <table className="min-w-full">
-            <thead className="bg-zinc-950">
+            <thead className="sticky top-0 z-10 bg-zinc-950">
               <tr className="text-left text-sm text-zinc-400">
                 <th className="px-4 py-4">Placa</th>
                 <th className="px-4 py-4">Campo</th>
@@ -257,7 +275,7 @@ export default function Monitoring() {
                   </td>
                 </tr>
               ) : (
-                pendingChanges.map((change) => (
+                pendingPagination.pageItems.map((change) => (
                   <tr
                     key={change.id}
                     className="border-t border-zinc-800 transition hover:bg-zinc-800"
@@ -318,6 +336,14 @@ export default function Monitoring() {
           </table>
         </div>
 
+        <Pagination
+          page={pendingPagination.page}
+          totalPages={pendingPagination.totalPages}
+          totalItems={pendingPagination.totalItems}
+          pageSize={pendingPagination.pageSize}
+          onPageChange={pendingPagination.setPage}
+        />
+
       </div>
 
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
@@ -330,9 +356,9 @@ export default function Monitoring() {
           </p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[28rem] overflow-auto">
           <table className="min-w-full">
-            <thead className="bg-zinc-950">
+            <thead className="sticky top-0 z-10 bg-zinc-950">
               <tr className="text-left text-sm text-zinc-400">
                 <th className="px-4 py-4">Placa</th>
                 <th className="px-4 py-4">Segurado</th>
@@ -356,7 +382,7 @@ export default function Monitoring() {
                   </td>
                 </tr>
               ) : (
-                neverCommunicated.map((vehicle) => (
+                neverCommunicatedPagination.pageItems.map((vehicle) => (
                   <tr
                     key={vehicle.plate}
                     className="border-t border-zinc-800 transition hover:bg-zinc-800"
@@ -386,6 +412,14 @@ export default function Monitoring() {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          page={neverCommunicatedPagination.page}
+          totalPages={neverCommunicatedPagination.totalPages}
+          totalItems={neverCommunicatedPagination.totalItems}
+          pageSize={neverCommunicatedPagination.pageSize}
+          onPageChange={neverCommunicatedPagination.setPage}
+        />
 
       </div>
 

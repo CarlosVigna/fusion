@@ -17,6 +17,10 @@ import {
 
 import MaintenanceModal from "../components/maintenance/MaintenanceModal";
 
+import Pagination from "../components/ui/Pagination";
+
+import { usePagination } from "../hooks/usePagination";
+
 import { formatLocalDate as formatDate } from "../utils/dateUtils";
 
 function daysUntil(value) {
@@ -66,6 +70,15 @@ export default function Maintenance() {
   const [modalRecord, setModalRecord] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
+
+  const {
+    page,
+    setPage,
+    totalPages,
+    pageItems,
+    pageSize,
+    totalItems,
+  } = usePagination(records);
 
   async function load() {
 
@@ -261,11 +274,11 @@ export default function Maintenance() {
         "
       >
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[36rem] overflow-auto">
 
           <table className="min-w-full">
 
-            <thead className="bg-zinc-950">
+            <thead className="sticky top-0 z-10 bg-zinc-950">
               <tr className="text-left text-sm text-zinc-400">
                 <th className="px-4 py-4">Data</th>
                 <th className="px-4 py-4">Placa</th>
@@ -296,7 +309,7 @@ export default function Maintenance() {
                   </td>
                 </tr>
               ) : (
-                records.map((record) => (
+                pageItems.map((record) => (
                   <tr
                     key={record.id}
                     onClick={() => openEdit(record)}
@@ -384,6 +397,14 @@ export default function Maintenance() {
           </table>
 
         </div>
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
 
       </div>
 

@@ -1083,7 +1083,7 @@ export default function Grid() {
         "
       >
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[70vh] overflow-auto">
 
           <table className="min-w-full">
 

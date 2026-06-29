@@ -26,6 +26,9 @@ import {
 
 import SignalStageBadge from "../components/signalcontrol/SignalStageBadge";
 import ObservationModal from "../components/observations/ObservationModal";
+import Pagination from "../components/ui/Pagination";
+
+import { usePagination } from "../hooks/usePagination";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
@@ -144,6 +147,15 @@ export default function SignalControl() {
     });
 
   }, [vehicles, stageFilter, plateFilter, insuredFilter]);
+
+  const {
+    page,
+    setPage,
+    totalPages,
+    pageItems: pagedVehicles,
+    pageSize,
+    totalItems,
+  } = usePagination(filteredVehicles);
 
   async function toggleExpand(plate) {
 
@@ -345,11 +357,11 @@ export default function SignalControl() {
         "
       >
 
-        <div className="overflow-x-auto">
+        <div className="max-h-[36rem] overflow-auto">
 
           <table className="min-w-full">
 
-            <thead className="bg-zinc-950">
+            <thead className="sticky top-0 z-10 bg-zinc-950">
               <tr className="text-left text-sm text-zinc-400">
                 <th className="px-4 py-4">Etapa</th>
                 <th className="px-4 py-4">Placa</th>
@@ -382,7 +394,7 @@ export default function SignalControl() {
 
               ) : (
 
-                filteredVehicles.map((vehicle) => (
+                pagedVehicles.map((vehicle) => (
 
                   <Fragment key={vehicle.plate}>
 
@@ -603,6 +615,14 @@ export default function SignalControl() {
           </table>
 
         </div>
+
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setPage}
+        />
 
       </div>
 
