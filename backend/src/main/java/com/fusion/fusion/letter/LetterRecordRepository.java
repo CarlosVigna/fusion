@@ -16,4 +16,6 @@ public interface LetterRecordRepository
             String dataRetornoSinal
     );
 
+    long countByDataRetornoSinal(String dataRetornoSinal);
+
 }

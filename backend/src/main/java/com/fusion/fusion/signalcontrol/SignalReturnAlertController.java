@@ -26,4 +26,11 @@ public class SignalReturnAlertController {
 
     }
 
+    @PostMapping("/{id}/baixa")
+    public void markSignalReturned(@PathVariable Long id) {
+
+        service.markSignalReturned(id);
+
+    }
+
 }

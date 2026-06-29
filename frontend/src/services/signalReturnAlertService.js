@@ -7,3 +7,7 @@ export async function getActiveSignalReturnAlerts() {
 export async function dismissSignalReturnAlert(id) {
   return apiClient.post(`/alerts/signal-return/${id}/dismiss`);
 }
+
+export async function markSignalReturnAlertAsBaixa(id) {
+  return apiClient.post(`/alerts/signal-return/${id}/baixa`);
+}

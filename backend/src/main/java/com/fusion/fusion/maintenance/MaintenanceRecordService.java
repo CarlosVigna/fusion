@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 
 @Service
@@ -29,6 +30,20 @@ public class MaintenanceRecordService {
         );
 
         return records.stream()
+                .map(MaintenanceRecordResponse::from)
+                .toList();
+
+    }
+
+    // Central Operacional — manutencoes abertas cujo prazo ja venceu.
+    public List<MaintenanceRecordResponse> findOverdue() {
+
+        return repository
+                .findByStatusAndPrazoEncerramentoLessThanEqualOrderByPrazoEncerramentoAsc(
+                        MaintenanceStatus.ABERTO,
+                        LocalDate.now(ZoneOffset.UTC)
+                )
+                .stream()
                 .map(MaintenanceRecordResponse::from)
                 .toList();
 

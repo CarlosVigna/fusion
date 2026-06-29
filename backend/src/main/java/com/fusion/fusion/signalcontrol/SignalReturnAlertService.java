@@ -2,6 +2,8 @@ package com.fusion.fusion.signalcontrol;
 
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.common.security.CurrentUserService;
+import com.fusion.fusion.letter.LetterRecord;
+import com.fusion.fusion.letter.LetterRecordRepository;
 import com.fusion.fusion.observation.VehicleObservation;
 import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.vehicle.Vehicle;
@@ -11,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,11 +23,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class SignalReturnAlertService {
 
+    private static final DateTimeFormatter BAIXA_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private final SignalReturnAlertRepository repository;
 
     private final CurrentUserService currentUserService;
 
     private final VehicleObservationService observationService;
+
+    private final LetterRecordRepository letterRecordRepository;
 
     public List<SignalReturnAlertResponse> findActive() {
 
@@ -68,10 +76,7 @@ public class SignalReturnAlertService {
     @Transactional
     public void dismiss(Long id) {
 
-        SignalReturnAlert alert = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Alerta não encontrado"
-                ));
+        SignalReturnAlert alert = findOrThrow(id);
 
         alert.setDismissed(true);
 
@@ -82,6 +87,57 @@ public class SignalReturnAlertService {
         );
 
         repository.save(alert);
+
+    }
+
+    // Acao da Central Operacional: alem de dispensar o alerta, atualiza
+    // a carta de suspensao ativa do veiculo (se existir) marcando a data
+    // de retorno de sinal — operador nao precisa abrir Cartas a parte.
+    @Transactional
+    public void markSignalReturned(Long id) {
+
+        SignalReturnAlert alert = findOrThrow(id);
+
+        Vehicle vehicle = alert.getVehicle();
+
+        if (vehicle != null) {
+
+            letterRecordRepository
+                    .findByVehicleAndDataRetornoSinal(
+                            vehicle,
+                            "Sem retorno."
+                    )
+                    .ifPresent(letter -> {
+
+                        letter.setDataRetornoSinal(
+                                LocalDateTime.now(ZoneOffset.UTC)
+                                        .format(BAIXA_DATE_FORMATTER)
+                        );
+
+                        letterRecordRepository.save(letter);
+
+                    });
+
+        }
+
+        alert.setDismissed(true);
+
+        alert.setDismissedAt(LocalDateTime.now(ZoneOffset.UTC));
+
+        alert.setDismissedBy(
+                currentUserService.getCurrentUserName()
+        );
+
+        repository.save(alert);
+
+    }
+
+    private SignalReturnAlert findOrThrow(Long id) {
+
+        return repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Alerta não encontrado"
+                ));
 
     }
 

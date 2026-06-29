@@ -5,6 +5,10 @@ export async function getMaintenanceRecords(includeClosed = false) {
   return apiClient.get(`/maintenance${query}`);
 }
 
+export async function getOverdueMaintenanceRecords() {
+  return apiClient.get("/maintenance/overdue");
+}
+
 export async function createMaintenanceRecord(data) {
   return apiClient.post("/maintenance", data);
 }

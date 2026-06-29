@@ -1,10 +1,38 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
-import { Info } from "lucide-react";
+import { Link } from "react-router-dom";
+
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  FileWarning,
+  Mail,
+  RadioTower,
+  RefreshCw,
+  Truck,
+  Wrench,
+} from "lucide-react";
 
 import { realtimeService } from "../services/realtime/realtimeService";
 
 import { useDashboardStore } from "../store/dashboardStore";
+
+import Tabs from "../components/ui/Tabs";
+
+import DelayedSignalsPanel from "../components/operational/panels/DelayedSignalsPanel";
+import LettersReturnedPanel from "../components/operational/panels/LettersReturnedPanel";
+import OverdueMaintenancePanel from "../components/operational/panels/OverdueMaintenancePanel";
+import PendingChangesPanel from "../components/operational/panels/PendingChangesPanel";
+
+import { formatLocalDateTime } from "../utils/dateUtils";
+
+const TABS = [
+  { key: "delayed", label: "Sinais atrasados" },
+  { key: "letters", label: "Cartas" },
+  { key: "maintenance", label: "Manutenções" },
+  { key: "pending", label: "Mudanças pendentes" },
+];
 
 export default function Dashboard() {
 
@@ -15,6 +43,9 @@ export default function Dashboard() {
     loadDashboard,
     pushRealtimeEvent,
   } = useDashboardStore();
+
+  const [activeTab, setActiveTab] =
+    useState("delayed");
 
   useEffect(() => {
 
@@ -41,71 +72,103 @@ export default function Dashboard() {
 
   const cards = [
     {
-      title: "ONLINE",
-      value:
-        dashboard?.onlineVehicles || 0,
-
-      description:
-        "Veículos que comunicaram há no máximo 30 minutos.",
-
-      style:
-        "bg-green-500/10 border-green-500/20",
+      key: "registeredVehicles",
+      icon: Truck,
+      label: "Total de veículos",
+      value: dashboard?.registeredVehicles,
+      to: "/vehicles",
     },
-
     {
-      title: "DELAYED",
-      value:
-        dashboard?.delayedVehicles || 0,
-
-      description:
-        "Veículos que não comunicam entre 30 minutos e 6 horas. Ainda não é falha de comunicação, mas já passou do intervalo esperado.",
-
-      style:
-        "bg-yellow-500/10 border-yellow-500/20",
+      key: "onlineVehicles",
+      icon: CheckCircle2,
+      label: "Veículos ativos",
+      value: dashboard?.onlineVehicles,
+      to: "/grid",
+      style: "border-green-500/20 bg-green-500/10",
     },
-
     {
-      title: "NO COMMUNICATION",
-      value:
-        dashboard?.noCommunicationVehicles || 0,
-
-      description:
-        "Veículos sem qualquer comunicação há mais de 6 horas.",
-
-      style:
-        "bg-red-500/10 border-red-500/20",
+      key: "monitoredVehicles",
+      icon: RadioTower,
+      label: "Veículos monitorados",
+      value: dashboard?.monitoredVehicles,
+      to: "/grid",
     },
-
     {
-      title: "LOW BATTERY",
-      value:
-        dashboard?.lowBatteryVehicles || 0,
-
-      description:
-        "Veículos com nível de bateria igual ou abaixo de 20%, conforme o último dado de última posição recebido.",
-
-      style:
-        "bg-orange-500/10 border-orange-500/20",
+      key: "maintenanceVehicles",
+      icon: Wrench,
+      label: "Veículos em manutenção",
+      value: dashboard?.maintenanceVehicles,
+      to: "/maintenance",
+      style: "border-blue-500/20 bg-blue-500/10",
     },
-
     {
-      title: "MAINTENANCE",
-      value:
-        dashboard?.maintenanceVehicles || 0,
-
-      description:
-        "Veículos marcados manualmente como \"em manutenção\" na ficha do veículo, independente do status de comunicação.",
-
-      style:
-        "bg-blue-500/10 border-blue-500/20",
+      key: "activeLettersCount",
+      icon: Mail,
+      label: "Cartas ativas",
+      value: dashboard?.activeLettersCount,
+      onClick: () => setActiveTab("letters"),
+    },
+    {
+      key: "pendingChangesCount",
+      icon: FileWarning,
+      label: "Mudanças pendentes",
+      value: dashboard?.pendingChangesCount,
+      onClick: () => setActiveTab("pending"),
+      style: "border-purple-500/20 bg-purple-500/10",
+    },
+    {
+      key: "delayedSignalCount",
+      icon: AlertTriangle,
+      label: "Sinal atrasado",
+      value: dashboard?.delayedSignalCount,
+      onClick: () => setActiveTab("delayed"),
+      style: "border-yellow-500/20 bg-yellow-500/10",
+    },
+    {
+      key: "importsTodayCount",
+      icon: RefreshCw,
+      label: "Importações hoje",
+      value: dashboard?.importsTodayCount,
+      to: "/audit",
+    },
+    {
+      key: "lastEtlUpdate",
+      icon: Clock,
+      label: "Última atualização ETL",
+      value: dashboard?.lastEtlUpdate
+        ? formatLocalDateTime(dashboard.lastEtlUpdate)
+        : "--",
+      isText: true,
     },
   ];
+
+  const tabsWithCounts = TABS.map((tab) => {
+
+    if (tab.key === "delayed") {
+      return { ...tab, count: dashboard?.delayedSignalCount };
+    }
+
+    if (tab.key === "letters") {
+      return { ...tab, count: dashboard?.activeLettersCount };
+    }
+
+    if (tab.key === "maintenance") {
+      return { ...tab, count: undefined };
+    }
+
+    if (tab.key === "pending") {
+      return { ...tab, count: dashboard?.pendingChangesCount };
+    }
+
+    return tab;
+
+  });
 
   if (loading && !dashboard) {
 
     return (
       <div className="p-6 text-zinc-400">
-        Carregando dashboard...
+        Carregando central operacional...
       </div>
     );
 
@@ -114,6 +177,73 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+        {cards.map((card) => {
+
+          const Icon = card.icon;
+
+          const content = (
+            <div
+              className={`
+                h-full rounded-2xl border p-5
+                transition
+                ${card.style || "border-zinc-800 bg-zinc-900"}
+                ${card.to || card.onClick ? "hover:bg-zinc-800/60 cursor-pointer" : ""}
+              `}
+            >
+
+              <div className="flex items-center justify-between">
+
+                <p className="text-xs font-medium text-zinc-400">
+                  {card.label}
+                </p>
+
+                <Icon size={16} className="text-zinc-500" />
+
+              </div>
+
+              <h2
+                className={
+                  card.isText
+                    ? "mt-3 text-lg font-semibold"
+                    : "mt-3 text-3xl font-bold"
+                }
+              >
+                {card.isText
+                  ? card.value
+                  : card.value ?? 0}
+              </h2>
+
+            </div>
+          );
+
+          if (card.to) {
+            return (
+              <Link key={card.key} to={card.to}>
+                {content}
+              </Link>
+            );
+          }
+
+          if (card.onClick) {
+            return (
+              <button
+                key={card.key}
+                onClick={card.onClick}
+                className="text-left"
+              >
+                {content}
+              </button>
+            );
+          }
+
+          return <div key={card.key}>{content}</div>;
+
+        })}
+
+      </div>
+
       <div
         className="
           rounded-2xl border border-zinc-800
@@ -121,102 +251,33 @@ export default function Dashboard() {
         "
       >
 
-        <p className="text-sm text-zinc-500">
-          TOTAL DE VEÍCULOS
-        </p>
-
-        <h2 className="mt-4 text-5xl font-bold">
-          {dashboard?.totalVehicles || 0}
+        <h2 className="mb-4 text-xl font-semibold">
+          Painel de Alertas
         </h2>
 
-      </div>
+        <Tabs
+          tabs={tabsWithCounts}
+          activeKey={activeTab}
+          onChange={setActiveTab}
+        />
 
-      <div className="grid gap-4 lg:grid-cols-5">
+        <div className="mt-4">
 
-        {cards.map((card) => (
+          {activeTab === "delayed" && (
+            <DelayedSignalsPanel onChanged={loadDashboard} />
+          )}
 
-          <div
-            key={card.title}
-            className={`
-              rounded-2xl border p-6
-              ${card.style}
-            `}
-          >
+          {activeTab === "letters" && (
+            <LettersReturnedPanel onChanged={loadDashboard} />
+          )}
 
-            <p className="flex items-center gap-1.5 text-sm text-zinc-400">
-              {card.title}
+          {activeTab === "maintenance" && (
+            <OverdueMaintenancePanel onChanged={loadDashboard} />
+          )}
 
-              <Info
-                size={13}
-                className="text-zinc-500"
-                title={card.description}
-              />
-            </p>
-
-            <h2 className="mt-4 text-4xl font-bold">
-              {card.value}
-            </h2>
-
-          </div>
-
-        ))}
-
-      </div>
-
-      <div
-        className="
-          rounded-2xl border border-zinc-800
-          bg-zinc-900 p-6
-        "
-      >
-
-        <h2 className="text-xl font-semibold">
-          Health operacional
-        </h2>
-
-        <div className="mt-6 space-y-4">
-
-          <HealthBar
-            label="ONLINE"
-
-            value={
-              dashboard?.onlineVehicles || 0
-            }
-
-            total={
-              dashboard?.totalVehicles || 0
-            }
-
-            color="bg-green-500"
-          />
-
-          <HealthBar
-            label="NO COMMUNICATION"
-
-            value={
-              dashboard?.noCommunicationVehicles || 0
-            }
-
-            total={
-              dashboard?.totalVehicles || 0
-            }
-
-            color="bg-red-500"
-          />
-
-          <HealthBar
-            label="LOW BATTERY"
-
-            value={
-              dashboard?.lowBatteryVehicles || 0
-            }
-
-            total={
-              dashboard?.totalVehicles || 0
-            }
-
-            color="bg-yellow-500"
-          />
+          {activeTab === "pending" && (
+            <PendingChangesPanel onChanged={loadDashboard} />
+          )}
 
         </div>
 
@@ -281,51 +342,6 @@ export default function Dashboard() {
           )}
 
         </div>
-
-      </div>
-
-    </div>
-  );
-}
-
-function HealthBar({
-  label,
-  value,
-  total,
-  color,
-}) {
-
-  const percent =
-    total > 0
-      ? (value / total) * 100
-      : 0;
-
-  return (
-    <div>
-
-      <div className="mb-2 flex justify-between text-sm">
-
-        <span>{label}</span>
-
-        <span>
-          {value} ({percent.toFixed(1)}%)
-        </span>
-
-      </div>
-
-      <div
-        className="
-          h-3 overflow-hidden rounded-full
-          bg-zinc-800
-        "
-      >
-
-        <div
-          className={`h-full ${color}`}
-          style={{
-            width: `${percent}%`,
-          }}
-        />
 
       </div>
 

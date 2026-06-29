@@ -21,7 +21,7 @@ const POLL_INTERVAL_MS = 60000;
 // mais seu próprio <h1>, evitando títulos duplicados/divergentes.
 const PAGE_TITLES = [
   { match: /^\/(grid)?$/, title: "Grid Operacional", subtitle: "Consolidação operacional realtime" },
-  { match: /^\/dashboard$/, title: "Dashboard", subtitle: "Central operacional realtime" },
+  { match: /^\/dashboard$/, title: "Central Operacional", subtitle: "Tudo que precisa da sua atenção neste turno" },
   { match: /^\/imports$/, title: "Import Center", subtitle: "Central operacional de importações" },
   { match: /^\/vehicles\/.+$/, title: "Detalhes do Veículo", subtitle: "" },
   { match: /^\/vehicles$/, title: "Veículos", subtitle: "Cadastro operacional consolidado" },

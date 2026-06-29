@@ -12,4 +12,6 @@ public interface VehicleOperationalStateRepository
             Vehicle vehicle
     );
 
+    long countBySignalDelayMinutesGreaterThan(Integer minutes);
+
 }

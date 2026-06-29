@@ -24,7 +24,7 @@ const items = [
         path: "/",
     },
     {
-        label: "Dashboard",
+        label: "Central Operacional",
         icon: LayoutDashboard,
         path: "/dashboard",
     },

@@ -24,6 +24,13 @@ public class MaintenanceRecordController {
 
     }
 
+    @GetMapping("/overdue")
+    public List<MaintenanceRecordResponse> findOverdue() {
+
+        return service.findOverdue();
+
+    }
+
     @PostMapping
     public MaintenanceRecordResponse create(
             @Valid @RequestBody MaintenanceRecordRequest request

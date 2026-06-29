@@ -9,4 +9,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, UUID> {
 
     Optional<Vehicle> findByPlate(String plate);
 
+    long countByDeletedAtIsNull();
+
 }

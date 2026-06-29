@@ -2,21 +2,57 @@ package com.fusion.fusion.dashboard;
 
 import com.fusion.fusion.alert.OperationalAlertRepository;
 import com.fusion.fusion.alert.OperationalAlertStatus;
+import com.fusion.fusion.importation.ImportHistoryRepository;
+import com.fusion.fusion.importation.ImportStatus;
+import com.fusion.fusion.importation.ImportType;
+import com.fusion.fusion.letter.LetterRecordRepository;
+import com.fusion.fusion.maintenance.MaintenanceRecordRepository;
+import com.fusion.fusion.maintenance.MaintenanceStatus;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
+import com.fusion.fusion.pendingchange.PendingChangeRepository;
+import com.fusion.fusion.pendingchange.PendingChangeStatus;
 import com.fusion.fusion.vehicle.OperationalStatus;
+import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
+import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 @Service
 @RequiredArgsConstructor
 public class DashboardService {
+
+    // Mesmo limiar usado pelo Controle de Sinais (24h) pra definir
+    // "sinal atrasado".
+    private static final int SIGNAL_DELAY_THRESHOLD_MINUTES = 1440;
 
     private final OperationalSnapshotRepository
             snapshotRepository;
 
     private final OperationalAlertRepository
             alertRepository;
+
+    private final VehicleRepository
+            vehicleRepository;
+
+    private final LetterRecordRepository
+            letterRecordRepository;
+
+    private final PendingChangeRepository
+            pendingChangeRepository;
+
+    private final MaintenanceRecordRepository
+            maintenanceRecordRepository;
+
+    private final ImportHistoryRepository
+            importHistoryRepository;
+
+    private final VehicleOperationalStateRepository
+            operationalStateRepository;
 
     public DashboardProjection build() {
 
@@ -76,6 +112,20 @@ public class DashboardService {
                         )
                         .count();
 
+        LocalDateTime todayStart =
+                LocalDateTime.now(ZoneOffset.UTC)
+                        .toLocalDate()
+                        .atStartOfDay();
+
+        LocalDateTime lastEtlUpdate =
+                importHistoryRepository
+                        .findTopByTypeAndStatusOrderByCreatedAtDesc(
+                                ImportType.MULTIPORTAL_OPERATIONAL,
+                                ImportStatus.SUCCESS
+                        )
+                        .map(history -> history.getCreatedAt())
+                        .orElse(null);
+
         return DashboardProjection.builder()
 
                 .totalVehicles(totalVehicles)
@@ -93,6 +143,49 @@ public class DashboardService {
                 .staleVehicles(staleVehicles)
 
                 .openAlerts(openAlerts)
+
+                .registeredVehicles(
+                        vehicleRepository.countByDeletedAtIsNull()
+                )
+
+                .monitoredVehicles(totalVehicles)
+
+                .activeLettersCount(
+                        letterRecordRepository.countByDataRetornoSinal(
+                                "Sem retorno."
+                        )
+                )
+
+                .pendingChangesCount(
+                        pendingChangeRepository.countByStatus(
+                                PendingChangeStatus.PENDING
+                        )
+                )
+
+                .delayedSignalCount(
+                        operationalStateRepository
+                                .countBySignalDelayMinutesGreaterThan(
+                                        SIGNAL_DELAY_THRESHOLD_MINUTES
+                                )
+                )
+
+                .overdueMaintenanceCount(
+                        maintenanceRecordRepository
+                                .countByStatusAndPrazoEncerramentoLessThanEqual(
+                                        MaintenanceStatus.ABERTO,
+                                        LocalDate.now(ZoneOffset.UTC)
+                                )
+                )
+
+                .importsTodayCount(
+                        importHistoryRepository
+                                .countByCreatedAtAfterAndStatus(
+                                        todayStart,
+                                        ImportStatus.SUCCESS
+                                )
+                )
+
+                .lastEtlUpdate(lastEtlUpdate)
 
                 .build();
 
