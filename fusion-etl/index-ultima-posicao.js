@@ -82,7 +82,7 @@ async function run() {
 
         await ultimaPosicaoFrame
             .locator('#LastPositionCompDataList\\:buttonFindHidden')
-            .click();
+            .click({ force: true });
 
         await ultimaPosicaoFrame.getByText(
             'Excel',
