@@ -1,0 +1,42 @@
+name: ETL - Última Posição
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # a cada 2 horas
+  workflow_dispatch:         # permite rodar manualmente pelo GitHub
+
+jobs:
+  run-etl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        working-directory: fusion-etl
+        run: npm ci --omit=dev
+
+      - name: Install Playwright Chromium
+        working-directory: fusion-etl
+        run: npx playwright install chromium --with-deps
+
+      - name: Run ETL - Última Posição
+        working-directory: fusion-etl
+        env:
+          MULTIPORTAL_URL: ${{ secrets.MULTIPORTAL_URL }}
+          MULTIPORTAL_USER: ${{ secrets.MULTIPORTAL_USER }}
+          MULTIPORTAL_PASSWORD: ${{ secrets.MULTIPORTAL_PASSWORD }}
+          BACKEND_URL: ${{ secrets.BACKEND_URL }}
+          ETL_API_KEY: ${{ secrets.ETL_API_KEY }}
+          ETL_HEADLESS: 'true'
+          ETL_DOWNLOADS_DIR: /tmp/etl/downloads
+          ETL_OUTPUT_DIR: /tmp/etl/pending
+          ETL_TEMP_DIR: /tmp/etl/temp
+          ETL_LOG_DIR: /tmp/etl/logs
+        run: node index-ultima-posicao.js
