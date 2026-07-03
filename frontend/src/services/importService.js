@@ -1,3 +1,5 @@
+import { apiClient } from "./api/apiClient";
+
 const API_BASE_URL =
   import.meta.env.VITE_API_URL;
 
@@ -46,4 +48,11 @@ export function confirmTracknMe(file) {
     "/tracknme/confirm",
     file
   );
+}
+
+export async function uploadUltimaPosicao(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("type", "MULTIPORTAL_ULTIMA_POSICAO");
+  return apiClient.post("/imports/upload", formData);
 }

@@ -14,6 +14,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -117,21 +119,26 @@ public class ImportStatusController {
     public ResponseEntity<?> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam("type") String type,
-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @AuthenticationPrincipal UserDetails currentUser
     ) {
 
-        if (etlApiKey == null
-                || etlApiKey.isBlank()
-                || !etlApiKey.equals(providedKey)) {
+        boolean validEtlKey = etlApiKey != null
+                && !etlApiKey.isBlank()
+                && etlApiKey.equals(providedKey);
+
+        boolean jwtAuthenticated = currentUser != null;
+
+        if (!validEtlKey && !jwtAuthenticated) {
 
             log.warn(
-                    "Upload de import rejeitado: chave X-ETL-Key inválida ou ausente"
+                    "Upload de import rejeitado: sem autenticação válida (X-ETL-Key ou JWT)"
             );
 
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of(
                             "status", "ERROR",
-                            "message", "Chave de API inválida"
+                            "message", "Autenticação inválida"
                     ));
 
         }
@@ -155,7 +162,7 @@ public class ImportStatusController {
 
             Object response = switch (importType) {
 
-                case MULTIPORTAL_OPERATIONAL ->
+                case MULTIPORTAL_OPERATIONAL, MULTIPORTAL_ULTIMA_POSICAO ->
                         operationalImportService.importFile(file);
 
                 case MULTIPORTAL_DEVICE ->

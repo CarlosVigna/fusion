@@ -55,7 +55,7 @@ scheduleWithRetry(
     '*/30 * * * *',
     runUltimaPosicao,
     'Última posição',
-    'MULTIPORTAL_OPERATIONAL',
+    'MULTIPORTAL_ULTIMA_POSICAO',
     THIRTY_MINUTES_MS
 );
 

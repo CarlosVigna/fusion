@@ -16,6 +16,10 @@ const OUTPUT_DIR =
     process.env.ETL_OUTPUT_DIR
     || 'C:/FusionData/imports/pending';
 
+const TEMP_DIR =
+    process.env.ETL_TEMP_DIR
+    || path.join(DOWNLOADS_DIR, 'temp');
+
 async function run() {
 
     log('Scraper última posição iniciado');
@@ -139,8 +143,7 @@ async function run() {
 
         // LIMPA TEMP
 
-        const tempPath =
-            'C:/FusionData/etl/temp';
+        const tempPath = TEMP_DIR;
 
         await fse.emptyDir(tempPath);
 
@@ -216,7 +219,7 @@ async function run() {
 
         log('Download concluído: MULTIPORTAL_ULTIMA_POSICAO.xls');
 
-        await uploadToBackend(targetFile, 'MULTIPORTAL_OPERATIONAL');
+        await uploadToBackend(targetFile, 'MULTIPORTAL_ULTIMA_POSICAO');
 
     } catch (error) {
 

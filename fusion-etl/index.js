@@ -17,6 +17,10 @@ const OUTPUT_DIR =
     process.env.ETL_OUTPUT_DIR
     || 'C:/FusionData/imports/pending';
 
+const TEMP_DIR =
+    process.env.ETL_TEMP_DIR
+    || path.join(DOWNLOADS_DIR, 'temp');
+
 async function downloadFile(url, destination) {
 
     const response = await axios({
@@ -192,8 +196,7 @@ async function run() {
         console.log('EXTRAINDO ZIP');
         console.log('====================================');
 
-        const tempPath =
-            'C:/FusionData/etl/temp';
+        const tempPath = TEMP_DIR;
 
         await fse.emptyDir(tempPath);
 
