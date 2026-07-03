@@ -80,13 +80,9 @@ async function run() {
 
         console.log('Pesquisando...');
 
-        await ultimaPosicaoFrame.evaluate(() => {
-            document
-                .getElementById(
-                    'LastPositionCompDataList:buttonFindHidden'
-                )
-                .click();
-        });
+        await ultimaPosicaoFrame
+            .locator('#LastPositionCompDataList\\:buttonFindHidden')
+            .click();
 
         await ultimaPosicaoFrame.getByText(
             'Excel',
