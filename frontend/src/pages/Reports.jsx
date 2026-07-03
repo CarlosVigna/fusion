@@ -86,21 +86,39 @@ export default function Reports() {
 
       const worksheet = workbook.worksheets[0];
 
-      // Descobre a linha de cabeçalho procurando "Placa" na col A
+      // Varre todas as colunas de cada linha até achar a linha de cabeçalho
+      // (identifica por qualquer célula cujo texto seja exatamente "PLACA").
+      // A planilha pode ter colunas auxiliares antes da coluna PLACA (ex: col A = "O").
       let headerRowNum = -1;
+      let colPlaca = -1;   // índice 1-based
+      let colData  = -1;   // coluna POSIÇÃO / data
+      let colHora  = -1;   // coluna HO / hora
+
+      function cellText(cell) {
+        return String(cell.text ?? cell.value ?? "").trim();
+      }
+
       worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
         if (headerRowNum !== -1) return;
-        const cellValue = row.getCell(1).text ?? row.getCell(1).value;
-        if (String(cellValue ?? "").trim().toLowerCase() === "placa") {
-          headerRowNum = rowNumber;
-        }
+        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+          const txt = cellText(cell).toLowerCase()
+            .normalize("NFD").replace(/[̀-ͯ]/g, ""); // remove acentos
+          if (txt === "placa")   colPlaca = colNumber;
+          if (txt.startsWith("posi")) colData = colNumber; // POSIÇÃO, POSICAO, etc.
+          if (txt === "ho" || txt === "hora") colHora = colNumber;
+        });
+        if (colPlaca !== -1) headerRowNum = rowNumber;
       });
 
-      if (headerRowNum === -1) {
-        toast.error("Cabeçalho 'Placa' não encontrado na planilha.");
+      if (headerRowNum === -1 || colPlaca === -1) {
+        toast.error("Cabeçalho 'PLACA' não encontrado na planilha.");
         setLoading(false);
         return;
       }
+
+      // Fallback: se não achou POSIÇÃO/HO pelo nome, usa D e E por convenção
+      if (colData === -1) colData = 4;
+      if (colHora === -1) colHora = 5;
 
       const updated = [];
       const notInGrid = []; // Na planilha mas não no sistema
@@ -108,7 +126,7 @@ export default function Reports() {
 
       for (let rowNum = headerRowNum + 1; rowNum <= worksheet.rowCount; rowNum++) {
         const row = worksheet.getRow(rowNum);
-        const rawPlate = row.getCell(1).text ?? String(row.getCell(1).value ?? "");
+        const rawPlate = cellText(row.getCell(colPlaca));
         const plate = normalizePlate(rawPlate);
 
         if (!plate) continue;
@@ -118,7 +136,7 @@ export default function Reports() {
         const vehicle = gridMap[plate];
 
         if (!vehicle) {
-          notInGrid.push(rawPlate.trim());
+          notInGrid.push(rawPlate);
           continue;
         }
 
@@ -127,8 +145,8 @@ export default function Reports() {
 
           // Atualiza apenas o valor — o estilo da célula original é preservado
           // pelo ExcelJS ao ler e reescrever o workbook.
-          row.getCell(4).value = date; // col D = data
-          row.getCell(5).value = time; // col E = hora
+          row.getCell(colData).value = date;
+          row.getCell(colHora).value = time;
 
           updated.push(plate);
         }
