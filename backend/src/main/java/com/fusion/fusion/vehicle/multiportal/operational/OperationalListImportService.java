@@ -22,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -247,11 +249,25 @@ public class OperationalListImportService {
                 operationalRepository.saveAll(statesToSave);
             }
 
-            // Recalcula signalDelayMinutes e communicationStatus imediatamente
-            // após o import, sem esperar o scheduler de 5 min — garante que
-            // Grid e Controle de Sinais refletem os dados novos assim que o
-            // GRID_UPDATED chega no frontend.
-            engineService.processAll();
+            // Recalcula signalDelayMinutes e communicationStatus logo após o
+            // commit do import, sem esperar o scheduler de 5 min. Usa
+            // afterCommit() para não disputar a mesma transação e evitar
+            // o "Transaction rolled back" que ocorria com chamada direta.
+            TransactionSynchronizationManager.registerSynchronization(
+                    new TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                engineService.processAll();
+                            } catch (Exception e) {
+                                log.warn(
+                                        "Motor operacional falhou após import: {}",
+                                        e.getMessage()
+                                );
+                            }
+                        }
+                    }
+            );
 
             String backupName =
                     namingService.build(
