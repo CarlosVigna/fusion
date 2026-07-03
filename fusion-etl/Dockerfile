@@ -30,6 +30,7 @@ ENV ETL_HEADLESS=true \
     ETL_DOWNLOADS_DIR=/app/data/downloads \
     ETL_OUTPUT_DIR=/app/data/pending \
     ETL_TEMP_DIR=/app/data/temp \
+    ETL_LOG_DIR=/app/logs \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
-CMD ["node", "scheduler.js"]
+CMD ["node", "start.js"]
