@@ -8,6 +8,7 @@ import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
+import com.fusion.fusion.operational.engine.OperationalStateEngineService;
 import com.fusion.fusion.realtime.DashboardRealtimeService;
 import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.PlateValidator;
@@ -55,6 +56,7 @@ public class OperationalListImportService {
     private final ImportFileNamingService namingService;
     private final ImportHistoryService importHistoryService;
     private final DashboardRealtimeService realtimeService;
+    private final OperationalStateEngineService engineService;
 
     @Transactional
     public OperationalListImportResponse importFile(
@@ -244,6 +246,12 @@ public class OperationalListImportService {
             if (!statesToSave.isEmpty()) {
                 operationalRepository.saveAll(statesToSave);
             }
+
+            // Recalcula signalDelayMinutes e communicationStatus imediatamente
+            // após o import, sem esperar o scheduler de 5 min — garante que
+            // Grid e Controle de Sinais refletem os dados novos assim que o
+            // GRID_UPDATED chega no frontend.
+            engineService.processAll();
 
             String backupName =
                     namingService.build(

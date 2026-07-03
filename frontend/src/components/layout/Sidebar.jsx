@@ -1,6 +1,7 @@
 import {
     LayoutDashboard,
     ClipboardList,
+    FileSpreadsheet,
     Upload,
     Car,
     RadioTower,
@@ -54,6 +55,11 @@ const items = [
         label: "Veículos",
         icon: Car,
         path: "/vehicles",
+    },
+    {
+        label: "Relatórios",
+        icon: FileSpreadsheet,
+        path: "/reports",
     },
     {
         label: "ETL",

@@ -29,6 +29,7 @@ const PAGE_TITLES = [
   { match: /^\/letters$/, title: "Cartas de Suspensão", subtitle: "Controle de cartas de suspensão por cobertura" },
   { match: /^\/maintenance$/, title: "Manutenção", subtitle: "Veículos em manutenção de equipamento" },
   { match: /^\/etl$/, title: "Monitor do ETL", subtitle: "Status, histórico e execuções dos scrapers" },
+  { match: /^\/reports$/, title: "Relatórios", subtitle: "Geração e atualização de planilhas operacionais" },
   { match: /^\/account$/, title: "Minha Conta", subtitle: "Dados pessoais, senha e tema" },
 ];
 
