@@ -18,6 +18,19 @@ async function uploadToBackend(filePath, type) {
         return;
     }
 
+    // Acorda o Render antes do upload — no plano free o servidor dorme após
+    // 15 min sem requisições HTTP, e o cold start leva até 60 s. Sem isso,
+    // o POST de upload expira antes de o servidor terminar de acordar.
+    log(`[UPLOAD] Verificando disponibilidade do backend...`);
+
+    await axios.get(`${BACKEND_URL}/actuator/health`, {
+        timeout: 90000,
+    });
+
+    log(`[UPLOAD] Backend disponível. Aguardando estabilização...`);
+
+    await new Promise(r => setTimeout(r, 3000));
+
     const form = new FormData();
 
     form.append('file', fs.createReadStream(filePath), path.basename(filePath));

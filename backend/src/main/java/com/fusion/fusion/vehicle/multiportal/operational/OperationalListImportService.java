@@ -250,21 +250,32 @@ public class OperationalListImportService {
             }
 
             // Recalcula signalDelayMinutes e communicationStatus logo após o
-            // commit do import, sem esperar o scheduler de 5 min. Usa
-            // afterCommit() para não disputar a mesma transação e evitar
-            // o "Transaction rolled back" que ocorria com chamada direta.
+            // commit do import, sem esperar o scheduler de 5 min.
+            // Roda em thread separado para que @Transactional(REQUIRED) do
+            // processAll() abra uma transação nova limpa — sem isso, o
+            // Spring reutilizava a conexão em estado de cleanup do afterCommit
+            // e lançava exceção silenciosa.
             TransactionSynchronizationManager.registerSynchronization(
                     new TransactionSynchronization() {
                         @Override
                         public void afterCommit() {
-                            try {
-                                engineService.processAll();
-                            } catch (Exception e) {
-                                log.warn(
-                                        "Motor operacional falhou após import: {}",
-                                        e.getMessage()
-                                );
-                            }
+                            new Thread(() -> {
+                                try {
+                                    log.info(
+                                            "[MOTOR] Iniciando processAll() pós-import"
+                                    );
+                                    engineService.processAll();
+                                    log.info(
+                                            "[MOTOR] processAll() pós-import concluído"
+                                    );
+                                } catch (Exception e) {
+                                    log.warn(
+                                            "[MOTOR] Motor operacional falhou após import: {}",
+                                            e.getMessage(),
+                                            e
+                                    );
+                                }
+                            }, "engine-post-import").start();
                         }
                     }
             );
