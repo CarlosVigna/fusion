@@ -21,7 +21,7 @@ function log(message) {
 /**
  * Move arquivo para pasta de backup mantendo apenas os N mais recentes.
  */
-async function moveToBackupWithRotation(filePath, backupDir, maxFiles = 5) {
+async function moveToBackupWithRotation(filePath, backupDir, maxFiles = 10) {
 
     if (!fs.existsSync(backupDir)) {
         fs.mkdirSync(backupDir, { recursive: true });

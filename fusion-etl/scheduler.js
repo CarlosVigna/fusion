@@ -59,17 +59,18 @@ scheduleWithRetry(
     THIRTY_MINUTES_MS
 );
 
-// Dispositivos e vínculo: uma vez por dia às 02:00
+// Dispositivos: 04:00 UTC = 01:00 Brasília
 scheduleWithRetry(
-    '0 2 * * *',
+    '0 4 * * *',
     runDispositivos,
     'Dispositivos',
     'MULTIPORTAL_DEVICE',
     TWENTY_FOUR_HOURS_MS
 );
 
+// Vínculo: 05:00 UTC = 02:00 Brasília (1h após dispositivos para não colidir)
 scheduleWithRetry(
-    '0 2 * * *',
+    '0 5 * * *',
     runVinculo,
     'Vínculo',
     'MULTIPORTAL_LINKAGE',
@@ -78,4 +79,5 @@ scheduleWithRetry(
 
 log('[CRON] Agendador iniciado.');
 log('[CRON] Última posição: a cada 30 minutos.');
-log('[CRON] Dispositivos e vínculo: diariamente às 02:00.');
+log('[CRON] Dispositivos: diariamente às 04:00 UTC (01:00 Brasília).');
+log('[CRON] Vínculo: diariamente às 05:00 UTC (02:00 Brasília).');

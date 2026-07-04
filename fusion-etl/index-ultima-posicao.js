@@ -203,7 +203,7 @@ async function run() {
         await moveToBackupWithRotation(
             sourceFile,
             path.join(DOWNLOADS_DIR, 'history'),
-            5
+            10
         );
 
         console.log('');

@@ -8,6 +8,8 @@ import { getImportHistory } from "../services/auditService";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
+import { realtimeService } from "../services/realtime/realtimeService";
+
 const TYPE_LABELS = {
   MULTIPORTAL_OPERATIONAL: "Última Posição",
   MULTIPORTAL_DEVICE: "Dispositivos",
@@ -112,7 +114,20 @@ export default function EtlMonitor() {
 
     const interval = setInterval(load, POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    const unsubscribe = realtimeService.onDashboardEvent((event) => {
+
+      if (event?.type === "GRID_UPDATED") {
+
+        load();
+
+      }
+
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
 
   }, []);
 
