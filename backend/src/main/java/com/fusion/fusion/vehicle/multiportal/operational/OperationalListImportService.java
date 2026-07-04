@@ -8,7 +8,6 @@ import com.fusion.fusion.importation.storage.enums.ImportPlatform;
 import com.fusion.fusion.importation.storage.service.ImportBackupService;
 import com.fusion.fusion.importation.storage.service.ImportFileManagerService;
 import com.fusion.fusion.importation.storage.service.ImportFileNamingService;
-import com.fusion.fusion.operational.engine.OperationalStateEngineService;
 import com.fusion.fusion.realtime.DashboardRealtimeService;
 import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.PlateValidator;
@@ -22,8 +21,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -58,7 +55,6 @@ public class OperationalListImportService {
     private final ImportFileNamingService namingService;
     private final ImportHistoryService importHistoryService;
     private final DashboardRealtimeService realtimeService;
-    private final OperationalStateEngineService engineService;
 
     @Transactional
     public OperationalListImportResponse importFile(
@@ -248,37 +244,6 @@ public class OperationalListImportService {
             if (!statesToSave.isEmpty()) {
                 operationalRepository.saveAll(statesToSave);
             }
-
-            // Recalcula signalDelayMinutes e communicationStatus logo após o
-            // commit do import, sem esperar o scheduler de 5 min.
-            // Roda em thread separado para que @Transactional(REQUIRED) do
-            // processAll() abra uma transação nova limpa — sem isso, o
-            // Spring reutilizava a conexão em estado de cleanup do afterCommit
-            // e lançava exceção silenciosa.
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            new Thread(() -> {
-                                try {
-                                    log.info(
-                                            "[MOTOR] Iniciando processAll() pós-import"
-                                    );
-                                    engineService.processAll();
-                                    log.info(
-                                            "[MOTOR] processAll() pós-import concluído"
-                                    );
-                                } catch (Exception e) {
-                                    log.warn(
-                                            "[MOTOR] Motor operacional falhou após import: {}",
-                                            e.getMessage(),
-                                            e
-                                    );
-                                }
-                            }, "engine-post-import").start();
-                        }
-                    }
-            );
 
             String backupName =
                     namingService.build(

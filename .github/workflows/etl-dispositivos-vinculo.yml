@@ -26,7 +26,12 @@ jobs:
         run: npx playwright install chromium --with-deps
 
       - name: Run ETL - Dispositivos
-        working-directory: fusion-etl
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: cd fusion-etl && node index.js
         env:
           MULTIPORTAL_URL: ${{ secrets.MULTIPORTAL_URL }}
           MULTIPORTAL_USER: ${{ secrets.MULTIPORTAL_USER }}
@@ -38,10 +43,14 @@ jobs:
           ETL_OUTPUT_DIR: /tmp/etl/pending
           ETL_TEMP_DIR: /tmp/etl/temp
           ETL_LOG_DIR: /tmp/etl/logs
-        run: node index.js
 
       - name: Run ETL - Vínculo
-        working-directory: fusion-etl
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: cd fusion-etl && node index-vinculo.js
         env:
           MULTIPORTAL_URL: ${{ secrets.MULTIPORTAL_URL }}
           MULTIPORTAL_USER: ${{ secrets.MULTIPORTAL_USER }}
@@ -53,4 +62,3 @@ jobs:
           ETL_OUTPUT_DIR: /tmp/etl/pending
           ETL_TEMP_DIR: /tmp/etl/temp
           ETL_LOG_DIR: /tmp/etl/logs
-        run: node index-vinculo.js
