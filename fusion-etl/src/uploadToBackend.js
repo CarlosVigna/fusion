@@ -7,6 +7,45 @@ const { log } = require('./file-utils');
 const BACKEND_URL = process.env.BACKEND_URL;
 const ETL_API_KEY = process.env.ETL_API_KEY;
 
+// Acorda o Render antes do upload — no plano free o servidor dorme após
+// 15 min sem requisições HTTP, e o cold start pode levar até 2-3 min.
+// Faz polling em vez de um único GET com timeout longo, para que cada
+// tentativa falhe rápido e o log mostre progresso em vez de silêncio.
+async function waitForBackend(url) {
+
+    const maxAttempts = 6;
+    const waitMs = 30000;
+
+    for (let i = 1; i <= maxAttempts; i++) {
+
+        try {
+
+            console.log(`[UPLOAD] Verificando backend (tentativa ${i}/${maxAttempts})...`);
+
+            await axios.get(`${url}/actuator/health`, { timeout: 30000 });
+
+            console.log('[UPLOAD] Backend disponível.');
+
+            return;
+
+        } catch (e) {
+
+            if (i < maxAttempts) {
+
+                console.log(`[UPLOAD] Backend não respondeu, aguardando ${waitMs / 1000}s...`);
+
+                await new Promise(r => setTimeout(r, waitMs));
+
+            }
+
+        }
+
+    }
+
+    throw new Error('Backend não ficou disponível após 3 minutos');
+
+}
+
 // Sem BACKEND_URL configurado, nao faz nada — comportamento local
 // (so salva em pending/) continua igual, pro orquestrador ler sozinho.
 // Com BACKEND_URL, entrega o arquivo via HTTP pro backend (necessario
@@ -18,14 +57,7 @@ async function uploadToBackend(filePath, type) {
         return;
     }
 
-    // Acorda o Render antes do upload — no plano free o servidor dorme após
-    // 15 min sem requisições HTTP, e o cold start leva até 60 s. Sem isso,
-    // o POST de upload expira antes de o servidor terminar de acordar.
-    log(`[UPLOAD] Verificando disponibilidade do backend...`);
-
-    await axios.get(`${BACKEND_URL}/actuator/health`, {
-        timeout: 90000,
-    });
+    await waitForBackend(BACKEND_URL);
 
     log(`[UPLOAD] Backend disponível. Aguardando estabilização...`);
 
