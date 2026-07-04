@@ -1,5 +1,6 @@
 package com.fusion.fusion.operational.engine;
 
+import com.fusion.fusion.realtime.DashboardRealtimeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -12,10 +13,8 @@ public class EngineAsyncService {
 
     private final OperationalStateEngineService engineService;
 
-    // Roda em thread do pool de @Async — contexto transacional completamente
-    // novo, sem herdar nenhum resíduo da transação do importFile(). O sleep
-    // de 500ms é uma margem de segurança para garantir que o commit do import
-    // já foi confirmado pelo banco antes de o motor ler os estados.
+    private final DashboardRealtimeService realtimeService;
+
     @Async
     public void runAfterImport() {
 
@@ -28,6 +27,11 @@ public class EngineAsyncService {
             engineService.processAll();
 
             log.info("[MOTOR] processAll() assíncrono concluído");
+
+            realtimeService.publish(
+                    "GRID_UPDATED",
+                    "Motor operacional concluído"
+            );
 
         } catch (Exception e) {
 

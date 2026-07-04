@@ -31,6 +31,8 @@ import { usePagination } from "../hooks/usePagination";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
+import { realtimeService } from "../services/realtime/realtimeService";
+
 export default function SignalControl() {
 
   const [vehicles, setVehicles] =
@@ -91,6 +93,22 @@ export default function SignalControl() {
   useEffect(() => {
 
     load();
+
+  }, []);
+
+  useEffect(() => {
+
+    const unsubscribe = realtimeService.onDashboardEvent((event) => {
+
+      if (event?.type === "GRID_UPDATED") {
+
+        load();
+
+      }
+
+    });
+
+    return () => unsubscribe();
 
   }, []);
 

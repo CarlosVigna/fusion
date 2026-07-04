@@ -22,6 +22,8 @@ import { usePagination } from "../hooks/usePagination";
 
 import { formatLocalDate as formatDate } from "../utils/dateUtils";
 
+import { realtimeService } from "../services/realtime/realtimeService";
+
 function daysUntil(value) {
 
   if (!value) {
@@ -106,6 +108,22 @@ export default function Maintenance() {
   useEffect(() => {
 
     load();
+
+  }, [showClosed]);
+
+  useEffect(() => {
+
+    const unsubscribe = realtimeService.onDashboardEvent((event) => {
+
+      if (event?.type === "GRID_UPDATED") {
+
+        load();
+
+      }
+
+    });
+
+    return () => unsubscribe();
 
   }, [showClosed]);
 
