@@ -124,6 +124,10 @@ public class DeviceImportService {
                                 && !plate.isBlank()
                                 && PlateValidator.isValidPlate(plate);
 
+                if (!hasValidPlate) {
+                    continue;
+                }
+
                 String imei =
                         getCellValue(row.getCell(12));
 

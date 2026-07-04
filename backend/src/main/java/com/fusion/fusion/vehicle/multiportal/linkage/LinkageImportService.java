@@ -120,7 +120,7 @@ public class LinkageImportService {
                 linkedVehicles++;
 
                 String numberStr =
-                        getCellValue(row.getCell(5));
+                        getCellValue(row.getCell(4));
 
                 Optional<Device> optionalDevice =
                         deviceRepository.findByNumberStr(numberStr);
