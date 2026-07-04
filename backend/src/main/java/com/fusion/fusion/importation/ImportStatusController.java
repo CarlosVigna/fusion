@@ -2,7 +2,7 @@ package com.fusion.fusion.importation;
 
 import com.fusion.fusion.etl.EtlTriggerService;
 import com.fusion.fusion.importation.orchestrator.ImportOrchestratorService;
-import com.fusion.fusion.operational.engine.OperationalStateEngineService;
+import com.fusion.fusion.operational.engine.EngineAsyncService;
 import com.fusion.fusion.vehicle.multiportal.device.DeviceImportService;
 import com.fusion.fusion.vehicle.multiportal.linkage.LinkageImportService;
 import com.fusion.fusion.vehicle.multiportal.operational.MultiportalOperationalService;
@@ -44,7 +44,7 @@ public class ImportStatusController {
 
     private final EtlTriggerService etlTriggerService;
 
-    private final OperationalStateEngineService engineService;
+    private final EngineAsyncService engineAsyncService;
 
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
@@ -169,17 +169,9 @@ public class ImportStatusController {
 
                     Object result = operationalImportService.importFile(file);
 
-                    // Motor roda aqui, fora da transação do importFile(),
-                    // para recalcular signal_delay_minutes imediatamente sem
-                    // disputar contexto transacional com o service.
-                    try {
-                        engineService.processAll();
-                    } catch (Exception e) {
-                        log.warn(
-                                "[MOTOR] Falha ao recalcular após import: {}",
-                                e.getMessage()
-                        );
-                    }
+                    // Dispara o motor em thread @Async — contexto transacional
+                    // completamente novo, sem herdar rollback-only do importFile.
+                    engineAsyncService.runAfterImport();
 
                     yield result;
 
