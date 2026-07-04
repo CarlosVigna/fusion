@@ -1,7 +1,7 @@
-# mcr.microsoft.com/playwright/node:20-jammy already ships the exact
-# Chromium build that matches the installed Playwright version, plus all
-# required system libraries — no manual apt installs needed.
-FROM mcr.microsoft.com/playwright/node:20-jammy
+# mcr.microsoft.com/playwright/node:24-noble ships Node 24 + Ubuntu Noble
+# com o build de Chromium exato que corresponde à versão do Playwright
+# instalada, sem apt installs manuais.
+FROM mcr.microsoft.com/playwright/node:24-noble
 
 WORKDIR /app
 
