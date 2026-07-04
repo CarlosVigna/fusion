@@ -21,6 +21,9 @@ export default function DelayedSignalsPanel({ onChanged }) {
   const [vehicles, setVehicles] =
     useState([]);
 
+  const [totalDelayed, setTotalDelayed] =
+    useState(0);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -42,8 +45,10 @@ export default function DelayedSignalsPanel({ onChanged }) {
 
       const data = await getSignalControl();
 
-      // Ainda nao tratados = nenhuma observacao foi conferida ainda
-      // pra esse veiculo desde que entrou em atraso.
+      setTotalDelayed(data.length);
+
+      // Fila de trabalho: só os ainda não conferidos por um operador.
+      // O total (data.length) é preservado para exibir o contexto completo.
       setVehicles(
         data.filter((v) => !v.lastCheck)
       );
@@ -124,6 +129,13 @@ export default function DelayedSignalsPanel({ onChanged }) {
 
   return (
     <>
+
+      <p className="mb-3 text-sm text-zinc-500">
+        {vehicles.length} pendentes de tratamento
+        {totalDelayed > vehicles.length && (
+          <> · {totalDelayed} com sinal atrasado no total</>
+        )}
+      </p>
 
       <div className="max-h-[28rem] overflow-y-auto rounded-2xl border border-zinc-800">
 

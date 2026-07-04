@@ -132,19 +132,30 @@ async function run() {
 
         console.log('Frame impressão encontrado.');
 
+        // Aguarda o link openDownload aparecer no DOM — em headless o frame
+        // pode ser sinalizado como carregado antes do conteúdo dinâmico
+        // estar presente, causando match vazio no regex logo abaixo.
+        await impressaoFrame.waitForSelector(
+            '[onclick*="openDownload"]',
+            { timeout: 60000 }
+        );
+
+        await page.screenshot({ path: '/tmp/etl/debug-dispositivos.png' });
+
         const html = await impressaoFrame.content();
 
-        // DEBUG OPCIONAL
         fs.writeFileSync(
-            'impressao-completa.html',
+            '/tmp/etl/impressao-completa.html',
             html,
             'utf8'
         );
 
         // CAPTURA reportId e executionId
-
+        // O primeiro argumento ('3', '1', etc.) varia — aceita qualquer valor
+        // em vez de exigir '3' hardcoded, que causava falha silenciosa se
+        // o servidor retornasse um tipo diferente.
         const match = html.match(
-            /openDownload\('3',\s*'(\d+)',\s*'(\d+)'/
+            /openDownload\('[^']*',\s*'(\d+)',\s*'(\d+)'/
         );
 
         if (!match) {
