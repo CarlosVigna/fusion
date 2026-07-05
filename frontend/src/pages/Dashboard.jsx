@@ -155,7 +155,7 @@ export default function Dashboard() {
     }
 
     if (tab.key === "maintenance") {
-      return { ...tab, count: undefined };
+      return { ...tab, count: dashboard?.overdueMaintenanceCount };
     }
 
     if (tab.key === "pending") {
