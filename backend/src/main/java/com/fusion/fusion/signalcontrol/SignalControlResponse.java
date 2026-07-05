@@ -29,7 +29,9 @@ public record SignalControlResponse(
 
         Long activeLetterId,
 
-        Long openMaintenanceId
+        Long openMaintenanceId,
+
+        Long signalReturnAlertId
 
 ) {
 

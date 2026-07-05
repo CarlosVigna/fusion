@@ -32,6 +32,8 @@ public class DashboardProjection {
 
     private Long activeLettersCount;
 
+    private Long pendingLettersCount;
+
     private Long pendingChangesCount;
 
     private Long delayedSignalCount;

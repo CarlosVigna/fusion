@@ -6,6 +6,7 @@ import com.fusion.fusion.importation.ImportHistoryRepository;
 import com.fusion.fusion.importation.ImportStatus;
 import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.letter.LetterRecordRepository;
+import com.fusion.fusion.letter.LetterRecordService;
 import com.fusion.fusion.maintenance.MaintenanceRecordRepository;
 import com.fusion.fusion.maintenance.MaintenanceStatus;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
@@ -41,6 +42,9 @@ public class DashboardService {
 
     private final LetterRecordRepository
             letterRecordRepository;
+
+    private final LetterRecordService
+            letterRecordService;
 
     private final PendingChangeRepository
             pendingChangeRepository;
@@ -154,6 +158,10 @@ public class DashboardService {
                         letterRecordRepository.countByDataRetornoSinal(
                                 "Sem retorno."
                         )
+                )
+
+                .pendingLettersCount(
+                        (long) letterRecordService.findPendingBaixa().size()
                 )
 
                 .pendingChangesCount(

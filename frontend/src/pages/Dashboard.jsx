@@ -151,7 +151,7 @@ export default function Dashboard() {
     }
 
     if (tab.key === "letters") {
-      return { ...tab, count: dashboard?.activeLettersCount };
+      return { ...tab, count: dashboard?.pendingLettersCount };
     }
 
     if (tab.key === "maintenance") {

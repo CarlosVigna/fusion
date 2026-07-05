@@ -11,9 +11,10 @@ import { formatLocalDateTime } from "../utils/dateUtils";
 import { realtimeService } from "../services/realtime/realtimeService";
 
 const TYPE_LABELS = {
-  MULTIPORTAL_OPERATIONAL: "Última Posição",
+  MULTIPORTAL_ULTIMA_POSICAO: "Última Posição",
   MULTIPORTAL_DEVICE: "Dispositivos",
   MULTIPORTAL_LINKAGE: "Vínculo",
+  MULTIPORTAL_OPERATIONAL: "Lista Operacional",
   TRACKNME: "TracknMe",
 };
 
@@ -132,7 +133,7 @@ export default function EtlMonitor() {
   }, []);
 
   const knownTypes = Object.keys(TYPE_LABELS).filter(
-    (type) => type !== "TRACKNME"
+    (type) => type !== "TRACKNME" && type !== "MULTIPORTAL_OPERATIONAL"
   );
 
   if (loading) {

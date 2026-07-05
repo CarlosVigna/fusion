@@ -186,6 +186,9 @@ public class SignalControlService {
             MaintenanceRecord openMaintenance =
                     openMaintenanceByVehicleId.get(vehicle.getId());
 
+            SignalReturnAlert activeAlert =
+                    activeAlertByVehicleId.get(vehicle.getId());
+
             result.add(
                     build(
                             vehicle,
@@ -195,7 +198,8 @@ public class SignalControlService {
                             stage,
                             lastObservation,
                             activeLetter != null ? activeLetter.getId() : null,
-                            openMaintenance != null ? openMaintenance.getId() : null
+                            openMaintenance != null ? openMaintenance.getId() : null,
+                            activeAlert != null ? activeAlert.getId() : null
                     )
             );
 
@@ -220,7 +224,8 @@ public class SignalControlService {
             SignalStage stage,
             VehicleObservation lastObservation,
             Long activeLetterId,
-            Long openMaintenanceId
+            Long openMaintenanceId,
+            Long signalReturnAlertId
     ) {
 
         SignalControlResponse.ObservationSummary observationSummary =
@@ -273,7 +278,9 @@ public class SignalControlService {
 
                 activeLetterId,
 
-                openMaintenanceId
+                openMaintenanceId,
+
+                signalReturnAlertId
 
         );
 

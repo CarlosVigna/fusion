@@ -11,6 +11,10 @@ import {
 } from "../services/signalControlService";
 
 import {
+  markSignalReturnAlertAsBaixa,
+} from "../services/signalReturnAlertService";
+
+import {
   checkObservation,
   getObservationHistory,
 } from "../services/observationService";
@@ -286,6 +290,34 @@ export default function SignalControl() {
 
   }
 
+  async function handleSignalReturnConfirm(vehicle) {
+
+    if (!vehicle.signalReturnAlertId) return;
+
+    setCheckingId(vehicle.signalReturnAlertId);
+
+    try {
+
+      await markSignalReturnAlertAsBaixa(vehicle.signalReturnAlertId);
+
+      setVehicles((prev) => prev.filter((v) => v.plate !== vehicle.plate));
+
+      toast.success("Retorno de sinal confirmado");
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao confirmar retorno de sinal");
+
+    } finally {
+
+      setCheckingId(null);
+
+    }
+
+  }
+
   const STAGE_LABELS = {
     AWAITING_COMMAND: "1-2 dias",
     CONTACT_INSURED: "3-4 dias",
@@ -430,8 +462,8 @@ export default function SignalControl() {
                 </p>
                 <div className="flex shrink-0 gap-2">
                   <button
-                    onClick={() => handleCheck(vehicle.lastObservation.id)}
-                    disabled={checkingId === vehicle.lastObservation.id}
+                    onClick={() => handleSignalReturnConfirm(vehicle)}
+                    disabled={checkingId === vehicle.signalReturnAlertId}
                     className="
                       rounded-xl bg-white px-3 py-1.5
                       text-xs font-semibold text-black
