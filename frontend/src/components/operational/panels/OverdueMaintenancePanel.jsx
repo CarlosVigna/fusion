@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
@@ -29,7 +29,12 @@ export default function OverdueMaintenancePanel({ onChanged }) {
   const [novoPrazo, setNovoPrazo] =
     useState("");
 
+  const [confirmAction, setConfirmAction] =
+    useState(null);
+
   const dateInputRef = useRef(null);
+
+  const navigate = useNavigate();
 
   async function load() {
 
@@ -61,11 +66,7 @@ export default function OverdueMaintenancePanel({ onChanged }) {
 
   }, []);
 
-  async function handleBaixar(id) {
-
-    if (!window.confirm("Dar baixa nesta manutenção?")) {
-      return;
-    }
+  async function executeBaixar(id) {
 
     setProcessingId(id);
 
@@ -90,6 +91,15 @@ export default function OverdueMaintenancePanel({ onChanged }) {
       setProcessingId(null);
 
     }
+
+  }
+
+  function handleBaixar(id) {
+
+    setConfirmAction({
+      message: "Dar baixa nesta manutenção? Esta ação pode ser desfeita usando o botão Reativar.",
+      onConfirm: () => executeBaixar(id),
+    });
 
   }
 
@@ -165,6 +175,30 @@ export default function OverdueMaintenancePanel({ onChanged }) {
   }
 
   return (
+    <>
+
+    {confirmAction && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div className="w-80 rounded-2xl border border-zinc-700 bg-zinc-900 p-6">
+          <p className="mb-5 text-sm text-zinc-300">{confirmAction.message}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }}
+              className="flex-1 rounded-xl bg-white py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
+            >
+              Confirmar
+            </button>
+            <button
+              onClick={() => setConfirmAction(null)}
+              className="flex-1 rounded-xl border border-zinc-700 bg-zinc-950 py-2.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="max-h-[28rem] overflow-y-auto rounded-2xl border border-zinc-800">
 
       <table className="min-w-full">
@@ -185,7 +219,8 @@ export default function OverdueMaintenancePanel({ onChanged }) {
 
             <tr
               key={record.id}
-              className="border-t border-zinc-800 transition hover:bg-zinc-900"
+              onClick={() => navigate("/maintenance")}
+              className="cursor-pointer border-t border-zinc-800 transition hover:bg-zinc-900"
             >
 
               <td className="px-4 py-3 font-mono font-semibold">
@@ -209,7 +244,10 @@ export default function OverdueMaintenancePanel({ onChanged }) {
                 {formatLocalDate(record.prazoEncerramento)}
               </td>
 
-              <td className="px-4 py-3">
+              <td
+                className="px-4 py-3"
+                onClick={(e) => e.stopPropagation()}
+              >
 
                 {prorrogarId === record.id ? (
 
@@ -301,5 +339,7 @@ export default function OverdueMaintenancePanel({ onChanged }) {
       </table>
 
     </div>
+
+    </>
   );
 }

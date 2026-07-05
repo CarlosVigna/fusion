@@ -21,6 +21,10 @@ export async function baixarLetter(id) {
   return apiClient.put(`/letters/${id}/baixar`);
 }
 
+export async function reativarLetter(id) {
+  return apiClient.put(`/letters/${id}/reativar`);
+}
+
 export async function deleteLetter(id) {
   return apiClient.delete(`/letters/${id}`);
 }

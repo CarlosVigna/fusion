@@ -104,6 +104,21 @@ public class LetterRecordService {
     }
 
     @Transactional
+    public LetterRecordResponse reativar(Long id) {
+
+        LetterRecord record = findRecord(id);
+
+        record.setStatus(LetterStatus.ATIVA);
+
+        record.setDataRetornoSinal("Sem retorno.");
+
+        repository.save(record);
+
+        return LetterRecordResponse.from(record);
+
+    }
+
+    @Transactional
     public LetterRecordResponse create(
             LetterRecordRequest request
     ) {

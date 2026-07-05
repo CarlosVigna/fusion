@@ -31,7 +31,7 @@ import ColumnSettingsModal from "../components/grid/ColumnSettingsModal";
 
 import { formatDelay } from "../utils/formatDelay";
 import { specialFirstCompare } from "../utils/specialFirstCompare";
-import { formatLocalDateTime } from "../utils/dateUtils";
+import { calculateDelayMinutes, formatLocalDateTime } from "../utils/dateUtils";
 
 const rowStyles = {
   ONLINE:
@@ -349,6 +349,8 @@ export default function Grid() {
   const resizingRef = useRef(null);
 
   const preferenceSaveTimeoutRef = useRef(null);
+
+  const [, setDelayTick] = useState(0);
 
   useEffect(() => {
 
@@ -717,6 +719,14 @@ export default function Grid() {
 
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(
+      () => setDelayTick((n) => n + 1),
+      60000
+    );
+    return () => clearInterval(interval);
+  }, []);
+
   async function loadOperationalGrid() {
 
     try {
@@ -835,18 +845,14 @@ export default function Grid() {
       case "position":
         return formatLocalDateTime(vehicle.lastCommunicationAt);
 
-      case "signalDelayMinutes":
+      case "signalDelayMinutes": {
+        const liveDelay = calculateDelayMinutes(vehicle.lastCommunicationAt);
         return (
-          <span
-            title={
-              vehicle.signalDelayMinutes != null
-                ? `${vehicle.signalDelayMinutes} min`
-                : undefined
-            }
-          >
-            {formatDelay(vehicle.signalDelayMinutes)}
+          <span title={liveDelay != null ? `${liveDelay} min` : undefined}>
+            {formatDelay(liveDelay)}
           </span>
         );
+      }
 
       case "observation":
         return (

@@ -29,7 +29,7 @@ import Pagination from "../components/ui/Pagination";
 
 import { usePagination } from "../hooks/usePagination";
 
-import { formatLocalDateTime } from "../utils/dateUtils";
+import { calculateDelayMinutes, formatLocalDateTime } from "../utils/dateUtils";
 
 import { realtimeService } from "../services/realtime/realtimeService";
 
@@ -66,6 +66,11 @@ export default function SignalControl() {
   const [checkingId, setCheckingId] =
     useState(null);
 
+  const [dismissedReturnAlerts, setDismissedReturnAlerts] =
+    useState(new Set());
+
+  const [, setDelayTick] = useState(0);
+
   async function load() {
 
     setLoading(true);
@@ -94,6 +99,14 @@ export default function SignalControl() {
 
     load();
 
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(
+      () => setDelayTick((n) => n + 1),
+      60000
+    );
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -344,6 +357,67 @@ export default function SignalControl() {
 
       </div>
 
+      {vehicles.filter((v) =>
+        v.suggestedStage === "SIGNAL_RETURNED" &&
+        v.lastObservation &&
+        !dismissedReturnAlerts.has(v.plate)
+      ).length > 0 && (
+        <div className="space-y-2">
+          {vehicles
+            .filter((v) =>
+              v.suggestedStage === "SIGNAL_RETURNED" &&
+              v.lastObservation &&
+              !dismissedReturnAlerts.has(v.plate)
+            )
+            .map((vehicle) => (
+              <div
+                key={vehicle.plate}
+                className="
+                  flex items-center justify-between gap-4
+                  rounded-2xl border border-green-500/30
+                  bg-green-500/10 px-4 py-3
+                "
+              >
+                <p className="text-sm text-zinc-200">
+                  <span className="font-mono font-semibold text-green-400">
+                    {vehicle.plate}
+                  </span>
+                  {" "}retornou o sinal — deseja limpar as observações?
+                </p>
+                <div className="flex shrink-0 gap-2">
+                  <button
+                    onClick={() => handleCheck(vehicle.lastObservation.id)}
+                    disabled={checkingId === vehicle.lastObservation.id}
+                    className="
+                      rounded-xl bg-white px-3 py-1.5
+                      text-xs font-semibold text-black
+                      transition hover:opacity-90
+                      disabled:opacity-50
+                    "
+                  >
+                    Confirmar
+                  </button>
+                  <button
+                    onClick={() =>
+                      setDismissedReturnAlerts((prev) =>
+                        new Set([...prev, vehicle.plate])
+                      )
+                    }
+                    className="
+                      rounded-xl border border-zinc-700
+                      bg-zinc-950 px-3 py-1.5
+                      text-xs text-zinc-300
+                      transition hover:bg-zinc-800
+                    "
+                  >
+                    Ignorar
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+
       <div
         className="
           flex flex-col gap-4
@@ -497,13 +571,12 @@ export default function SignalControl() {
 
                       <td
                         className="px-4 py-4"
-                        title={
-                          vehicle.signalDelayMinutes != null
-                            ? `${vehicle.signalDelayMinutes} min`
-                            : undefined
-                        }
+                        title={(() => {
+                          const d = calculateDelayMinutes(vehicle.lastCommunicationAt);
+                          return d != null ? `${d} min` : undefined;
+                        })()}
                       >
-                        {formatDelay(vehicle.signalDelayMinutes)}
+                        {formatDelay(calculateDelayMinutes(vehicle.lastCommunicationAt))}
                       </td>
 
                       <td className="max-w-xs truncate px-4 py-4 text-zinc-400">

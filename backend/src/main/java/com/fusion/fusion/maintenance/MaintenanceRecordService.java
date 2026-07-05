@@ -148,6 +148,21 @@ public class MaintenanceRecordService {
     }
 
     @Transactional
+    public MaintenanceRecordResponse reativar(Long id) {
+
+        MaintenanceRecord record = findRecord(id);
+
+        record.setStatus(MaintenanceStatus.ABERTO);
+
+        record.setDataEncerramento(null);
+
+        repository.save(record);
+
+        return MaintenanceRecordResponse.from(record);
+
+    }
+
+    @Transactional
     public void delete(Long id) {
 
         repository.deleteById(id);

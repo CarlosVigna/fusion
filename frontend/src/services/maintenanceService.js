@@ -29,6 +29,10 @@ export async function prorrogarMaintenanceRecord(id, novoPrazo) {
   return apiClient.put(`/maintenance/${id}/prorrogar`, { novoPrazo });
 }
 
+export async function reativarMaintenanceRecord(id) {
+  return apiClient.put(`/maintenance/${id}/reativar`);
+}
+
 export async function deleteMaintenanceRecord(id) {
   return apiClient.delete(`/maintenance/${id}`);
 }

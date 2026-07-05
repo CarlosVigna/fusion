@@ -149,10 +149,7 @@ public class SignalControlService {
 
         for (Vehicle vehicle : vehicleRepository.findAll()) {
 
-            if (vehicle.getDeletedAt() != null
-                    || !Boolean.TRUE.equals(
-                    vehicle.getHasEverCommunicated()
-            )) {
+            if (vehicle.getDeletedAt() != null) {
 
                 continue;
 

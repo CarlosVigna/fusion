@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
@@ -21,6 +21,11 @@ export default function LettersReturnedPanel({ onChanged }) {
 
   const [processingId, setProcessingId] =
     useState(null);
+
+  const [confirmAction, setConfirmAction] =
+    useState(null);
+
+  const navigate = useNavigate();
 
   async function load() {
 
@@ -52,7 +57,7 @@ export default function LettersReturnedPanel({ onChanged }) {
 
   }, []);
 
-  async function handleBaixa(id) {
+  async function executeBaixa(id) {
 
     setProcessingId(id);
 
@@ -80,6 +85,15 @@ export default function LettersReturnedPanel({ onChanged }) {
 
   }
 
+  function handleBaixa(id) {
+
+    setConfirmAction({
+      message: "Dar baixa nesta carta? Esta ação pode ser desfeita usando o botão Reativar.",
+      onConfirm: () => executeBaixa(id),
+    });
+
+  }
+
   if (loading) {
     return (
       <p className="py-10 text-center text-zinc-500">
@@ -97,15 +111,40 @@ export default function LettersReturnedPanel({ onChanged }) {
   }
 
   return (
+    <>
+
+    {confirmAction && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+        <div className="w-80 rounded-2xl border border-zinc-700 bg-zinc-900 p-6">
+          <p className="mb-5 text-sm text-zinc-300">{confirmAction.message}</p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }}
+              className="flex-1 rounded-xl bg-white py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
+            >
+              Confirmar
+            </button>
+            <button
+              onClick={() => setConfirmAction(null)}
+              className="flex-1 rounded-xl border border-zinc-700 bg-zinc-950 py-2.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="max-h-[28rem] space-y-3 overflow-y-auto">
 
       {letters.map((letter) => (
 
         <div
           key={letter.id}
+          onClick={() => navigate("/letters")}
           className="
-            rounded-2xl border border-zinc-800
-            bg-zinc-900 p-4
+            cursor-pointer rounded-2xl border border-zinc-800
+            bg-zinc-900 p-4 transition hover:bg-zinc-800/60
           "
         >
 
@@ -140,7 +179,7 @@ export default function LettersReturnedPanel({ onChanged }) {
             </div>
 
             <button
-              onClick={() => handleBaixa(letter.id)}
+              onClick={(e) => { e.stopPropagation(); handleBaixa(letter.id); }}
               disabled={processingId === letter.id}
               className="
                 rounded-xl bg-white px-4 py-2
@@ -159,5 +198,7 @@ export default function LettersReturnedPanel({ onChanged }) {
       ))}
 
     </div>
+
+    </>
   );
 }

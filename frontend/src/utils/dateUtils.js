@@ -27,3 +27,11 @@ export function formatLocalTime(utcString) {
   const date = new Date(utcString + "Z");
   return date.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
+
+// Calcula atraso em minutos a partir do timestamp UTC do banco.
+// Chamado a cada minuto via setInterval para manter o valor ao vivo.
+export function calculateDelayMinutes(lastCommunicationAt) {
+  if (!lastCommunicationAt) return null;
+  const last = new Date(lastCommunicationAt + "Z");
+  return Math.max(0, Math.floor((Date.now() - last.getTime()) / 60000));
+}

@@ -503,6 +503,121 @@ export default function VehicleDetails() {
 
       </div>
 
+      {(detail.letterHistory?.length > 0 || detail.maintenanceHistory?.length > 0) && (
+
+        <div className="grid gap-4 lg:grid-cols-2">
+
+          {detail.letterHistory?.length > 0 && (
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
+                <Mail size={16} className="text-zinc-500" />
+                Cartas de suspensão
+              </h2>
+
+              <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
+
+                {detail.letterHistory.map((letter) => (
+
+                  <li
+                    key={letter.id}
+                    className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm"
+                  >
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-zinc-400">
+                        Envio: {formatLocalDate(letter.dataEnvio)}
+                      </span>
+                      <span
+                        className={`
+                          rounded-full px-2 py-0.5 text-xs font-semibold
+                          ${letter.status === "ATIVA"
+                            ? "bg-blue-500/15 text-blue-400"
+                            : "bg-zinc-700/40 text-zinc-400"}
+                        `}
+                      >
+                        {letter.status || "ATIVA"}
+                      </span>
+                    </div>
+
+                    {letter.dataRetornoSinal &&
+                      letter.dataRetornoSinal !== "Sem retorno." && (
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Retorno: {letter.dataRetornoSinal}
+                        </p>
+                    )}
+
+                  </li>
+
+                ))}
+
+              </ul>
+
+            </div>
+
+          )}
+
+          {detail.maintenanceHistory?.length > 0 && (
+
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
+                <Wrench size={16} className="text-zinc-500" />
+                Manutenções
+              </h2>
+
+              <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
+
+                {detail.maintenanceHistory.map((maint) => (
+
+                  <li
+                    key={maint.id}
+                    className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm"
+                  >
+
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-zinc-400">
+                        Data: {formatLocalDate(maint.data)}
+                      </span>
+                      <span
+                        className={`
+                          rounded-full px-2 py-0.5 text-xs font-semibold
+                          ${maint.status === "ABERTO"
+                            ? "bg-blue-500/15 text-blue-400"
+                            : "bg-zinc-700/40 text-zinc-400"}
+                        `}
+                      >
+                        {maint.status}
+                      </span>
+                    </div>
+
+                    {maint.localPosicao && (
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {maint.localPosicao}
+                      </p>
+                    )}
+
+                    {maint.prazoEncerramento && (
+                      <p className="mt-1 text-xs text-zinc-500">
+                        Prazo: {formatLocalDate(maint.prazoEncerramento)}
+                      </p>
+                    )}
+
+                  </li>
+
+                ))}
+
+              </ul>
+
+            </div>
+
+          )}
+
+        </div>
+
+      )}
+
       {modalOpen && (
 
         <ObservationModal

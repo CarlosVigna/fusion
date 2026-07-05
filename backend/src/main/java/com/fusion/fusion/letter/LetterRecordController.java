@@ -57,6 +57,15 @@ public class LetterRecordController {
 
     }
 
+    @PutMapping("/{id}/reativar")
+    public LetterRecordResponse reativar(
+            @PathVariable Long id
+    ) {
+
+        return service.reativar(id);
+
+    }
+
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
 

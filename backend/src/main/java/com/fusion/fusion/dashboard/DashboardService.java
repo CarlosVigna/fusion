@@ -120,7 +120,7 @@ public class DashboardService {
         LocalDateTime lastEtlUpdate =
                 importHistoryRepository
                         .findTopByTypeAndStatusOrderByCreatedAtDesc(
-                                ImportType.MULTIPORTAL_OPERATIONAL,
+                                ImportType.MULTIPORTAL_ULTIMA_POSICAO,
                                 ImportStatus.SUCCESS
                         )
                         .map(history -> history.getCreatedAt())
@@ -148,7 +148,7 @@ public class DashboardService {
                         vehicleRepository.countByDeletedAtIsNull()
                 )
 
-                .monitoredVehicles(totalVehicles)
+                .monitoredVehicles(snapshotRepository.countMonitored())
 
                 .activeLettersCount(
                         letterRecordRepository.countByDataRetornoSinal(
@@ -164,7 +164,7 @@ public class DashboardService {
 
                 .delayedSignalCount(
                         operationalStateRepository
-                                .countBySignalDelayMinutesGreaterThan(
+                                .countDelayedSignal(
                                         SIGNAL_DELAY_THRESHOLD_MINUTES
                                 )
                 )

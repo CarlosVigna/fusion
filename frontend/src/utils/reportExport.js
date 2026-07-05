@@ -198,7 +198,7 @@ export function exportReportToPdf({
   filename,
 }) {
 
-  const orientation = headers.length > 6 ? "landscape" : "portrait";
+  const orientation = "landscape";
 
   const doc = new jsPDF({ orientation });
 

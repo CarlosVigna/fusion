@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Link } from "react-router-dom";
 
@@ -12,7 +12,7 @@ import { checkObservation } from "../../../services/observationService";
 
 import { formatDelay } from "../../../utils/formatDelay";
 
-import { formatLocalDateTime } from "../../../utils/dateUtils";
+import { calculateDelayMinutes, formatLocalDateTime } from "../../../utils/dateUtils";
 
 import ObservationModal from "../../observations/ObservationModal";
 
@@ -32,6 +32,8 @@ export default function DelayedSignalsPanel({ onChanged }) {
 
   const [checkingId, setCheckingId] =
     useState(null);
+
+  const [, setDelayTick] = useState(0);
 
   const modalVehicle = vehicles.find(
     (v) => v.plate === modalPlate
@@ -71,6 +73,14 @@ export default function DelayedSignalsPanel({ onChanged }) {
 
     load();
 
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(
+      () => setDelayTick((n) => n + 1),
+      60000
+    );
+    return () => clearInterval(interval);
   }, []);
 
   async function handleCheck(observationId) {
@@ -179,7 +189,7 @@ export default function DelayedSignalsPanel({ onChanged }) {
                 </td>
 
                 <td className="px-4 py-3">
-                  {formatDelay(vehicle.signalDelayMinutes)}
+                  {formatDelay(calculateDelayMinutes(vehicle.lastCommunicationAt))}
                 </td>
 
                 <td className="max-w-xs truncate px-4 py-3 text-zinc-400">

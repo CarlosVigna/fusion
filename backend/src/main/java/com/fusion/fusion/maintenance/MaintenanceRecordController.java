@@ -80,6 +80,15 @@ public class MaintenanceRecordController {
 
     }
 
+    @PutMapping("/{id}/reativar")
+    public MaintenanceRecordResponse reativar(
+            @PathVariable Long id
+    ) {
+
+        return service.reativar(id);
+
+    }
+
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
 

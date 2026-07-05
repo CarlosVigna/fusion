@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { Archive, FileSpreadsheet, FileText, Plus, Trash2 } from "lucide-react";
+import { Archive, FileSpreadsheet, FileText, Plus, RotateCcw, Trash2 } from "lucide-react";
 
 import {
   baixarLetter,
   deleteLetter,
   getLetters,
+  reativarLetter,
 } from "../services/letterService";
 
 import {
@@ -77,6 +78,8 @@ export default function Letters() {
   const [modalOpen, setModalOpen] = useState(false);
 
   const [baixandoId, setBaixandoId] = useState(null);
+
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const {
     page,
@@ -149,11 +152,7 @@ export default function Letters() {
 
   }
 
-  async function handleBaixar(id) {
-
-    if (!window.confirm("Dar baixa nesta carta de suspensão?")) {
-      return;
-    }
+  async function executeBaixar(id) {
 
     setBaixandoId(id);
 
@@ -179,11 +178,36 @@ export default function Letters() {
 
   }
 
-  async function handleDelete(id) {
+  function handleBaixar(id) {
 
-    if (!window.confirm("Remover esta carta de suspensão?")) {
-      return;
+    setConfirmAction({
+      message: "Dar baixa nesta carta de suspensão? Esta ação pode ser desfeita usando o botão Reativar.",
+      onConfirm: () => executeBaixar(id),
+    });
+
+  }
+
+  async function handleReativar(id) {
+
+    try {
+
+      await reativarLetter(id);
+
+      toast.success("Carta reativada");
+
+      load();
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao reativar carta");
+
     }
+
+  }
+
+  async function executeDelete(id) {
 
     try {
 
@@ -200,6 +224,15 @@ export default function Letters() {
       toast.error("Erro ao remover carta");
 
     }
+
+  }
+
+  function handleDelete(id) {
+
+    setConfirmAction({
+      message: "Remover esta carta de suspensão? Esta ação não pode ser desfeita.",
+      onConfirm: () => executeDelete(id),
+    });
 
   }
 
@@ -271,6 +304,28 @@ export default function Letters() {
 
   return (
     <div className="space-y-6">
+
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-80 rounded-2xl border border-zinc-700 bg-zinc-900 p-6">
+            <p className="mb-5 text-sm text-zinc-300">{confirmAction.message}</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { confirmAction.onConfirm(); setConfirmAction(null); }}
+                className="flex-1 rounded-xl bg-white py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
+              >
+                Confirmar
+              </button>
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="flex-1 rounded-xl border border-zinc-700 bg-zinc-950 py-2.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-end gap-4">
 
@@ -445,6 +500,21 @@ export default function Letters() {
                             "
                           >
                             <Archive size={14} />
+                          </button>
+                        )}
+
+                        {letter.status === "BAIXADA" && (
+                          <button
+                            onClick={() => handleReativar(letter.id)}
+                            title="Reativar carta"
+                            className="
+                              rounded-xl border border-zinc-700
+                              bg-zinc-950 p-2
+                              text-zinc-400 transition
+                              hover:bg-blue-500/15 hover:text-blue-400
+                            "
+                          >
+                            <RotateCcw size={14} />
                           </button>
                         )}
 

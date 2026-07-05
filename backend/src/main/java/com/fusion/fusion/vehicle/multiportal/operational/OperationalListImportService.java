@@ -205,22 +205,16 @@ public class OperationalListImportService {
 
                 if (lastCommunicationAt != null) {
                     state.setLastCommunicationAt(lastCommunicationAt);
-                }
-
-                if (lastPositionAt != null) {
-
-                    state.setLastPositionAt(lastPositionAt);
-
                     if (!Boolean.TRUE.equals(
                             vehicle.getHasEverCommunicated()
                     )) {
-
                         vehicle.setHasEverCommunicated(true);
-
                         vehicleChanged = true;
-
                     }
+                }
 
+                if (lastPositionAt != null) {
+                    state.setLastPositionAt(lastPositionAt);
                 }
 
                 if (vehicleChanged) {
