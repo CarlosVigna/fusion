@@ -12,7 +12,10 @@ import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
@@ -50,22 +53,22 @@ public class OperationalStateEngineService {
     private final SignalReturnAlertService
             signalReturnAlertService;
 
-    // Limiar (em minutos) usado para detectar "retorno de sinal":
-    // estava com mais de 48h de atraso e voltou para menos de 48h.
+    // Spring nao aplica @Transactional em chamadas diretas this.method()
+    // (bypassa o proxy AOP). Self-injection via @Lazy garante que
+    // processSingle() seja chamado pelo proxy e receba REQUIRES_NEW.
+    @Lazy
+    @Autowired
+    private OperationalStateEngineService self;
+
     private static final int SIGNAL_RETURN_THRESHOLD_MINUTES = 2880;
 
-    // Sem isso, cada repository.save() (state, snapshot, alert, timeline,
-    // occurrence) abre/comita sua propria transacao — ~8 round trips de
-    // commit por veiculo so para o caminho de abrir um alerta novo. Cada
-    // commit para o Neon tem latencia de rede propria (confirmado via
-    // EXPLAIN ANALYZE: a query em si executa em <1ms — o tempo estava todo
-    // no overhead de commit, nao na query). Uma unica transacao para a
-    // passada inteira reduz isso a 1 commit no final.
+    // Carrega todos os dados necessarios na sessao readOnly e delega
+    // cada veiculo a processSingle() via proxy (REQUIRES_NEW = conn propria).
     @Transactional(readOnly = true)
     public void processAll() {
 
         List<VehicleOperationalState> states =
-                repository.findAll();
+                repository.findAllWithVehicle();
 
         // Pre-carrega os snapshots de uma vez em vez de 1 findByVehicle
         // por veiculo dentro do refresh() — era o N+1 que fazia uma
@@ -85,8 +88,8 @@ public class OperationalStateEngineService {
 
         }
 
-        // Idem para as observações — usado só para checar se a última
-        // observação já é "#RESOLVIDO" antes de abrir alerta de retorno.
+        // Idem para as observacoes — usado so para checar se a ultima
+        // observacao ja e "#RESOLVIDO" antes de abrir alerta de retorno.
         Map<UUID, VehicleObservation> latestObservationByVehicleId =
                 observationService.findLatestByVehicleId();
 
@@ -94,7 +97,7 @@ public class OperationalStateEngineService {
 
             try {
 
-                process(
+                self.processSingle(
                         state,
                         snapshotsByVehicleId.get(
                                 state.getVehicle().getId()
@@ -120,15 +123,11 @@ public class OperationalStateEngineService {
 
     }
 
-    public void process(
-            VehicleOperationalState state
-    ) {
-
-        process(state, null, null);
-
-    }
-
-    public void process(
+    // Transacao isolada por veiculo: se falhar (inclusive por alert/timeline
+    // em T3-REQUIRES_NEW), so este veiculo e revertido. A conn readOnly de
+    // processAll() nunca e contaminada por erros SQL de veiculos individuais.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void processSingle(
             VehicleOperationalState state,
             OperationalSnapshot existingSnapshot,
             VehicleObservation lastObservation
@@ -179,9 +178,9 @@ public class OperationalStateEngineService {
     }
 
     // Sinal "ausente" (> 48h) e que agora voltou (< 48h) — alerta para o
-    // operador verificar se precisa retirar carta de suspensão e avisar
-    // o segurado. Não dispara se a última observação já é "#RESOLVIDO"
-    // (operador já encerrou o caso manualmente).
+    // operador verificar se precisa retirar carta de suspensao e avisar
+    // o segurado. Nao dispara se a ultima observacao ja e "#RESOLVIDO"
+    // (operador ja encerrou o caso manualmente).
     private void detectSignalReturn(
             VehicleOperationalState state,
             Integer previousDelayMinutes,
