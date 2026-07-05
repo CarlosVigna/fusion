@@ -13,8 +13,6 @@ import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotService;
@@ -62,7 +60,6 @@ public class OperationalStateEngineService {
     // EXPLAIN ANALYZE: a query em si executa em <1ms — o tempo estava todo
     // no overhead de commit, nao na query). Uma unica transacao para a
     // passada inteira reduz isso a 1 commit no final.
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processAll() {
 
         List<VehicleOperationalState> states =
