@@ -71,6 +71,11 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
+                                HttpMethod.POST,
+                                "/etl/status"
+                        ).permitAll()
+
+                        .requestMatchers(
                                 "/vehicles/operational-update"
                         ).hasAnyRole(
                                 "ADMIN",

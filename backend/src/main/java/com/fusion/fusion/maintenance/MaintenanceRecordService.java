@@ -120,6 +120,34 @@ public class MaintenanceRecordService {
     }
 
     @Transactional
+    public MaintenanceRecordResponse baixar(Long id) {
+
+        MaintenanceRecord record = findRecord(id);
+
+        record.setStatus(MaintenanceStatus.BAIXADA);
+
+        record.setDataEncerramento(LocalDate.now(ZoneOffset.UTC));
+
+        repository.save(record);
+
+        return MaintenanceRecordResponse.from(record);
+
+    }
+
+    @Transactional
+    public MaintenanceRecordResponse prorrogar(Long id, LocalDate novoPrazo) {
+
+        MaintenanceRecord record = findRecord(id);
+
+        record.setPrazoEncerramento(novoPrazo);
+
+        repository.save(record);
+
+        return MaintenanceRecordResponse.from(record);
+
+    }
+
+    @Transactional
     public void delete(Long id) {
 
         repository.deleteById(id);

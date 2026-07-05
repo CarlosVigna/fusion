@@ -21,6 +21,14 @@ export async function closeMaintenanceRecord(id) {
   return apiClient.put(`/maintenance/${id}/close`);
 }
 
+export async function baixarMaintenanceRecord(id) {
+  return apiClient.put(`/maintenance/${id}/baixar`);
+}
+
+export async function prorrogarMaintenanceRecord(id, novoPrazo) {
+  return apiClient.put(`/maintenance/${id}/prorrogar`, { novoPrazo });
+}
+
 export async function deleteMaintenanceRecord(id) {
   return apiClient.delete(`/maintenance/${id}`);
 }

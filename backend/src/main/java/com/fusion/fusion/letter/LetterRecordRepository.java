@@ -11,12 +11,21 @@ public interface LetterRecordRepository
 
     List<LetterRecord> findAllByOrderByDataEnvioDesc();
 
+    List<LetterRecord> findByStatusOrderByDataEnvioDesc(LetterStatus status);
+
     Optional<LetterRecord> findByVehicleAndDataRetornoSinal(
             Vehicle vehicle,
             String dataRetornoSinal
     );
 
+    Optional<LetterRecord> findByVehicleAndStatus(
+            Vehicle vehicle,
+            LetterStatus status
+    );
+
     long countByDataRetornoSinal(String dataRetornoSinal);
+
+    long countByStatus(LetterStatus status);
 
     List<LetterRecord> findByVehicleOrderByDataEnvioDesc(Vehicle vehicle);
 

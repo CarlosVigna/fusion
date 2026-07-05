@@ -5,17 +5,15 @@ import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import {
-  getActiveSignalReturnAlerts,
-  markSignalReturnAlertAsBaixa,
-} from "../../../services/signalReturnAlertService";
+  baixarLetter,
+  getLettersPendingBaixa,
+} from "../../../services/letterService";
 
-import { formatDelay } from "../../../utils/formatDelay";
-
-import { formatLocalDateTime } from "../../../utils/dateUtils";
+import { formatLocalDate } from "../../../utils/dateUtils";
 
 export default function LettersReturnedPanel({ onChanged }) {
 
-  const [alerts, setAlerts] =
+  const [letters, setLetters] =
     useState([]);
 
   const [loading, setLoading] =
@@ -30,15 +28,15 @@ export default function LettersReturnedPanel({ onChanged }) {
 
     try {
 
-      const data = await getActiveSignalReturnAlerts();
+      const data = await getLettersPendingBaixa();
 
-      setAlerts(data);
+      setLetters(data);
 
     } catch (error) {
 
       console.error(error);
 
-      toast.error("Erro ao carregar retornos de sinal");
+      toast.error("Erro ao carregar cartas pendentes de baixa");
 
     } finally {
 
@@ -60,7 +58,7 @@ export default function LettersReturnedPanel({ onChanged }) {
 
     try {
 
-      await markSignalReturnAlertAsBaixa(id);
+      await baixarLetter(id);
 
       toast.success("Baixa dada na carta");
 
@@ -90,10 +88,10 @@ export default function LettersReturnedPanel({ onChanged }) {
     );
   }
 
-  if (alerts.length === 0) {
+  if (letters.length === 0) {
     return (
       <p className="py-10 text-center text-zinc-500">
-        Nenhuma carta com sinal retornado
+        Nenhuma carta com sinal retornado pendente de baixa
       </p>
     );
   }
@@ -101,10 +99,10 @@ export default function LettersReturnedPanel({ onChanged }) {
   return (
     <div className="max-h-[28rem] space-y-3 overflow-y-auto">
 
-      {alerts.map((alert) => (
+      {letters.map((letter) => (
 
         <div
-          key={alert.id}
+          key={letter.id}
           className="
             rounded-2xl border border-zinc-800
             bg-zinc-900 p-4
@@ -118,34 +116,32 @@ export default function LettersReturnedPanel({ onChanged }) {
               <p className="font-mono font-semibold">
                 🟢{" "}
                 <Link
-                  to={`/vehicles/${alert.vehiclePlate}`}
+                  to={`/vehicles/${letter.plate}`}
                   className="transition hover:text-white"
                 >
-                  {alert.vehiclePlate}
+                  {letter.plate}
                 </Link>
-                {alert.insuredName && ` — ${alert.insuredName}`}
+                {letter.insuredName && ` — ${letter.insuredName}`}
               </p>
 
               <p className="mt-1 text-sm text-zinc-400">
-                Sinal retornou em{" "}
-                {formatLocalDateTime(alert.detectedAt)}{" "}
-                após {formatDelay(alert.previousDelayMinutes)}{" "}
-                de ausência
+                Sinal ativo — carta enviada em{" "}
+                {formatLocalDate(letter.dataEnvio)}
+                {letter.modelo && ` · ${letter.modelo}`}
               </p>
 
-              {alert.lastObservationText && (
+              {letter.base && (
                 <p className="mt-1 text-xs text-zinc-500">
-                  Última obs: {alert.lastObservationText}
-                  {alert.lastObservationBy &&
-                    ` — por ${alert.lastObservationBy}`}
+                  Base: {letter.base}
+                  {letter.operador && ` · Operador: ${letter.operador}`}
                 </p>
               )}
 
             </div>
 
             <button
-              onClick={() => handleBaixa(alert.id)}
-              disabled={processingId === alert.id}
+              onClick={() => handleBaixa(letter.id)}
+              disabled={processingId === letter.id}
               className="
                 rounded-xl bg-white px-4 py-2
                 text-xs font-semibold text-black

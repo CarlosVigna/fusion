@@ -3,6 +3,7 @@ package com.fusion.fusion.letter;
 import com.fusion.fusion.vehicle.Vehicle;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -44,6 +45,10 @@ public class LetterRecord {
 
     private String operador;
 
+    @Enumerated(EnumType.STRING)
+    @Builder.Default
+    private LetterStatus status = LetterStatus.ATIVA;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;
@@ -55,6 +60,10 @@ public class LetterRecord {
 
         if (dataRetornoSinal == null || dataRetornoSinal.isBlank()) {
             dataRetornoSinal = "Sem retorno.";
+        }
+
+        if (status == null) {
+            status = LetterStatus.ATIVA;
         }
 
     }

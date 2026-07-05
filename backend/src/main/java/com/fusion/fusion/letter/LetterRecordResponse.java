@@ -27,6 +27,8 @@ public record LetterRecordResponse(
 
         String operador,
 
+        LetterStatus status,
+
         LocalDateTime createdAt
 
 ) {
@@ -58,6 +60,10 @@ public record LetterRecordResponse(
                 record.getDataRetornoSinal(),
 
                 record.getOperador(),
+
+                record.getStatus() != null
+                        ? record.getStatus()
+                        : LetterStatus.ATIVA,
 
                 record.getCreatedAt()
 

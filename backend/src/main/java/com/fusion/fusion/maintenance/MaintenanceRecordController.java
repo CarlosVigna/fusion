@@ -2,8 +2,10 @@ package com.fusion.fusion.maintenance;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -56,6 +58,25 @@ public class MaintenanceRecordController {
     ) {
 
         return service.close(id);
+
+    }
+
+    @PutMapping("/{id}/baixar")
+    public MaintenanceRecordResponse baixar(
+            @PathVariable Long id
+    ) {
+
+        return service.baixar(id);
+
+    }
+
+    @PutMapping("/{id}/prorrogar")
+    public MaintenanceRecordResponse prorrogar(
+            @PathVariable Long id,
+            @RequestBody ProrrogarRequest request
+    ) {
+
+        return service.prorrogar(id, request.novoPrazo());
 
     }
 

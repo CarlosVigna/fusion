@@ -1,13 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { FileSpreadsheet, FileText, Plus, Trash2, X } from "lucide-react";
+import { Archive, CalendarClock, FileSpreadsheet, FileText, Plus, Trash2, X } from "lucide-react";
 
 import {
-  closeMaintenanceRecord,
+  baixarMaintenanceRecord,
   deleteMaintenanceRecord,
   getMaintenanceRecords,
+  prorrogarMaintenanceRecord,
 } from "../services/maintenanceService";
 
 import {
@@ -39,7 +40,7 @@ function daysUntil(value) {
 function rowHighlight(record) {
 
   if (record.status !== "ABERTO") {
-    return "";
+    return record.status === "BAIXADA" ? "opacity-50" : "";
   }
 
   const days = daysUntil(record.prazoEncerramento);
@@ -71,6 +72,14 @@ export default function Maintenance() {
   const [modalRecord, setModalRecord] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
+
+  const [baixandoId, setBaixandoId] = useState(null);
+
+  const [prorrogarId, setProrrogarId] = useState(null);
+
+  const [novoPrazo, setNovoPrazo] = useState("");
+
+  const dateInputRef = useRef(null);
 
   const {
     page,
@@ -143,17 +152,19 @@ export default function Maintenance() {
 
   }
 
-  async function handleClose(id) {
+  async function handleBaixar(id) {
 
-    if (!window.confirm("Encerrar esta manutenção?")) {
+    if (!window.confirm("Dar baixa nesta manutenção?")) {
       return;
     }
 
+    setBaixandoId(id);
+
     try {
 
-      await closeMaintenanceRecord(id);
+      await baixarMaintenanceRecord(id);
 
-      toast.success("Manutenção encerrada");
+      toast.success("Manutenção baixada");
 
       load();
 
@@ -161,7 +172,64 @@ export default function Maintenance() {
 
       console.error(error);
 
-      toast.error("Erro ao encerrar manutenção");
+      toast.error("Erro ao dar baixa na manutenção");
+
+    } finally {
+
+      setBaixandoId(null);
+
+    }
+
+  }
+
+  function openProrrogar(id) {
+
+    setProrrogarId(id);
+
+    setNovoPrazo("");
+
+    setTimeout(() => dateInputRef.current?.focus(), 50);
+
+  }
+
+  function cancelProrrogar() {
+
+    setProrrogarId(null);
+
+    setNovoPrazo("");
+
+  }
+
+  async function confirmProrrogar() {
+
+    if (!novoPrazo) {
+      toast.error("Informe a nova data de prazo");
+      return;
+    }
+
+    setBaixandoId(prorrogarId);
+
+    try {
+
+      await prorrogarMaintenanceRecord(prorrogarId, novoPrazo);
+
+      toast.success("Prazo prorrogado");
+
+      setProrrogarId(null);
+
+      setNovoPrazo("");
+
+      load();
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao prorrogar prazo");
+
+    } finally {
+
+      setBaixandoId(null);
 
     }
 
@@ -222,7 +290,7 @@ export default function Maintenance() {
     ]);
 
     const filters = {
-      "Mostrar encerradas": showClosed ? "Sim" : "Não",
+      "Mostrar encerradas/baixadas": showClosed ? "Sim" : "Não",
     };
 
     return { headers, rows, filters };
@@ -264,6 +332,62 @@ export default function Maintenance() {
   return (
     <div className="space-y-6">
 
+      {/* Prorrogar modal inline */}
+      {prorrogarId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="w-80 rounded-2xl border border-zinc-700 bg-zinc-900 p-6">
+
+            <h3 className="mb-4 text-base font-semibold">Prorrogar prazo</h3>
+
+            <label className="mb-1 block text-sm text-zinc-400">
+              Nova data de prazo
+            </label>
+
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={novoPrazo}
+              onChange={(e) => setNovoPrazo(e.target.value)}
+              className="
+                mb-5 w-full rounded-xl border border-zinc-700
+                bg-zinc-800 px-4 py-2.5 text-sm text-white
+                focus:outline-none focus:ring-1 focus:ring-zinc-500
+              "
+            />
+
+            <div className="flex gap-3">
+
+              <button
+                onClick={confirmProrrogar}
+                disabled={baixandoId === prorrogarId}
+                className="
+                  flex-1 rounded-xl bg-white py-2.5
+                  text-sm font-semibold text-black
+                  transition hover:opacity-90
+                  disabled:opacity-50
+                "
+              >
+                Prorrogar
+              </button>
+
+              <button
+                onClick={cancelProrrogar}
+                className="
+                  flex-1 rounded-xl border border-zinc-700
+                  bg-zinc-950 py-2.5
+                  text-sm font-semibold text-zinc-300
+                  transition hover:bg-zinc-800
+                "
+              >
+                Cancelar
+              </button>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-end gap-4">
 
         <div className="flex items-center gap-3">
@@ -282,7 +406,7 @@ export default function Maintenance() {
               onChange={(e) => setShowClosed(e.target.checked)}
               className="rounded border-zinc-700"
             />
-            Mostrar encerradas
+            Mostrar encerradas/baixadas
           </label>
 
           <button
@@ -422,18 +546,37 @@ export default function Maintenance() {
                       <div className="flex gap-2">
 
                         {record.status === "ABERTO" && (
-                          <button
-                            onClick={() => handleClose(record.id)}
-                            title="Encerrar"
-                            className="
-                              rounded-xl border border-zinc-700
-                              bg-zinc-950 p-2
-                              text-zinc-400 transition
-                              hover:bg-green-500/15 hover:text-green-400
-                            "
-                          >
-                            <X size={14} />
-                          </button>
+                          <>
+
+                            <button
+                              onClick={() => openProrrogar(record.id)}
+                              title="Prorrogar prazo"
+                              className="
+                                rounded-xl border border-zinc-700
+                                bg-zinc-950 p-2
+                                text-zinc-400 transition
+                                hover:bg-yellow-500/15 hover:text-yellow-400
+                              "
+                            >
+                              <CalendarClock size={14} />
+                            </button>
+
+                            <button
+                              onClick={() => handleBaixar(record.id)}
+                              disabled={baixandoId === record.id}
+                              title="Dar baixa"
+                              className="
+                                rounded-xl border border-zinc-700
+                                bg-zinc-950 p-2
+                                text-zinc-400 transition
+                                hover:bg-green-500/15 hover:text-green-400
+                                disabled:opacity-50
+                              "
+                            >
+                              <Archive size={14} />
+                            </button>
+
+                          </>
                         )}
 
                         <button

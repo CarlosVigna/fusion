@@ -22,7 +22,7 @@ async function reportHeartbeat({
 
     try {
 
-        await axios.post(`${BACKEND_URL}/etl/heartbeat`, {
+        await axios.post(`${BACKEND_URL}/etl/status`, {
             type,
             status,
             durationMs,

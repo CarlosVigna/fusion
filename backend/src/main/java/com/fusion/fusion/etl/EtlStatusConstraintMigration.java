@@ -52,7 +52,21 @@ public class EtlStatusConstraintMigration implements ApplicationRunner {
                 "'STALE_UPDATE_DETECTED'))"
             );
 
-            log.info("[MIGRATION] CHECK constraints atualizadas: etl_status, import_history, timeline_event");
+            // maintenance_records.status (BAIXADA adicionado ao enum)
+            st.execute("ALTER TABLE maintenance_records DROP CONSTRAINT IF EXISTS maintenance_records_status_check");
+            st.execute(
+                "ALTER TABLE maintenance_records ADD CONSTRAINT maintenance_records_status_check " +
+                "CHECK (status IN ('ABERTO','ENCERRADO','BAIXADA'))"
+            );
+
+            // letter_records.status — coluna adicionada ao modelo; registros
+            // pre-existentes ficam com NULL e precisam ser inicializados.
+            st.execute(
+                "UPDATE letter_records SET status = 'ATIVA' WHERE status IS NULL"
+            );
+
+            log.info("[MIGRATION] CHECK constraints atualizadas: etl_status, import_history, " +
+                     "timeline_event, maintenance_records; letter_records inicializado");
 
         } catch (Exception e) {
             log.warn("[MIGRATION] Falha ao atualizar CHECK constraints: {}", e.getMessage());

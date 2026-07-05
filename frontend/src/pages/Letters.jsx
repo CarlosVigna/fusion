@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { FileSpreadsheet, FileText, Plus, Trash2 } from "lucide-react";
+import { Archive, FileSpreadsheet, FileText, Plus, Trash2 } from "lucide-react";
 
 import {
+  baixarLetter,
   deleteLetter,
   getLetters,
 } from "../services/letterService";
@@ -37,6 +38,10 @@ function daysSince(value) {
 
 function rowHighlight(letter) {
 
+  if (letter.status === "BAIXADA") {
+    return "opacity-50";
+  }
+
   if (letter.dataRetornoSinal !== "Sem retorno.") {
     return "";
   }
@@ -65,9 +70,13 @@ export default function Letters() {
 
   const [loading, setLoading] = useState(true);
 
+  const [showArchived, setShowArchived] = useState(false);
+
   const [modalLetter, setModalLetter] = useState(null);
 
   const [modalOpen, setModalOpen] = useState(false);
+
+  const [baixandoId, setBaixandoId] = useState(null);
 
   const {
     page,
@@ -84,7 +93,7 @@ export default function Letters() {
 
     try {
 
-      const data = await getLetters();
+      const data = await getLetters(showArchived);
 
       setLetters(data);
 
@@ -106,7 +115,7 @@ export default function Letters() {
 
     load();
 
-  }, []);
+  }, [showArchived]);
 
   useEffect(() => {
 
@@ -122,7 +131,7 @@ export default function Letters() {
 
     return () => unsubscribe();
 
-  }, []);
+  }, [showArchived]);
 
   function openCreate() {
 
@@ -137,6 +146,36 @@ export default function Letters() {
     setModalLetter(letter);
 
     setModalOpen(true);
+
+  }
+
+  async function handleBaixar(id) {
+
+    if (!window.confirm("Dar baixa nesta carta de suspensão?")) {
+      return;
+    }
+
+    setBaixandoId(id);
+
+    try {
+
+      await baixarLetter(id);
+
+      toast.success("Baixa dada na carta");
+
+      load();
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao dar baixa na carta");
+
+    } finally {
+
+      setBaixandoId(null);
+
+    }
 
   }
 
@@ -177,6 +216,7 @@ export default function Letters() {
       "OS ABERTA",
       "DATA DO RETORNO DE SINAL",
       "OPERADOR",
+      "STATUS",
     ];
 
     const rows = letters.map((letter) => [
@@ -190,6 +230,7 @@ export default function Letters() {
       letter.osAberta || "",
       letter.dataRetornoSinal || "",
       letter.operador || "",
+      letter.status || "",
     ]);
 
     return { headers, rows };
@@ -206,7 +247,7 @@ export default function Letters() {
       title: "Cartas de Suspensão",
       headers,
       rows,
-      filters: {},
+      filters: { "Mostrar baixadas": showArchived ? "Sim" : "Não" },
       filename: `CARTAS_${todayForFilename()}.xlsx`,
     });
 
@@ -222,7 +263,7 @@ export default function Letters() {
       title: "Cartas de Suspensão",
       headers,
       rows,
-      filters: {},
+      filters: { "Mostrar baixadas": showArchived ? "Sim" : "Não" },
       filename: `CARTAS_${todayForFilename()}.pdf`,
     });
 
@@ -234,6 +275,23 @@ export default function Letters() {
       <div className="flex flex-wrap items-center justify-end gap-4">
 
         <div className="flex items-center gap-3">
+
+          <label
+            className="
+              flex items-center gap-2
+              rounded-2xl border border-zinc-700
+              bg-zinc-950 px-4 py-3
+              text-sm font-medium text-zinc-300
+            "
+          >
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="rounded border-zinc-700"
+            />
+            Ver baixadas
+          </label>
 
           <button
             onClick={handleExportExcel}
@@ -303,6 +361,7 @@ export default function Letters() {
                 <th className="px-4 py-4">OS aberta</th>
                 <th className="px-4 py-4">Retorno de sinal</th>
                 <th className="px-4 py-4">Operador</th>
+                <th className="px-4 py-4">Status</th>
                 <th className="px-4 py-4"></th>
               </tr>
             </thead>
@@ -311,13 +370,13 @@ export default function Letters() {
 
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-10 text-center text-zinc-500">
+                  <td colSpan={12} className="px-6 py-10 text-center text-zinc-500">
                     Carregando...
                   </td>
                 </tr>
               ) : letters.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-10 text-center text-zinc-500">
+                  <td colSpan={12} className="px-6 py-10 text-center text-zinc-500">
                     Nenhuma carta registrada
                   </td>
                 </tr>
@@ -354,22 +413,55 @@ export default function Letters() {
                     <td className="px-4 py-4 text-zinc-400">
                       {letter.operador || "--"}
                     </td>
+                    <td className="px-4 py-4">
+                      <span
+                        className={`
+                          rounded-full px-3 py-1 text-xs font-semibold
+                          ${letter.status === "ATIVA"
+                            ? "bg-blue-500/15 text-blue-400"
+                            : "bg-zinc-700/40 text-zinc-400"}
+                        `}
+                      >
+                        {letter.status || "ATIVA"}
+                      </span>
+                    </td>
                     <td
                       className="px-4 py-4"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        onClick={() => handleDelete(letter.id)}
-                        title="Remover"
-                        className="
-                          rounded-xl border border-zinc-700
-                          bg-zinc-950 p-2
-                          text-zinc-400 transition
-                          hover:bg-red-500/15 hover:text-red-400
-                        "
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex gap-2">
+
+                        {letter.status !== "BAIXADA" && (
+                          <button
+                            onClick={() => handleBaixar(letter.id)}
+                            disabled={baixandoId === letter.id}
+                            title="Dar baixa"
+                            className="
+                              rounded-xl border border-zinc-700
+                              bg-zinc-950 p-2
+                              text-zinc-400 transition
+                              hover:bg-green-500/15 hover:text-green-400
+                              disabled:opacity-50
+                            "
+                          >
+                            <Archive size={14} />
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleDelete(letter.id)}
+                          title="Remover"
+                          className="
+                            rounded-xl border border-zinc-700
+                            bg-zinc-950 p-2
+                            text-zinc-400 transition
+                            hover:bg-red-500/15 hover:text-red-400
+                          "
+                        >
+                          <Trash2 size={14} />
+                        </button>
+
+                      </div>
                     </td>
                   </tr>
                 ))
