@@ -71,6 +71,8 @@ export default function SignalControl() {
 
   const [, setDelayTick] = useState(0);
 
+  const [refreshing, setRefreshing] = useState(false);
+
   async function load() {
 
     setLoading(true);
@@ -90,6 +92,30 @@ export default function SignalControl() {
     } finally {
 
       setLoading(false);
+
+    }
+
+  }
+
+  // Atualização silenciosa em background — não toca o estado `loading`
+  // para não apagar a tabela enquanto o usuário está interagindo.
+  async function refresh() {
+
+    setRefreshing(true);
+
+    try {
+
+      const data = await getSignalControl();
+
+      setVehicles(data);
+
+    } catch (error) {
+
+      console.error(error);
+
+    } finally {
+
+      setRefreshing(false);
 
     }
 
@@ -115,7 +141,7 @@ export default function SignalControl() {
 
       if (event?.type === "GRID_UPDATED") {
 
-        load();
+        refresh();
 
       }
 
@@ -228,9 +254,23 @@ export default function SignalControl() {
 
       await checkObservation(observationId);
 
-      toast.success("Marcado como conferido");
+      // Atualiza apenas o veículo cujo lastObservation foi conferido —
+      // sem recarregar a tabela inteira.
+      setVehicles((prev) =>
+        prev.map((v) =>
+          v.lastObservation?.id === observationId
+            ? {
+                ...v,
+                lastCheck: {
+                  checkedAt: new Date().toISOString(),
+                  checkedBy: "você",
+                },
+              }
+            : v
+        )
+      );
 
-      await load();
+      toast.success("Marcado como conferido");
 
     } catch (error) {
 
@@ -258,6 +298,7 @@ export default function SignalControl() {
 
     const headers = [
       "PLACA",
+      "SEGURADO",
       "LINHA",
       "ULTIMA ATUALIZAÇÃO",
       "TEMPO ATRASADO",
@@ -266,6 +307,7 @@ export default function SignalControl() {
 
     const rows = filteredVehicles.map((vehicle) => [
       vehicle.plate,
+      vehicle.insuredName || "",
       vehicle.lineNumber || "SEM LINHA",
       formatDateTimeForExport(vehicle.lastCommunicationAt),
       formatDelayDaysHours(vehicle.signalDelayMinutes),
@@ -326,7 +368,9 @@ export default function SignalControl() {
 
     });
 
-    load();
+    // refresh() em vez de load() — tabela permanece visível enquanto
+    // os dados novos chegam.
+    refresh();
 
   }
 
@@ -521,7 +565,7 @@ export default function SignalControl() {
               </tr>
             </thead>
 
-            <tbody>
+            <tbody className={refreshing ? "opacity-60 transition-opacity duration-150" : ""}>
 
               {loading ? (
 
