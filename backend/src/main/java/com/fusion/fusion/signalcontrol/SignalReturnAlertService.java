@@ -9,6 +9,7 @@ import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.vehicle.Vehicle;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -51,7 +52,7 @@ public class SignalReturnAlertService {
 
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void create(
             Vehicle vehicle,
             Integer previousDelayMinutes

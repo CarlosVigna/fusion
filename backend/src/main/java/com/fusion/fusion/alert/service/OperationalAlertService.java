@@ -12,6 +12,7 @@ import com.fusion.fusion.vehicle.Vehicle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -34,7 +35,7 @@ public class OperationalAlertService {
     // Junta o save do alerta, o publish do dashboard, o registro na
     // timeline e a criacao da ocorrencia em 1 unico commit em vez de 4+
     // round trips separados para o Neon.
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void openAlert(
 
             Vehicle vehicle,
@@ -95,7 +96,7 @@ public class OperationalAlertService {
 
     }
 
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void resolveAlert(
             Vehicle vehicle,
             OperationalAlertType type
