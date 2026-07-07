@@ -153,6 +153,10 @@ async function run() {
 
     log(`[INSTALACOES] ${ordens.length} ordens encontradas`);
 
+    if (ordens.length > 0) {
+        console.log('[INSTALACOES] Estrutura da primeira ordem (raw):', JSON.stringify(ordens[0], null, 2));
+    }
+
     if (ordens.length === 0) {
         log('[INSTALACOES] Nenhuma ordem para sincronizar');
         return;
