@@ -16,15 +16,13 @@ import { formatLocalDateTime } from "../utils/dateUtils";
 import InstallationModal from "../components/installations/InstallationModal";
 
 function buildMessage(inst) {
-  return [
-    `${inst.serviceType || "INSTALAÇÃO NOVA"}:`,
-    `NOME: ${inst.customerName || ""}`,
-    `ENDEREÇO: ${inst.address || ""} | BAIRRO: ${inst.neighborhood || ""} - ${inst.city || ""}.`,
-    `CEP: ${inst.zipCode || ""}`,
-    `TELEFONE: ${inst.phone || ""}`,
-    `PLACA: ${inst.plate || ""}`,
-    inst.model ? `MODELO: ${inst.model}` : null,
-  ].filter(Boolean).join("\n");
+  return `*INSTALAÇÃO NOVA*\n\n` +
+    `*NOME:* ${inst.customerName?.toUpperCase()}\n` +
+    `*ENDEREÇO:* ${inst.address?.toUpperCase()} | *BAIRRO:* ${inst.neighborhood?.toUpperCase()} - ${inst.city?.toUpperCase()}/${inst.state?.toUpperCase()}\n` +
+    `*CEP:* ${inst.zipCode}\n` +
+    `*TELEFONE:* ${inst.phone}\n` +
+    `*PLACA:* ${inst.plate?.toUpperCase()}\n` +
+    `*MODELO:* ${inst.model?.toUpperCase()}`;
 }
 
 export default function Installations() {
