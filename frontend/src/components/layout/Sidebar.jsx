@@ -15,13 +15,15 @@ import {
     Wrench,
 } from "lucide-react";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { NavLink, useLocation } from "react-router-dom";
 
 import { getSignalControl } from "../../services/signalControlService";
 
 import { getInstallationsPendingCount } from "../../services/installationService";
+
+import { notifyInstallationsNew } from "../../services/notificationService";
 
 import { FusionLogo } from "../../assets/FusionLogo";
 
@@ -80,6 +82,8 @@ export default function Sidebar() {
 
     const [installationsCount, setInstallationsCount] = useState(0);
 
+    const prevInstallationsCountRef = useRef(null);
+
     const [collapsedGroups, setCollapsedGroups] = useState(loadGroupState);
 
     function toggleGroup(key) {
@@ -117,7 +121,12 @@ export default function Sidebar() {
         async function loadInstallationsCount() {
             try {
                 const data = await getInstallationsPendingCount();
-                setInstallationsCount(data.count ?? 0);
+                const count = data.count ?? 0;
+                if (prevInstallationsCountRef.current !== null && count > prevInstallationsCountRef.current) {
+                    notifyInstallationsNew(count - prevInstallationsCountRef.current);
+                }
+                prevInstallationsCountRef.current = count;
+                setInstallationsCount(count);
             } catch (error) {
                 console.error(error);
             }

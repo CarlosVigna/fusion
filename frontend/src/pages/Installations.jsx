@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import toast from "react-hot-toast";
 
@@ -12,6 +12,11 @@ import {
 } from "../services/installationService";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
+
+import {
+  notifyNewInstallation,
+  requestPermission,
+} from "../services/notificationService";
 
 function buildMessage(inst) {
   return `*INSTALAÇÃO NOVA*\n\n` +
@@ -40,6 +45,8 @@ export default function Installations() {
   const [cancellingId, setCancellingId] = useState(null);
 
   const [confirmAction, setConfirmAction] = useState(null);
+
+  const prevPendingIdsRef = useRef(null);
 
   async function load() {
 
@@ -76,7 +83,25 @@ export default function Installations() {
   }
 
   useEffect(() => {
+    requestPermission();
     load();
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const p = await getInstallations("PENDING");
+        if (prevPendingIdsRef.current !== null) {
+          const newItems = p.filter((inst) => !prevPendingIdsRef.current.has(inst.id));
+          newItems.forEach(notifyNewInstallation);
+        }
+        prevPendingIdsRef.current = new Set(p.map((i) => i.id));
+        setPending(p);
+      } catch (error) {
+        console.error(error);
+      }
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   async function handleCopy(inst) {
