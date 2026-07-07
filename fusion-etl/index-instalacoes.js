@@ -12,9 +12,11 @@ const CLIENT_SECRET = process.env.PORTAL_PARCEIRO_CLIENT_SECRET || '';
 async function getToken() {
 
     const params = new URLSearchParams();
-    params.append('grant_type', 'client_credentials');
+    params.append('grant_type', 'password');
     params.append('client_id', CLIENT_ID);
     params.append('client_secret', CLIENT_SECRET);
+    params.append('username', CLIENT_ID);
+    params.append('password', CLIENT_SECRET);
 
     const { data } = await axios.post(
         `${PORTAL_URL}/oauth/token`,
