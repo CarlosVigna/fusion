@@ -28,11 +28,17 @@ async function getToken() {
 
     try {
 
+        const credentials = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString('base64');
+
         const { data } = await axios.post(
             `${PORTAL_URL}/oauth/token`,
             params.toString(),
             {
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Basic ${credentials}`,
+                    'Origin': 'https://parceiro.usebens.com.br',
+                },
                 timeout: 30000,
             }
         );
