@@ -46,6 +46,8 @@ public class Installation {
 
     private String serviceType;
 
+    private String portalStatus;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     @Column(nullable = false)

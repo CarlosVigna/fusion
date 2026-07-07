@@ -33,13 +33,6 @@ public class InstallationController {
         return Map.of("count", service.countPending());
     }
 
-    @PostMapping
-    public InstallationResponse create(
-            @RequestBody InstallationRequest request
-    ) {
-        return service.create(request);
-    }
-
     @PutMapping("/{id}/sent")
     public InstallationResponse markSent(@PathVariable Long id) {
         return service.markSent(id);

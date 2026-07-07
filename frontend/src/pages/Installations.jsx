@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { Check, ClipboardCopy, Plus, Trash2, X } from "lucide-react";
+import { Check, ClipboardCopy, Trash2, X } from "lucide-react";
 
 import {
   cancelInstallation,
@@ -12,8 +12,6 @@ import {
 } from "../services/installationService";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
-
-import InstallationModal from "../components/installations/InstallationModal";
 
 function buildMessage(inst) {
   return `*INSTALAÇÃO NOVA*\n\n` +
@@ -40,8 +38,6 @@ export default function Installations() {
   const [sendingId, setSendingId] = useState(null);
 
   const [cancellingId, setCancellingId] = useState(null);
-
-  const [modalOpen, setModalOpen] = useState(false);
 
   const [confirmAction, setConfirmAction] = useState(null);
 
@@ -253,14 +249,6 @@ export default function Installations() {
           </button>
         </div>
 
-        <button
-          onClick={() => setModalOpen(true)}
-          className="flex items-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-black transition hover:opacity-90"
-        >
-          <Plus size={16} />
-          Nova Instalação
-        </button>
-
       </div>
 
       {/* Pendentes */}
@@ -354,13 +342,6 @@ export default function Installations() {
             </table>
           </div>
         </div>
-      )}
-
-      {modalOpen && (
-        <InstallationModal
-          onClose={() => setModalOpen(false)}
-          onSaved={load}
-        />
       )}
 
     </div>
@@ -461,7 +442,15 @@ function StatusBadge({ status }) {
   if (status === "SENT") {
     return (
       <span className="rounded-full bg-green-500/15 px-3 py-1 text-xs font-semibold text-green-400">
-        ✅ Enviado
+        Enviado
+      </span>
+    );
+  }
+
+  if (status === "SCHEDULED") {
+    return (
+      <span className="rounded-full bg-blue-500/15 px-3 py-1 text-xs font-semibold text-blue-400">
+        Agendado
       </span>
     );
   }

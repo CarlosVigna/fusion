@@ -32,6 +32,8 @@ public record InstallationResponse(
 
         String serviceType,
 
+        String portalStatus,
+
         InstallationStatus status,
 
         LocalDateTime sentAt,
@@ -59,6 +61,7 @@ public record InstallationResponse(
                 i.getNumeroProposta(),
                 i.getPortalCreatedAt(),
                 i.getServiceType(),
+                i.getPortalStatus(),
                 i.getStatus(),
                 i.getSentAt(),
                 i.getSentBy(),

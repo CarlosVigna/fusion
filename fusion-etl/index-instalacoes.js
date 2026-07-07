@@ -62,7 +62,7 @@ async function getToken() {
 
 }
 
-async function fetchAllOrdens(token) {
+async function fetchByStatus(token, portalStatus) {
 
     const items = [];
     let page = 0;
@@ -77,7 +77,7 @@ async function fetchAllOrdens(token) {
             const response = await axios.get(
                 `${PORTAL_URL}/ordens-instalacao`,
                 {
-                    params: { status: 'AGUARDANDO_AGENDAMENTO', page, size },
+                    params: { status: portalStatus, page, size },
                     headers: { Authorization: `Bearer ${token}` },
                     timeout: 30000,
                 }
@@ -87,12 +87,11 @@ async function fetchAllOrdens(token) {
 
         } catch (error) {
 
-            console.log('[INSTALACOES] Erro busca:', error.response?.status, error.response?.data);
+            console.log(`[INSTALACOES] Erro busca (${portalStatus}):`, error.response?.status, error.response?.data);
             throw error;
 
         }
 
-        // Suporta resposta paginada ({ content, last }) ou array plano
         const content = Array.isArray(data)
             ? data
             : (data.content || data.items || data.data || []);
@@ -110,6 +109,17 @@ async function fetchAllOrdens(token) {
     }
 
     return items;
+
+}
+
+async function fetchAllOrdens(token) {
+
+    const [aguardando, agendado] = await Promise.all([
+        fetchByStatus(token, 'AGUARDANDO_AGENDAMENTO'),
+        fetchByStatus(token, 'AGENDADO'),
+    ]);
+
+    return [...aguardando, ...agendado];
 
 }
 
@@ -132,6 +142,7 @@ function mapOrdem(item) {
         model: item.veiculo?.modelo,
         portalCreatedAt: item.dataCriacao,
         serviceType: 'INSTALAÇÃO NOVA',
+        portalStatus: item.status || null,
     };
 
 }
@@ -176,7 +187,7 @@ async function run() {
         }
     );
 
-    log(`[INSTALACOES] Sync concluído: ${data.inserted} inseridas, ${data.skipped} ignoradas`);
+    log(`[INSTALACOES] Sync concluído: ${data.inserted} inseridas, ${data.updated} atualizadas`);
 
 }
 

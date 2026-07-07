@@ -9,10 +9,6 @@ export async function getInstallationsPendingCount() {
   return apiClient.get("/installations/pending-count");
 }
 
-export async function createInstallation(data) {
-  return apiClient.post("/installations", data);
-}
-
 export async function markInstallationSent(id) {
   return apiClient.put(`/installations/${id}/sent`);
 }

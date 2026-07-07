@@ -28,7 +28,9 @@ public record InstallationRequest(
 
         LocalDateTime portalCreatedAt,
 
-        String serviceType
+        String serviceType,
+
+        String portalStatus
 
 ) {
 }

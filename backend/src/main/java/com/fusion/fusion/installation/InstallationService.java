@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -39,31 +40,6 @@ public class InstallationService {
 
     public long countPending() {
         return repository.countByStatus(InstallationStatus.PENDING);
-    }
-
-    @Transactional
-    public InstallationResponse create(InstallationRequest request) {
-
-        Installation installation = Installation.builder()
-                .externalId(request.externalId())
-                .customerName(request.customerName())
-                .address(request.address())
-                .neighborhood(request.neighborhood())
-                .city(request.city())
-                .state(request.state())
-                .zipCode(request.zipCode())
-                .phone(request.phone())
-                .plate(request.plate())
-                .model(request.model())
-                .numeroProposta(request.numeroProposta())
-                .portalCreatedAt(request.portalCreatedAt())
-                .serviceType(request.serviceType())
-                .build();
-
-        repository.save(installation);
-
-        return InstallationResponse.from(installation);
-
     }
 
     @Transactional
@@ -105,13 +81,24 @@ public class InstallationService {
     public Map<String, Integer> sync(List<InstallationRequest> items) {
 
         int inserted = 0;
-        int skipped = 0;
+        int updated = 0;
 
         for (InstallationRequest req : items) {
 
-            if (req.externalId() != null
-                    && repository.findByExternalId(req.externalId()).isPresent()) {
-                skipped++;
+            Optional<Installation> existing = req.externalId() != null
+                    ? repository.findByExternalId(req.externalId())
+                    : Optional.empty();
+
+            if (existing.isPresent()) {
+                Installation inst = existing.get();
+                inst.setPortalStatus(req.portalStatus());
+                if (inst.getStatus() == InstallationStatus.PENDING
+                        && req.portalStatus() != null
+                        && !"AGUARDANDO_AGENDAMENTO".equals(req.portalStatus())) {
+                    inst.setStatus(InstallationStatus.SCHEDULED);
+                }
+                repository.save(inst);
+                updated++;
                 continue;
             }
 
@@ -129,6 +116,7 @@ public class InstallationService {
                     .numeroProposta(req.numeroProposta())
                     .portalCreatedAt(req.portalCreatedAt())
                     .serviceType(req.serviceType())
+                    .portalStatus(req.portalStatus())
                     .build();
 
             repository.save(installation);
@@ -137,7 +125,7 @@ public class InstallationService {
 
         }
 
-        return Map.of("inserted", inserted, "skipped", skipped);
+        return Map.of("inserted", inserted, "updated", updated);
 
     }
 
