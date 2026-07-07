@@ -23,7 +23,8 @@ function buildMessage(inst) {
     `CEP: ${inst.zipCode || ""}`,
     `TELEFONE: ${inst.phone || ""}`,
     `PLACA: ${inst.plate || ""}`,
-  ].join("\n");
+    inst.model ? `MODELO: ${inst.model}` : null,
+  ].filter(Boolean).join("\n");
 }
 
 export default function Installations() {
@@ -52,14 +53,19 @@ export default function Installations() {
 
     try {
 
-      const [p, h] = await Promise.all([
+      const [p, sent, cancelled] = await Promise.all([
         getInstallations("PENDING"),
         getInstallations("SENT"),
+        getInstallations("CANCELLED"),
       ]);
 
       setPending(p);
 
-      setHistory(h);
+      setHistory(
+        [...sent, ...cancelled].sort(
+          (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+        )
+      );
 
     } catch (error) {
 
@@ -380,6 +386,9 @@ function PendingCard({ inst, copied, sending, cancelling, onCopy, onSent, onCanc
           <p className="font-semibold leading-tight">{inst.customerName || "—"}</p>
           {inst.plate && (
             <p className="mt-0.5 font-mono text-sm text-zinc-400">{inst.plate}</p>
+          )}
+          {inst.model && (
+            <p className="mt-0.5 text-xs text-zinc-500">{inst.model}</p>
           )}
         </div>
         <span className="shrink-0 rounded-full bg-yellow-500/15 px-2.5 py-1 text-xs font-semibold text-yellow-400">

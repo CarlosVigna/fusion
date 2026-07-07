@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +54,9 @@ public class InstallationService {
                 .zipCode(request.zipCode())
                 .phone(request.phone())
                 .plate(request.plate())
+                .model(request.model())
+                .numeroProposta(request.numeroProposta())
+                .portalCreatedAt(request.portalCreatedAt())
                 .serviceType(request.serviceType())
                 .build();
 
@@ -95,6 +99,46 @@ public class InstallationService {
     @Transactional
     public void delete(Long id) {
         repository.deleteById(id);
+    }
+
+    @Transactional
+    public Map<String, Integer> sync(List<InstallationRequest> items) {
+
+        int inserted = 0;
+        int skipped = 0;
+
+        for (InstallationRequest req : items) {
+
+            if (req.externalId() != null
+                    && repository.findByExternalId(req.externalId()).isPresent()) {
+                skipped++;
+                continue;
+            }
+
+            Installation installation = Installation.builder()
+                    .externalId(req.externalId())
+                    .customerName(req.customerName())
+                    .address(req.address())
+                    .neighborhood(req.neighborhood())
+                    .city(req.city())
+                    .state(req.state())
+                    .zipCode(req.zipCode())
+                    .phone(req.phone())
+                    .plate(req.plate())
+                    .model(req.model())
+                    .numeroProposta(req.numeroProposta())
+                    .portalCreatedAt(req.portalCreatedAt())
+                    .serviceType(req.serviceType())
+                    .build();
+
+            repository.save(installation);
+
+            inserted++;
+
+        }
+
+        return Map.of("inserted", inserted, "skipped", skipped);
+
     }
 
     private Installation findOrThrow(Long id) {

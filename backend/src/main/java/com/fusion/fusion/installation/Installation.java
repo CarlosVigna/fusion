@@ -38,6 +38,12 @@ public class Installation {
 
     private String plate;
 
+    private String model;
+
+    private Long numeroProposta;
+
+    private LocalDateTime portalCreatedAt;
+
     private String serviceType;
 
     @Enumerated(EnumType.STRING)

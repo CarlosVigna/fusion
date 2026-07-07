@@ -22,6 +22,7 @@ export default function InstallationModal({ onClose, onSaved }) {
     zipCode: "",
     phone: "",
     plate: "",
+    model: "",
     serviceType: "INSTALAÇÃO NOVA",
   });
 
@@ -179,6 +180,15 @@ export default function InstallationModal({ onClose, onSaved }) {
               value={form.plate}
               onChange={(e) => setField("plate", e.target.value.toUpperCase())}
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-mono outline-none"
+            />
+          </Field>
+
+          <Field label="Modelo do veículo">
+            <input
+              type="text"
+              value={form.model}
+              onChange={(e) => setField("model", e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
             />
           </Field>
 

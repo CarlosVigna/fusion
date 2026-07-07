@@ -24,6 +24,12 @@ public record InstallationResponse(
 
         String plate,
 
+        String model,
+
+        Long numeroProposta,
+
+        LocalDateTime portalCreatedAt,
+
         String serviceType,
 
         InstallationStatus status,
@@ -49,6 +55,9 @@ public record InstallationResponse(
                 i.getZipCode(),
                 i.getPhone(),
                 i.getPlate(),
+                i.getModel(),
+                i.getNumeroProposta(),
+                i.getPortalCreatedAt(),
                 i.getServiceType(),
                 i.getStatus(),
                 i.getSentAt(),

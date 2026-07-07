@@ -5,6 +5,7 @@ const cron = require('node-cron');
 const { run: runUltimaPosicao } = require('./index-ultima-posicao');
 const { run: runDispositivos } = require('./index');
 const { run: runVinculo } = require('./index-vinculo');
+const { run: runInstalacoes } = require('./index-instalacoes');
 const { log } = require('./src/file-utils');
 const { withRetry } = require('./src/retry');
 const { reportHeartbeat } = require('./src/etlStatusReporter');
@@ -77,7 +78,17 @@ scheduleWithRetry(
     TWENTY_FOUR_HOURS_MS
 );
 
+// Instalações: a cada 30 minutos
+scheduleWithRetry(
+    '*/30 * * * *',
+    runInstalacoes,
+    'Instalações',
+    'INSTALACOES',
+    THIRTY_MINUTES_MS
+);
+
 log('[CRON] Agendador iniciado.');
 log('[CRON] Última posição: a cada 30 minutos.');
 log('[CRON] Dispositivos: diariamente às 04:00 UTC (01:00 Brasília).');
 log('[CRON] Vínculo: diariamente às 05:00 UTC (02:00 Brasília).');
+log('[CRON] Instalações: a cada 30 minutos.');

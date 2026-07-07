@@ -1,5 +1,7 @@
 package com.fusion.fusion.installation;
 
+import java.time.LocalDateTime;
+
 public record InstallationRequest(
 
         String externalId,
@@ -19,6 +21,12 @@ public record InstallationRequest(
         String phone,
 
         String plate,
+
+        String model,
+
+        Long numeroProposta,
+
+        LocalDateTime portalCreatedAt,
 
         String serviceType
 
