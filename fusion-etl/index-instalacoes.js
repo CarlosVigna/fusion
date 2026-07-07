@@ -18,16 +18,33 @@ async function getToken() {
     params.append('username', CLIENT_ID);
     params.append('password', CLIENT_SECRET);
 
-    const { data } = await axios.post(
-        `${PORTAL_URL}/oauth/token`,
-        params.toString(),
-        {
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            timeout: 30000,
-        }
-    );
+    console.log('[INSTALACOES] Tentando login:', {
+        grant_type: 'password',
+        client_id: CLIENT_ID ? CLIENT_ID.substring(0, 4) + '***' : 'VAZIO',
+        username: CLIENT_ID ? CLIENT_ID.substring(0, 4) + '***' : 'VAZIO',
+        client_secret: CLIENT_SECRET ? '***definido***' : 'VAZIO',
+        password: CLIENT_SECRET ? '***definido***' : 'VAZIO',
+    });
 
-    return data.access_token;
+    try {
+
+        const { data } = await axios.post(
+            `${PORTAL_URL}/oauth/token`,
+            params.toString(),
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                timeout: 30000,
+            }
+        );
+
+        return data.access_token;
+
+    } catch (error) {
+
+        console.log('[INSTALACOES] Erro login:', error.response?.status, error.response?.data);
+        throw error;
+
+    }
 
 }
 
