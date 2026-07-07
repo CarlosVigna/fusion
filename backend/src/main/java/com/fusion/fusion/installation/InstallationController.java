@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -31,6 +32,18 @@ public class InstallationController {
     @GetMapping("/pending-count")
     public Map<String, Long> pendingCount() {
         return Map.of("count", service.countPending());
+    }
+
+    @GetMapping("/report")
+    public List<InstallationResponse> report(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate
+    ) {
+        LocalDate start = (startDate != null && !startDate.isBlank()) ? LocalDate.parse(startDate) : null;
+        LocalDate end = (endDate != null && !endDate.isBlank()) ? LocalDate.parse(endDate) : null;
+        return service.report(search, status, start, end);
     }
 
     @PutMapping("/{id}/sent")

@@ -6,6 +6,7 @@ import {
     ChevronRight,
     ClipboardList,
     FileSpreadsheet,
+    FileText,
     HardHat,
     LayoutGrid,
     Mail,
@@ -49,6 +50,7 @@ const GROUPS = [
         icon: HardHat,
         items: [
             { label: "Instalações", icon: ClipboardList, path: "/installations", badgeKey: "installations" },
+            { label: "Relatórios",  icon: FileText,      path: "/installations/reports" },
         ],
     },
 ];

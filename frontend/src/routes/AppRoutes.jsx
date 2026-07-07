@@ -15,6 +15,7 @@ import SignalControl from "../pages/SignalControl";
 import Letters from "../pages/Letters";
 import Maintenance from "../pages/Maintenance";
 import Installations from "../pages/Installations";
+import InstallationReports from "../pages/InstallationReports";
 import EtlMonitor from "../pages/EtlMonitor";
 import Reports from "../pages/Reports";
 import Account from "../pages/Account";
@@ -87,6 +88,11 @@ export default function AppRoutes() {
                 <Route
                     path="installations"
                     element={<Installations />}
+                />
+
+                <Route
+                    path="installations/reports"
+                    element={<InstallationReports />}
                 />
 
                 <Route

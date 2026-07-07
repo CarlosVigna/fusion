@@ -1,12 +1,13 @@
 package com.fusion.fusion.installation;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface InstallationRepository
-        extends JpaRepository<Installation, Long> {
+        extends JpaRepository<Installation, Long>, JpaSpecificationExecutor<Installation> {
 
     List<Installation> findAllByOrderByCreatedAtDesc();
 
