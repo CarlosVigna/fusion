@@ -45,7 +45,7 @@ async function getToken() {
 
         console.log('[INSTALACOES] Resposta login:', JSON.stringify(data));
 
-        const token = data.access_token || data.token || data.bearer_token || data.accessToken;
+        const token = data.accessToken || data.access_token || data.token;
 
         if (!token) {
             throw new Error(`Token não encontrado na resposta. Campos: ${Object.keys(data).join(', ')}`);
@@ -113,22 +113,25 @@ async function fetchAllOrdens(token) {
 
 }
 
-function mapOrdem(ordem) {
+function mapOrdem(item) {
+
+    const end = item.segurado?.endereco || {};
+    const tel = item.segurado?.telefonePrincipal || {};
 
     return {
-        externalId: ordem.id != null ? String(ordem.id) : null,
-        customerName: ordem.nomeCliente || ordem.nome || '',
-        address: ordem.endereco || '',
-        neighborhood: ordem.bairro || '',
-        city: ordem.cidade || '',
-        state: ordem.estado || ordem.uf || '',
-        zipCode: ordem.cep || '',
-        phone: ordem.telefone || ordem.celular || '',
-        plate: ordem.placa || '',
-        model: ordem.modelo || '',
-        numeroProposta: ordem.numeroProposta || null,
-        portalCreatedAt: ordem.dataCriacao || ordem.createdAt || null,
-        serviceType: ordem.tipoServico || 'INSTALAÇÃO NOVA',
+        externalId: item.externalId,
+        numeroProposta: item.proposta?.numeroProposta,
+        customerName: item.segurado?.nome,
+        phone: tel.ddd && tel.numero ? `(${tel.ddd}) ${tel.numero}` : '',
+        address: [end.logradouro, end.numero].filter(Boolean).join(', '),
+        neighborhood: end.bairro,
+        city: end.cidade,
+        state: end.uf,
+        zipCode: end.cep,
+        plate: item.veiculo?.placa,
+        model: item.veiculo?.modelo,
+        portalCreatedAt: item.dataCriacao,
+        serviceType: 'INSTALAÇÃO NOVA',
     };
 
 }
