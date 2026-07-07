@@ -43,7 +43,15 @@ async function getToken() {
             }
         );
 
-        return data.access_token;
+        console.log('[INSTALACOES] Resposta login:', JSON.stringify(data));
+
+        const token = data.access_token || data.token || data.bearer_token || data.accessToken;
+
+        if (!token) {
+            throw new Error(`Token não encontrado na resposta. Campos: ${Object.keys(data).join(', ')}`);
+        }
+
+        return token;
 
     } catch (error) {
 
@@ -62,14 +70,27 @@ async function fetchAllOrdens(token) {
 
     while (true) {
 
-        const { data } = await axios.get(
-            `${PORTAL_URL}/ordens-instalacao`,
-            {
-                params: { status: 'AGUARDANDO_AGENDAMENTO', page, size },
-                headers: { Authorization: `Bearer ${token}` },
-                timeout: 30000,
-            }
-        );
+        let data;
+
+        try {
+
+            const response = await axios.get(
+                `${PORTAL_URL}/ordens-instalacao`,
+                {
+                    params: { status: 'AGUARDANDO_AGENDAMENTO', page, size },
+                    headers: { Authorization: `Bearer ${token}` },
+                    timeout: 30000,
+                }
+            );
+
+            data = response.data;
+
+        } catch (error) {
+
+            console.log('[INSTALACOES] Erro busca:', error.response?.status, error.response?.data);
+            throw error;
+
+        }
 
         // Suporta resposta paginada ({ content, last }) ou array plano
         const content = Array.isArray(data)
