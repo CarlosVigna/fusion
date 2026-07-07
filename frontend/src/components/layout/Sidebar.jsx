@@ -1,6 +1,7 @@
 import {
     Activity,
     Car,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
     ClipboardList,
@@ -52,6 +53,16 @@ const GROUPS = [
 
 const POLL_INTERVAL_MS = 60000;
 
+const GROUPS_STORAGE_KEY = "fusion_sidebar_groups_collapsed";
+
+function loadGroupState() {
+    try {
+        return JSON.parse(localStorage.getItem(GROUPS_STORAGE_KEY)) || {};
+    } catch {
+        return {};
+    }
+}
+
 // Auto-recolhe apenas no Grid (tabela densa); Home e demais ficam abertos.
 const GRID_PATHS = ["/grid"];
 
@@ -68,6 +79,16 @@ export default function Sidebar() {
     const [signalControlCount, setSignalControlCount] = useState(0);
 
     const [installationsCount, setInstallationsCount] = useState(0);
+
+    const [collapsedGroups, setCollapsedGroups] = useState(loadGroupState);
+
+    function toggleGroup(key) {
+        setCollapsedGroups((prev) => {
+            const next = { ...prev, [key]: !prev[key] };
+            localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
+    }
 
     const collapsed =
         manualOverride !== null ? manualOverride : isGridPage;
@@ -165,14 +186,25 @@ export default function Sidebar() {
                         <div key={group.key}>
 
                             {expanded && (
-                                <div className="mb-2 flex items-center gap-2 px-2">
-                                    <GroupIcon size={13} className="text-zinc-500" />
-                                    <span className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                                <button
+                                    onClick={() => toggleGroup(group.key)}
+                                    className="
+                                        mb-2 flex w-full items-center gap-2 px-2
+                                        text-zinc-500 transition hover:text-zinc-300
+                                    "
+                                >
+                                    <GroupIcon size={13} />
+                                    <span className="flex-1 text-left text-xs font-semibold uppercase tracking-wider">
                                         {group.label}
                                     </span>
-                                </div>
+                                    {collapsedGroups[group.key]
+                                        ? <ChevronRight size={13} />
+                                        : <ChevronDown size={13} />
+                                    }
+                                </button>
                             )}
 
+                            {(!expanded || !collapsedGroups[group.key]) && (
                             <div className="flex flex-col gap-1">
                                 {group.items.map((item) => {
 
@@ -217,6 +249,7 @@ export default function Sidebar() {
 
                                 })}
                             </div>
+                            )}
 
                         </div>
                     );
