@@ -7,6 +7,7 @@ import {
     RadioTower,
     Mail,
     Wrench,
+    HardHat,
     Workflow,
     UserCircle,
     ChevronLeft,
@@ -18,6 +19,8 @@ import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 import { getSignalControl } from "../../services/signalControlService";
+
+import { getInstallationsPendingCount } from "../../services/installationService";
 
 const items = [
     {
@@ -45,6 +48,12 @@ const items = [
         label: "Manutenção",
         icon: Wrench,
         path: "/maintenance",
+    },
+    {
+        label: "Instalações",
+        icon: HardHat,
+        path: "/installations",
+        badgeKey: "installations",
     },
     {
         label: "Importações",
@@ -91,6 +100,8 @@ export default function Sidebar() {
 
     const [signalControlCount, setSignalControlCount] = useState(0);
 
+    const [installationsCount, setInstallationsCount] = useState(0);
+
     const collapsed =
         manualOverride !== null ? manualOverride : isGridPage;
 
@@ -125,8 +136,35 @@ export default function Sidebar() {
 
     }, []);
 
+    useEffect(() => {
+
+        async function loadInstallationsCount() {
+
+            try {
+
+                const data = await getInstallationsPendingCount();
+
+                setInstallationsCount(data.count ?? 0);
+
+            } catch (error) {
+
+                console.error(error);
+
+            }
+
+        }
+
+        loadInstallationsCount();
+
+        const interval = setInterval(loadInstallationsCount, POLL_INTERVAL_MS);
+
+        return () => clearInterval(interval);
+
+    }, []);
+
     const badgeCounts = {
         signalControl: signalControlCount,
+        installations: installationsCount,
     };
 
     return (

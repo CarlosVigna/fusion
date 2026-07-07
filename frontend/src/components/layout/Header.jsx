@@ -28,6 +28,7 @@ const PAGE_TITLES = [
   { match: /^\/signal-control$/, title: "Controle de Sinais", subtitle: "Veículos sem comunicação há mais de 24h — fluxo de atendimento" },
   { match: /^\/letters$/, title: "Cartas de Suspensão", subtitle: "Controle de cartas de suspensão por cobertura" },
   { match: /^\/maintenance$/, title: "Manutenção", subtitle: "Veículos em manutenção de equipamento" },
+  { match: /^\/installations$/, title: "Instalações", subtitle: "Fila de instalações pendentes de envio" },
   { match: /^\/etl$/, title: "Monitor do ETL", subtitle: "Status, histórico e execuções dos scrapers" },
   { match: /^\/reports$/, title: "Relatórios", subtitle: "Geração e atualização de planilhas operacionais" },
   { match: /^\/account$/, title: "Minha Conta", subtitle: "Dados pessoais, senha e tema" },
