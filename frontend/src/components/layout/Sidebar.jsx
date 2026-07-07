@@ -57,10 +57,10 @@ const GROUPS_STORAGE_KEY = "fusion_sidebar_groups_collapsed";
 
 function loadGroupState() {
     try {
-        return JSON.parse(localStorage.getItem(GROUPS_STORAGE_KEY)) || {};
-    } catch {
-        return {};
-    }
+        const saved = localStorage.getItem(GROUPS_STORAGE_KEY);
+        if (saved) return JSON.parse(saved);
+    } catch {}
+    return { monitoring: true, installations: true };
 }
 
 // Auto-recolhe apenas no Grid (tabela densa); Home e demais ficam abertos.
