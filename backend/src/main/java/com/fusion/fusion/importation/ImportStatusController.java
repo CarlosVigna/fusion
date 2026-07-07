@@ -183,11 +183,13 @@ public class ImportStatusController {
                 case MULTIPORTAL_LINKAGE ->
                         linkageImportService.importFile(file);
 
-                case TRACKNME -> {
-                    throw new IllegalArgumentException(
-                            "Upload de TRACKNME não é suportado neste endpoint"
-                    );
-                }
+                case TRACKNME -> throw new IllegalArgumentException(
+                        "Tipo TRACKNME não suporta upload manual"
+                );
+
+                case INSTALACOES -> throw new IllegalArgumentException(
+                        "Tipo INSTALACOES não suporta upload manual"
+                );
 
             };
 
