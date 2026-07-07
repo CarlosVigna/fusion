@@ -6,6 +6,7 @@ import {
 
 import AppLayout from "../layouts/AppLayout";
 
+import Home from "../pages/Home";
 import Dashboard from "../pages/Dashboard";
 import Grid from "../pages/Grid";
 import Imports from "../pages/Imports";
@@ -40,7 +41,7 @@ export default function AppRoutes() {
             >
                 <Route
                     index
-                    element={<Grid />}
+                    element={<Home />}
                 />
 
                 <Route
