@@ -76,6 +76,10 @@
   color-scheme: dark;
 }
 
+html {
+  font-size: 85%;
+}
+
 html,
 body,
 #root {

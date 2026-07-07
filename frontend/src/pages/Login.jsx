@@ -8,6 +8,8 @@ import { useAuthStore } from "../store/authStore";
 
 import { useThemeStore } from "../store/themeStore";
 
+import { FusionLogo } from "../assets/FusionLogo";
+
 export default function Login() {
   const navigate = useNavigate();
 
@@ -85,13 +87,11 @@ export default function Login() {
           bg-zinc-900 p-8
         "
       >
-        <h1 className="text-3xl font-bold">
-          Fusion
-        </h1>
-
-        <p className="mt-2 text-zinc-400">
-          Plataforma operacional corporativa
-        </p>
+        <div className="flex flex-col items-center">
+          <FusionLogo size={80} />
+          <h1 className="mt-3 text-3xl font-bold">Fusion</h1>
+          <p className="mt-1 text-zinc-400">Plataforma operacional corporativa</p>
+        </div>
 
         <div className="mt-8 space-y-4">
           <input
