@@ -1,6 +1,7 @@
 package com.fusion.fusion.vehicle.grid;
 
 import com.fusion.fusion.vehicle.OperationalStatus;
+import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 
@@ -49,7 +50,9 @@ public record GridVehicleResponse(
 
         String lastObservationText,
 
-        LocalDateTime lastObservationAt
+        LocalDateTime lastObservationAt,
+
+        VehicleGroup vehicleGroup
 
 ) {
 }

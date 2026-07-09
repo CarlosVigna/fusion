@@ -1,14 +1,19 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { Link } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
-import { Check, FileText, FileSpreadsheet, Mail, Pencil, Wrench } from "lucide-react";
+import { Car, Check, FileText, FileSpreadsheet, Mail, Pencil, Wrench } from "lucide-react";
 
 import {
   getSignalControl,
 } from "../services/signalControlService";
+
+import {
+  getPreference,
+  savePreference,
+} from "../services/preferencesService";
 
 import {
   markSignalReturnAlertAsBaixa,
@@ -77,13 +82,17 @@ export default function SignalControl() {
 
   const [refreshing, setRefreshing] = useState(false);
 
+  const [showKako, setShowKako] = useState(false);
+
+  const showKakoRef = useRef(false);
+
   async function load() {
 
     setLoading(true);
 
     try {
 
-      const data = await getSignalControl();
+      const data = await getSignalControl(showKakoRef.current);
 
       setVehicles(data);
 
@@ -109,7 +118,7 @@ export default function SignalControl() {
 
     try {
 
-      const data = await getSignalControl();
+      const data = await getSignalControl(showKakoRef.current);
 
       setVehicles(data);
 
@@ -130,6 +139,52 @@ export default function SignalControl() {
     load();
 
   }, []);
+
+  useEffect(() => {
+
+    async function loadKakoPreference() {
+
+      try {
+
+        const val = await getPreference("show_kako");
+
+        const kakoOn = val === "true" || val === true;
+
+        if (kakoOn) {
+
+          setShowKako(true);
+
+          showKakoRef.current = true;
+
+          load();
+
+        }
+
+      } catch (error) {
+
+        console.error(error);
+
+      }
+
+    }
+
+    loadKakoPreference();
+
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleKakoToggle() {
+
+    const next = !showKako;
+
+    setShowKako(next);
+
+    showKakoRef.current = next;
+
+    savePreference("show_kako", String(next)).catch(console.error);
+
+    load();
+
+  }
 
   useEffect(() => {
     const interval = setInterval(
@@ -542,6 +597,23 @@ export default function SignalControl() {
             placeholder:text-zinc-600
           "
         />
+
+        <button
+          onClick={handleKakoToggle}
+          title={showKako ? "Ocultar veículos KAKO" : "Mostrar veículos KAKO"}
+          className={`
+            flex items-center justify-center gap-2
+            rounded-xl border px-5 py-2.5
+            text-sm font-semibold transition
+            ${showKako
+              ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+              : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
+            }
+          `}
+        >
+          <Car size={16} />
+          KAKO
+        </button>
 
         <button
           onClick={handleExportExcel}

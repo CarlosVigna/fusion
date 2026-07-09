@@ -8,6 +8,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Car,
   Columns3,
   RefreshCw,
   Settings,
@@ -337,6 +338,11 @@ export default function Grid() {
 
   const [preferencesLoaded, setPreferencesLoaded] =
     useState(false);
+
+  const [showKako, setShowKako] =
+    useState(false);
+
+  const showKakoRef = useRef(false);
 
   const [sortConfig, setSortConfig] =
     useState({ key: null, direction: null });
@@ -697,6 +703,52 @@ export default function Grid() {
 
   useEffect(() => {
 
+    async function loadKakoPreference() {
+
+      try {
+
+        const val = await getPreference("show_kako");
+
+        const kakoOn = val === "true" || val === true;
+
+        if (kakoOn) {
+
+          setShowKako(true);
+
+          showKakoRef.current = true;
+
+          loadGrid({ includeKako: true });
+
+        }
+
+      } catch (error) {
+
+        console.error(error);
+
+      }
+
+    }
+
+    loadKakoPreference();
+
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleKakoToggle() {
+
+    const next = !showKako;
+
+    setShowKako(next);
+
+    showKakoRef.current = next;
+
+    await loadGrid({ includeKako: next });
+
+    savePreference("show_kako", String(next)).catch(console.error);
+
+  }
+
+  useEffect(() => {
+
     // Só recarrega da API se o cache estiver vazio ou tiver mais de
     // 30 minutos — navegar entre páginas e voltar para o Grid não
     // deve disparar uma nova requisição.
@@ -709,7 +761,7 @@ export default function Grid() {
 
       if (event?.type === "GRID_UPDATED") {
 
-        loadGrid();
+        loadGrid({ includeKako: showKakoRef.current });
 
       }
 
@@ -1054,6 +1106,23 @@ export default function Grid() {
           >
             <Settings size={16} />
             Configurar colunas
+          </button>
+
+          <button
+            onClick={handleKakoToggle}
+            title={showKako ? "Ocultar veículos KAKO" : "Mostrar veículos KAKO"}
+            className={`
+              flex items-center gap-2
+              rounded-2xl border px-5 py-3
+              text-sm font-semibold transition
+              ${showKako
+                ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+                : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
+              }
+            `}
+          >
+            <Car size={16} />
+            KAKO
           </button>
 
           <button

@@ -42,6 +42,13 @@ export async function getOperationalGrid(
     );
   }
 
+  if (filters.includeKako) {
+    params.append(
+      "includeKako",
+      "true"
+    );
+  }
+
   const query =
     params.toString();
 

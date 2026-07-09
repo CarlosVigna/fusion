@@ -57,6 +57,10 @@ public class Vehicle {
     @Column(nullable = false)
     private Boolean hasEverCommunicated = false;
 
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    private VehicleGroup vehicleGroup = VehicleGroup.OPERATIONAL;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

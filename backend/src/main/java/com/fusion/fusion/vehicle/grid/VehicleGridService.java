@@ -5,6 +5,7 @@ import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
@@ -30,7 +31,7 @@ public class VehicleGridService {
     private final VehicleObservationService
             observationService;
 
-    public List<GridVehicleResponse> getGrid() {
+    public List<GridVehicleResponse> getGrid(boolean includeKako) {
 
         // Pre-carrega tudo de uma vez em vez de 2 queries por veículo
         // (era o N+1 que fazia /vehicles/grid demorar ~20s para 245+
@@ -81,6 +82,9 @@ public class VehicleGridService {
                                 && activeLinkageByVehicleId.containsKey(
                                 vehicle.getId()
                         )
+                                && (includeKako
+                                        || vehicle.getVehicleGroup()
+                                        != VehicleGroup.KAKO)
                 )
                 .toList();
 
@@ -198,7 +202,9 @@ public class VehicleGridService {
 
                 lastObservation != null
                         ? lastObservation.getCreatedAt()
-                        : null
+                        : null,
+
+                vehicle.getVehicleGroup()
 
         );
 

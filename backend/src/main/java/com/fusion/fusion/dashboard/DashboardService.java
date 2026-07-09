@@ -13,6 +13,7 @@ import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.pendingchange.PendingChangeRepository;
 import com.fusion.fusion.pendingchange.PendingChangeStatus;
 import com.fusion.fusion.vehicle.OperationalStatus;
+import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
@@ -22,6 +23,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -67,7 +71,12 @@ public class DashboardService {
         // primeira vez), travando a thread do motor.
         var snapshots = snapshotRepository.findAll();
 
-        long totalVehicles = snapshots.size();
+        Set<UUID> kakoIds = vehicleRepository.findByVehicleGroup(VehicleGroup.KAKO)
+                .stream()
+                .map(v -> v.getId())
+                .collect(Collectors.toSet());
+
+        long totalVehicles = 0;
         long onlineVehicles = 0;
         long delayedVehicles = 0;
         long noCommunicationVehicles = 0;
@@ -76,6 +85,16 @@ public class DashboardService {
         long staleVehicles = 0;
 
         for (var snapshot : snapshots) {
+
+            UUID vid = snapshot.getVehicle() != null
+                    ? snapshot.getVehicle().getId()
+                    : null;
+
+            if (vid != null && kakoIds.contains(vid)) {
+                continue;
+            }
+
+            totalVehicles++;
 
             if (snapshot.getCommunicationStatus()
                     == CommunicationStatus.ONLINE) {

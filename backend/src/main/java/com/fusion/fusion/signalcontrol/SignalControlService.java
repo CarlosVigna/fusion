@@ -10,6 +10,7 @@ import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
@@ -50,7 +51,7 @@ public class SignalControlService {
 
     private final MaintenanceRecordRepository maintenanceRecordRepository;
 
-    public List<SignalControlResponse> findAll() {
+    public List<SignalControlResponse> findAll(boolean includeKako) {
 
         Map<UUID, VehicleOperationalState> statesByVehicleId =
                 new HashMap<>();
@@ -150,6 +151,13 @@ public class SignalControlService {
         for (Vehicle vehicle : vehicleRepository.findAll()) {
 
             if (vehicle.getDeletedAt() != null) {
+
+                continue;
+
+            }
+
+            if (!includeKako
+                    && vehicle.getVehicleGroup() == VehicleGroup.KAKO) {
 
                 continue;
 

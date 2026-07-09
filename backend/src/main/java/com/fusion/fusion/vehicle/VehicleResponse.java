@@ -21,6 +21,8 @@ public record VehicleResponse(
 
         Boolean inMaintenance,
 
+        VehicleGroup vehicleGroup,
+
         Integer batteryLevel,
 
         Boolean online,

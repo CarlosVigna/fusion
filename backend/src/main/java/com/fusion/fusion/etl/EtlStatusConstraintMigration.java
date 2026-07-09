@@ -25,12 +25,12 @@ public class EtlStatusConstraintMigration implements ApplicationRunner {
         try (Connection conn = dataSource.getConnection();
              Statement st = conn.createStatement()) {
 
-            // etl_status.type (ImportType — 5 valores)
+            // etl_status.type (ImportType — 6 valores, inclui INSTALACOES)
             st.execute("ALTER TABLE etl_status DROP CONSTRAINT IF EXISTS etl_status_type_check");
             st.execute(
                 "ALTER TABLE etl_status ADD CONSTRAINT etl_status_type_check " +
                 "CHECK (type IN ('TRACKNME','MULTIPORTAL_DEVICE','MULTIPORTAL_LINKAGE'," +
-                "'MULTIPORTAL_OPERATIONAL','MULTIPORTAL_ULTIMA_POSICAO'))"
+                "'MULTIPORTAL_OPERATIONAL','MULTIPORTAL_ULTIMA_POSICAO','INSTALACOES'))"
             );
 
             // import_history.type (mesma enum ImportType)
@@ -38,7 +38,7 @@ public class EtlStatusConstraintMigration implements ApplicationRunner {
             st.execute(
                 "ALTER TABLE import_history ADD CONSTRAINT import_history_type_check " +
                 "CHECK (type IN ('TRACKNME','MULTIPORTAL_DEVICE','MULTIPORTAL_LINKAGE'," +
-                "'MULTIPORTAL_OPERATIONAL','MULTIPORTAL_ULTIMA_POSICAO'))"
+                "'MULTIPORTAL_OPERATIONAL','MULTIPORTAL_ULTIMA_POSICAO','INSTALACOES'))"
             );
 
             // timeline_event.type (TimelineEventType — 11 valores; LOW_BATTERY_DETECTED
@@ -65,8 +65,16 @@ public class EtlStatusConstraintMigration implements ApplicationRunner {
                 "UPDATE letter_records SET status = 'ATIVA' WHERE status IS NULL"
             );
 
+            // vehicles.vehicle_group — marca as 6 placas do grupo KAKO.
+            // Idempotente: UPDATE em placas que ja tem KAKO nao muda nada.
+            st.execute(
+                "UPDATE vehicles SET vehicle_group = 'KAKO' " +
+                "WHERE plate IN ('DKU9B11','EYQ5993','FWQ6628','SWI4I26','GCZ5B67','QCV2E16')"
+            );
+
             log.info("[MIGRATION] CHECK constraints atualizadas: etl_status, import_history, " +
-                     "timeline_event, maintenance_records; letter_records inicializado");
+                     "timeline_event, maintenance_records; letter_records inicializado; " +
+                     "vehicles KAKO marcados");
 
         } catch (Exception e) {
             log.warn("[MIGRATION] Falha ao atualizar CHECK constraints: {}", e.getMessage());

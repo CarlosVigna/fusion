@@ -78,9 +78,11 @@ public class VehicleController {
     }
 
     @GetMapping("/grid")
-    public List<GridVehicleResponse> grid() {
+    public List<GridVehicleResponse> grid(
+            @RequestParam(defaultValue = "false") boolean includeKako
+    ) {
 
-        return gridService.getGrid();
+        return gridService.getGrid(includeKako);
 
     }
 

@@ -134,6 +134,8 @@ public class VehicleService {
 
                 vehicle.getInMaintenance(),
 
+                vehicle.getVehicleGroup(),
+
                 null,
 
                 null,
