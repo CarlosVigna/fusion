@@ -1,5 +1,6 @@
 import {
     Activity,
+    Building2,
     Car,
     ChevronDown,
     ChevronLeft,
@@ -7,11 +8,11 @@ import {
     ClipboardList,
     FileSpreadsheet,
     FileText,
-    HardHat,
     LayoutGrid,
     Mail,
     MonitorCheck,
     Radio,
+    ScrollText,
     Shield,
     Wrench,
 } from "lucide-react";
@@ -23,6 +24,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { getSignalControl } from "../../services/signalControlService";
 
 import { getInstallationsPendingCount } from "../../services/installationService";
+
+import { getPolicyBadgeCounts } from "../../services/policyService";
 
 import { notifyInstallationsNew } from "../../services/notificationService";
 
@@ -46,9 +49,18 @@ const GROUPS = [
     },
     {
         key: "installations",
-        label: "Instalações",
-        icon: HardHat,
+        label: "Portal Use",
+        icon: Building2,
         items: [
+            {
+                label: "Apólices",
+                icon: ScrollText,
+                path: "/policies",
+                badges: [
+                    { key: "policiesExpired",  color: "bg-red-500" },
+                    { key: "policiesExpiring", color: "bg-yellow-500 text-black" },
+                ],
+            },
             { label: "Instalações", icon: ClipboardList, path: "/installations", badgeKey: "installations" },
             { label: "Relatórios",  icon: FileText,      path: "/installations/reports" },
         ],
@@ -83,6 +95,10 @@ export default function Sidebar() {
     const [signalControlCount, setSignalControlCount] = useState(0);
 
     const [installationsCount, setInstallationsCount] = useState(0);
+
+    const [policiesExpiredCount, setPoliciesExpiredCount] = useState(0);
+
+    const [policiesExpiringCount, setPoliciesExpiringCount] = useState(0);
 
     const prevInstallationsCountRef = useRef(null);
 
@@ -140,9 +156,29 @@ export default function Sidebar() {
 
     }, []);
 
+    useEffect(() => {
+
+        async function loadPolicyCounts() {
+            try {
+                const data = await getPolicyBadgeCounts();
+                setPoliciesExpiredCount(data.expired ?? 0);
+                setPoliciesExpiringCount(data.expiring ?? 0);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        loadPolicyCounts();
+        const interval = setInterval(loadPolicyCounts, POLL_INTERVAL_MS);
+        return () => clearInterval(interval);
+
+    }, []);
+
     const badgeCounts = {
         signalControl: signalControlCount,
         installations: installationsCount,
+        policiesExpired: policiesExpiredCount,
+        policiesExpiring: policiesExpiringCount,
     };
 
     return (
@@ -220,9 +256,12 @@ export default function Sidebar() {
                                 {group.items.map((item) => {
 
                                     const Icon = item.icon;
-                                    const badge = item.badgeKey
-                                        ? badgeCounts[item.badgeKey]
-                                        : 0;
+
+                                    const resolvedBadges = item.badges
+                                        ? item.badges.filter(b => badgeCounts[b.key] > 0)
+                                        : item.badgeKey && badgeCounts[item.badgeKey] > 0
+                                        ? [{ key: item.badgeKey, color: "bg-red-500" }]
+                                        : [];
 
                                     return (
                                         <NavLink
@@ -250,11 +289,14 @@ export default function Sidebar() {
                                                 </span>
                                             )}
 
-                                            {badge > 0 && (
-                                                <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-                                                    {badge}
+                                            {resolvedBadges.map((b, i) => (
+                                                <span
+                                                    key={i}
+                                                    className={`rounded-full px-2 py-0.5 text-xs font-bold text-white ${b.color}`}
+                                                >
+                                                    {badgeCounts[b.key]}
                                                 </span>
-                                            )}
+                                            ))}
                                         </NavLink>
                                     );
 

@@ -31,6 +31,7 @@ const PAGE_TITLES = [
   { match: /^\/maintenance$/, title: "Manutenção", subtitle: "Veículos em manutenção de equipamento" },
   { match: /^\/installations\/reports$/, title: "Relatórios de Instalações", subtitle: "Histórico filtrado com exportação Excel e PDF" },
   { match: /^\/installations$/, title: "Instalações", subtitle: "Fila de instalações pendentes de envio" },
+  { match: /^\/policies$/, title: "Apólices", subtitle: "Gestão de apólices de seguro dos veículos" },
   { match: /^\/etl$/, title: "Monitor do ETL", subtitle: "Status, histórico e execuções dos scrapers" },
   { match: /^\/reports$/, title: "Relatórios", subtitle: "Geração e atualização de planilhas operacionais" },
   { match: /^\/account$/, title: "Minha Conta", subtitle: "Dados pessoais, senha e tema" },

@@ -16,6 +16,7 @@ import Letters from "../pages/Letters";
 import Maintenance from "../pages/Maintenance";
 import Installations from "../pages/Installations";
 import InstallationReports from "../pages/InstallationReports";
+import Policies from "../pages/Policies";
 import EtlMonitor from "../pages/EtlMonitor";
 import Reports from "../pages/Reports";
 import Account from "../pages/Account";
@@ -93,6 +94,11 @@ export default function AppRoutes() {
                 <Route
                     path="installations/reports"
                     element={<InstallationReports />}
+                />
+
+                <Route
+                    path="policies"
+                    element={<Policies />}
                 />
 
                 <Route
