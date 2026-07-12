@@ -42,6 +42,10 @@ public class Policy {
 
     private String vehicleModel;
 
+    private String vehicleBrand;
+
+    private Integer bonus;
+
     private String plate;
 
     @Enumerated(EnumType.STRING)

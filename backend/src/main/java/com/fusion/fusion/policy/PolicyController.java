@@ -20,9 +20,9 @@ public class PolicyController {
         return service.findAll(plate, status);
     }
 
-    @GetMapping("/pending")
-    public List<PendingVehicleResponse> findPending() {
-        return service.findPending();
+    @GetMapping("/pending-vehicles")
+    public List<PendingVehicleResponse> findPendingVehicles() {
+        return service.findPendingVehicles();
     }
 
     @GetMapping("/expiring")
@@ -40,6 +40,13 @@ public class PolicyController {
     @GetMapping("/badge-counts")
     public PolicyBadgeCountsResponse getBadgeCounts() {
         return service.getBadgeCounts();
+    }
+
+    @PostMapping("/fetch")
+    public EtlPolicyResult fetchFromPortal(
+            @RequestParam String plate
+    ) {
+        return service.fetchFromEtl(plate);
     }
 
     @PostMapping

@@ -8,6 +8,8 @@ public record PendingVehicleResponse(
         UUID id,
         String plate,
         String insuredName,
-        VehiclePlatform platform
+        VehiclePlatform platform,
+        String activeDevice,
+        String lineNumber
 ) {
 }

@@ -14,6 +14,8 @@ public record PolicyResponse(
         String insuredName,
         String cpfCnpj,
         String vehicleModel,
+        String vehicleBrand,
+        Integer bonus,
         PolicySource source,
         LocalDateTime createdAt
 ) {
@@ -46,6 +48,8 @@ public record PolicyResponse(
                 p.getInsuredName(),
                 p.getCpfCnpj(),
                 p.getVehicleModel(),
+                p.getVehicleBrand(),
+                p.getBonus(),
                 p.getSource(),
                 p.getCreatedAt()
         );

@@ -9,7 +9,11 @@ export async function getPolicies({ plate, status } = {}) {
 }
 
 export async function getPendingVehicles() {
-  return apiClient.get("/policies/pending");
+  return apiClient.get("/policies/pending-vehicles");
+}
+
+export async function fetchPolicyFromPortal(plate) {
+  return apiClient.post(`/policies/fetch?plate=${encodeURIComponent(plate)}`);
 }
 
 export async function getExpiringPolicies(days = 30) {

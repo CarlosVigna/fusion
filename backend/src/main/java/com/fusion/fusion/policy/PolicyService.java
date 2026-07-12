@@ -2,14 +2,17 @@ package com.fusion.fusion.policy;
 
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.vehicle.VehicleRepository;
+import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
+import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,6 +22,16 @@ public class PolicyService {
     private final PolicyRepository policyRepository;
 
     private final VehicleRepository vehicleRepository;
+
+    private final DeviceLinkageRepository linkageRepository;
+
+    private final RestTemplate restTemplate;
+
+    @Value("${fusion.etl.server-url:}")
+    private String etlServerUrl;
+
+    @Value("${fusion.etl.api-key:}")
+    private String etlApiKey;
 
     public List<PolicyResponse> findAll(String plate, String statusStr) {
 
@@ -41,7 +54,7 @@ public class PolicyService {
 
     }
 
-    public List<PendingVehicleResponse> findPending() {
+    public List<PendingVehicleResponse> findPendingVehicles() {
 
         Set<String> platesWithActivePolicy = policyRepository.findAll()
                 .stream()
@@ -56,16 +69,32 @@ public class PolicyService {
                 .map(String::toUpperCase)
                 .collect(Collectors.toSet());
 
+        Map<UUID, DeviceLinkage> linkageByVehicleId = new HashMap<>();
+        for (DeviceLinkage dl : linkageRepository.findAllActiveWithVehicleAndDevice()) {
+            if (dl.getVehicle() != null) {
+                linkageByVehicleId.putIfAbsent(dl.getVehicle().getId(), dl);
+            }
+        }
+
         return vehicleRepository.findAll()
                 .stream()
                 .filter(v -> v.getDeletedAt() == null
                         && !platesWithActivePolicy.contains(v.getPlate().toUpperCase()))
-                .map(v -> new PendingVehicleResponse(
-                        v.getId(),
-                        v.getPlate(),
-                        v.getInsuredName(),
-                        v.getPlatform()
-                ))
+                .map(v -> {
+                    DeviceLinkage dl = linkageByVehicleId.get(v.getId());
+                    String activeDevice = dl != null && dl.getDevice() != null
+                            ? dl.getDevice().getNumberStr() : null;
+                    String lineNumber = dl != null && dl.getDevice() != null
+                            ? dl.getDevice().getLineNumber() : null;
+                    return new PendingVehicleResponse(
+                            v.getId(),
+                            v.getPlate(),
+                            v.getInsuredName(),
+                            v.getPlatform(),
+                            activeDevice,
+                            lineNumber
+                    );
+                })
                 .toList();
 
     }
@@ -123,6 +152,30 @@ public class PolicyService {
 
     }
 
+    public EtlPolicyResult fetchFromEtl(String plate) {
+
+        if (etlServerUrl == null || etlServerUrl.isBlank()) {
+            throw new IllegalStateException("ETL server URL não configurada (fusion.etl.server-url)");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-ETL-Key", etlApiKey);
+
+        Map<String, String> body = Map.of("plate", plate.toUpperCase());
+
+        ResponseEntity<EtlPolicyResult> response = restTemplate.exchange(
+                etlServerUrl + "/apolice/buscar",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                EtlPolicyResult.class
+        );
+
+        EtlPolicyResult result = response.getBody();
+        return result != null ? result : new EtlPolicyResult(false, null);
+
+    }
+
     public PolicyResponse create(PolicyRequest req) {
 
         var vehicle = vehicleRepository.findByPlate(
@@ -142,6 +195,8 @@ public class PolicyService {
                 .insuredName(req.insuredName())
                 .cpfCnpj(req.cpfCnpj())
                 .vehicleModel(req.vehicleModel())
+                .vehicleBrand(req.vehicleBrand())
+                .bonus(req.bonus())
                 .source(req.source() != null ? req.source() : PolicySource.MANUAL)
                 .build();
 
@@ -162,6 +217,8 @@ public class PolicyService {
         policy.setInsuredName(req.insuredName());
         policy.setCpfCnpj(req.cpfCnpj());
         policy.setVehicleModel(req.vehicleModel());
+        policy.setVehicleBrand(req.vehicleBrand());
+        policy.setBonus(req.bonus());
 
         if (req.status() == PolicyStatus.CANCELLED) {
             policy.setStatus(PolicyStatus.CANCELLED);

@@ -2,11 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import {
   createPolicy,
   deletePolicy,
+  fetchPolicyFromPortal,
   getPendingVehicles,
   getPolicies,
   updatePolicy,
@@ -19,6 +20,8 @@ const EMPTY_FORM = {
   insuredName: "",
   cpfCnpj: "",
   vehicleModel: "",
+  vehicleBrand: "",
+  bonus: "",
 };
 
 function formatDate(dateStr) {
@@ -83,11 +86,17 @@ export default function Policies() {
   const [pendingVehicles, setPendingVehicles] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Create / edit modal
   const [modalOpen, setModalOpen] = useState(false);
   const [editPolicy, setEditPolicy] = useState(null);
   const [modalPlate, setModalPlate] = useState("");
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+
+  // Buscar no Portal — loading per-plate and confirm modal
+  const [fetchingPlate, setFetchingPlate] = useState(null);
+  const [confirmModal, setConfirmModal] = useState(null); // { vehicle, result }
+  const [confirmSaving, setConfirmSaving] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -155,6 +164,8 @@ export default function Policies() {
       insuredName: policy.insuredName || "",
       cpfCnpj: policy.cpfCnpj || "",
       vehicleModel: policy.vehicleModel || "",
+      vehicleBrand: policy.vehicleBrand || "",
+      bonus: policy.bonus != null ? String(policy.bonus) : "",
     });
     setModalOpen(true);
   }
@@ -170,18 +181,15 @@ export default function Policies() {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload = {
+        ...form,
+        bonus: form.bonus !== "" ? Number(form.bonus) : null,
+      };
       if (editPolicy) {
-        await updatePolicy(editPolicy.id, {
-          ...form,
-          plate: editPolicy.plate,
-        });
+        await updatePolicy(editPolicy.id, { ...payload, plate: editPolicy.plate });
         toast.success("Apólice atualizada");
       } else {
-        await createPolicy({
-          ...form,
-          plate: modalPlate,
-          source: "MANUAL",
-        });
+        await createPolicy({ ...payload, plate: modalPlate, source: "MANUAL" });
         toast.success("Apólice cadastrada");
       }
       closeModal();
@@ -209,6 +217,51 @@ export default function Policies() {
     } catch (error) {
       console.error(error);
       toast.error("Erro ao remover apólice");
+    }
+  }
+
+  async function handleBuscarNoPortal(vehicle) {
+    setFetchingPlate(vehicle.plate);
+    try {
+      const result = await fetchPolicyFromPortal(vehicle.plate);
+      if (!result.found) {
+        toast.error(`Nenhuma apólice vigente encontrada no portal para ${vehicle.plate}`);
+        return;
+      }
+      setConfirmModal({ vehicle, result });
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao buscar apólice no portal");
+    } finally {
+      setFetchingPlate(null);
+    }
+  }
+
+  async function handleConfirmSave() {
+    if (!confirmModal) return;
+    const { vehicle, result } = confirmModal;
+    setConfirmSaving(true);
+    try {
+      await createPolicy({
+        plate: vehicle.plate,
+        policyNumber: result.data.policyNumber,
+        startDate: result.data.startDate,
+        endDate: result.data.endDate,
+        insuredName: result.data.insuredName,
+        cpfCnpj: result.data.cpfCnpj,
+        vehicleModel: result.data.vehicleModel,
+        vehicleBrand: result.data.vehicleBrand,
+        bonus: result.data.bonus,
+        source: "ETL",
+      });
+      toast.success("Apólice importada e cadastrada");
+      setConfirmModal(null);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error(error.message || "Erro ao salvar apólice");
+    } finally {
+      setConfirmSaving(false);
     }
   }
 
@@ -276,6 +329,7 @@ export default function Policies() {
                         <th className="px-4 py-3">Placa</th>
                         <th className="px-4 py-3">Segurado</th>
                         <th className="px-4 py-3">Plataforma</th>
+                        <th className="px-4 py-3">Dispositivo</th>
                         <th className="px-4 py-3">Ações</th>
                       </tr>
                     </thead>
@@ -294,6 +348,13 @@ export default function Policies() {
                           <td className="px-4 py-3 text-sm text-zinc-400">
                             {vehicle.platform || "--"}
                           </td>
+                          <td className="px-4 py-3 text-sm text-zinc-400">
+                            {vehicle.activeDevice
+                              ? vehicle.lineNumber
+                                ? `${vehicle.activeDevice} · ${vehicle.lineNumber}`
+                                : vehicle.activeDevice
+                              : "--"}
+                          </td>
                           <td className="px-4 py-3">
                             <div className="flex gap-2">
                               <button
@@ -309,16 +370,25 @@ export default function Policies() {
                                 Cadastrar
                               </button>
                               <button
-                                disabled
-                                title="Em breve — integração com portal"
+                                onClick={() => handleBuscarNoPortal(vehicle)}
+                                disabled={fetchingPlate === vehicle.plate}
                                 className="
+                                  flex items-center gap-1.5
                                   rounded-xl border border-zinc-700
                                   bg-zinc-950 px-3 py-1.5
-                                  text-xs font-semibold text-zinc-600
-                                  cursor-not-allowed
+                                  text-xs font-semibold text-zinc-300
+                                  transition hover:bg-zinc-800 hover:text-white
+                                  disabled:cursor-not-allowed disabled:opacity-50
                                 "
                               >
-                                Buscar no Portal
+                                {fetchingPlate === vehicle.plate ? (
+                                  <>
+                                    <Loader2 size={12} className="animate-spin" />
+                                    Buscando...
+                                  </>
+                                ) : (
+                                  "Buscar no Portal"
+                                )}
                               </button>
                             </div>
                           </td>
@@ -349,6 +419,7 @@ export default function Policies() {
                         <th className="px-4 py-3">Início</th>
                         <th className="px-4 py-3">Fim</th>
                         <th className="px-4 py-3">Dias Restantes</th>
+                        <th className="px-4 py-3">Bônus</th>
                         <th className="px-4 py-3">Status</th>
                         <th className="px-4 py-3">Ações</th>
                       </tr>
@@ -382,6 +453,9 @@ export default function Policies() {
                               >
                                 {daysLabel(days)}
                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-zinc-400">
+                              {policy.bonus != null ? policy.bonus : "--"}
                             </td>
                             <td className="px-4 py-3">
                               <StatusBadge status={policy.status} />
@@ -575,6 +649,43 @@ export default function Policies() {
                   />
                 </div>
 
+                <div>
+                  <label className="mb-1.5 block text-xs text-zinc-500">
+                    Marca do Veículo
+                  </label>
+                  <input
+                    type="text"
+                    value={form.vehicleBrand}
+                    onChange={(e) => setField("vehicleBrand", e.target.value)}
+                    className="
+                      w-full rounded-xl border border-zinc-800
+                      bg-zinc-950 px-3 py-2 text-sm outline-none
+                      placeholder:text-zinc-600
+                      focus:border-zinc-600
+                    "
+                    placeholder="Ex: Honda"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs text-zinc-500">
+                    Bônus
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.bonus}
+                    onChange={(e) => setField("bonus", e.target.value)}
+                    className="
+                      w-full rounded-xl border border-zinc-800
+                      bg-zinc-950 px-3 py-2 text-sm outline-none
+                      placeholder:text-zinc-600
+                      focus:border-zinc-600
+                    "
+                    placeholder="Ex: 3"
+                  />
+                </div>
+
               </div>
 
               <div>
@@ -609,7 +720,7 @@ export default function Policies() {
                     placeholder:text-zinc-600
                     focus:border-zinc-600
                   "
-                  placeholder="Ex: Honda Civic 2022"
+                  placeholder="Ex: Civic 2022"
                 />
               </div>
 
@@ -645,7 +756,76 @@ export default function Policies() {
         </div>
       )}
 
+      {/* Modal — confirmar apólice buscada no portal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
+
+            <h3 className="mb-1 text-lg font-semibold">Apólice encontrada</h3>
+            <p className="mb-5 text-sm text-zinc-400">
+              Placa {confirmModal.vehicle.plate} — confirme os dados antes de salvar.
+            </p>
+
+            <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
+              <Row label="Apólice" value={confirmModal.result.data.policyNumber} />
+              <Row label="Vigência" value={
+                `${formatDate(confirmModal.result.data.startDate)} → ${formatDate(confirmModal.result.data.endDate)}`
+              } />
+              <Row label="Segurado" value={confirmModal.result.data.insuredName} />
+              <Row label="CPF/CNPJ" value={confirmModal.result.data.cpfCnpj} />
+              <Row label="Modelo" value={
+                [confirmModal.result.data.vehicleBrand, confirmModal.result.data.vehicleModel]
+                  .filter(Boolean).join(" ") || null
+              } />
+              <Row label="Bônus" value={
+                confirmModal.result.data.bonus != null
+                  ? String(confirmModal.result.data.bonus)
+                  : null
+              } />
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmModal(null)}
+                disabled={confirmSaving}
+                className="
+                  rounded-2xl border border-zinc-700
+                  bg-zinc-950 px-5 py-2.5
+                  text-sm font-semibold
+                  transition hover:bg-zinc-800
+                  disabled:opacity-50
+                "
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmSave}
+                disabled={confirmSaving}
+                className="
+                  rounded-2xl bg-white px-5 py-2.5
+                  text-sm font-semibold text-black
+                  transition hover:opacity-90
+                  disabled:opacity-50
+                "
+              >
+                {confirmSaving ? "Salvando..." : "Confirmar e Salvar"}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 
+}
+
+function Row({ label, value }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <span className="text-zinc-500">{label}</span>
+      <span className="font-medium">{value || "--"}</span>
+    </div>
+  );
 }

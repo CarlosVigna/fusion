@@ -11,6 +11,8 @@ public record PolicyRequest(
         String insuredName,
         String cpfCnpj,
         String vehicleModel,
+        String vehicleBrand,
+        Integer bonus,
         PolicySource source
 ) {
 }
