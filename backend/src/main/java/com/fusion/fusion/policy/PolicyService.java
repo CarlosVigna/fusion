@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
@@ -27,11 +29,14 @@ public class PolicyService {
 
     private final RestTemplate restTemplate;
 
-    @Value("${fusion.etl.server-url:}")
-    private String etlServerUrl;
+    @Value("${portal.parceiro.url:https://onmeseguros.com.br}")
+    private String portalUrl;
 
-    @Value("${fusion.etl.api-key:}")
-    private String etlApiKey;
+    @Value("${portal.parceiro.client-id:}")
+    private String portalClientId;
+
+    @Value("${portal.parceiro.client-secret:}")
+    private String portalClientSecret;
 
     public List<PolicyResponse> findAll(String plate, String statusStr) {
 
@@ -152,28 +157,154 @@ public class PolicyService {
 
     }
 
-    public EtlPolicyResult fetchFromEtl(String plate) {
+    public EtlPolicyResult fetchFromPortal(String plate) {
 
-        if (etlServerUrl == null || etlServerUrl.isBlank()) {
-            throw new IllegalStateException("ETL server URL não configurada (fusion.etl.server-url)");
+        if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Credenciais do portal parceiro não configuradas " +
+                    "(portal.parceiro.client-id / portal.parceiro.client-secret)"
+            );
         }
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("X-ETL-Key", etlApiKey);
+        String token = getPortalToken();
 
-        Map<String, String> body = Map.of("plate", plate.toUpperCase());
+        HttpHeaders getHeaders = new HttpHeaders();
+        getHeaders.setBearerAuth(token);
 
-        ResponseEntity<EtlPolicyResult> response = restTemplate.exchange(
-                etlServerUrl + "/apolice/buscar",
-                HttpMethod.POST,
-                new HttpEntity<>(body, headers),
-                EtlPolicyResult.class
+        String url = portalUrl
+                + "/seguro/auto/v1/protocolos/apolices"
+                + "?pesquisa=" + plate.toUpperCase()
+                + "&inicio=01/01/2017&fim=31/12/2030&page=0&size=50";
+
+        ResponseEntity<Object> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                new HttpEntity<>(getHeaders),
+                Object.class
         );
 
-        EtlPolicyResult result = response.getBody();
-        return result != null ? result : new EtlPolicyResult(false, null);
+        List<Map<String, Object>> items = extractItems(response.getBody());
 
+        List<Map<String, Object>> vigentes = items.stream()
+                .filter(i -> "Apólice vigente".equals(i.get("status_descricao")))
+                .sorted((a, b) -> {
+                    LocalDate da = parsePortalDate((String) a.get("fim_vigencia"));
+                    LocalDate db = parsePortalDate((String) b.get("fim_vigencia"));
+                    if (da == null) return 1;
+                    if (db == null) return -1;
+                    return db.compareTo(da);
+                })
+                .toList();
+
+        if (vigentes.isEmpty()) {
+            return new EtlPolicyResult(false, null);
+        }
+
+        Map<String, Object> item = vigentes.get(0);
+
+        return new EtlPolicyResult(true, new EtlPolicyResult.EtlPolicyData(
+                (String) item.get("numero_apolice"),
+                formatIsoDate((String) item.get("inicio_vigencia")),
+                formatIsoDate((String) item.get("fim_vigencia")),
+                (String) item.get("nome_razao_social"),
+                (String) item.get("cpf_cnpj"),
+                (String) item.get("placa"),
+                (String) item.get("veiculo_modelo"),
+                (String) item.get("veiculo_marca"),
+                item.get("bonus") != null ? ((Number) item.get("bonus")).intValue() : null
+        ));
+
+    }
+
+    @SuppressWarnings("unchecked")
+    private String getPortalToken() {
+
+        String credentials = Base64.getEncoder().encodeToString(
+                (portalClientId + ":" + portalClientSecret).getBytes()
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+        headers.set("Authorization", "Basic " + credentials);
+        headers.set("Origin", "https://parceiro.usebens.com.br");
+
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("grant_type", "password");
+        body.add("client_id", portalClientId);
+        body.add("client_secret", portalClientSecret);
+        body.add("username", portalClientId);
+        body.add("password", portalClientSecret);
+
+        ResponseEntity<Map> response = restTemplate.exchange(
+                portalUrl + "/oauth/token",
+                HttpMethod.POST,
+                new HttpEntity<>(body, headers),
+                Map.class
+        );
+
+        Map<String, Object> tokenData = response.getBody();
+
+        if (tokenData == null) {
+            throw new IllegalStateException("Resposta vazia do token do portal parceiro");
+        }
+
+        Object token = tokenData.get("accessToken");
+        if (token == null) token = tokenData.get("access_token");
+        if (token == null) token = tokenData.get("token");
+
+        if (token == null) {
+            throw new IllegalStateException(
+                    "Token não encontrado na resposta do portal. Campos: "
+                    + tokenData.keySet()
+            );
+        }
+
+        return (String) token;
+
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractItems(Object body) {
+
+        if (body instanceof List<?> list) {
+            return (List<Map<String, Object>>) list;
+        }
+
+        if (body instanceof Map<?, ?> map) {
+            Map<String, Object> m = (Map<String, Object>) map;
+            for (String key : new String[]{"content", "items", "data"}) {
+                if (m.get(key) instanceof List<?> l) {
+                    return (List<Map<String, Object>>) l;
+                }
+            }
+        }
+
+        return List.of();
+
+    }
+
+    private LocalDate parsePortalDate(String str) {
+
+        if (str == null || str.isBlank()) return null;
+
+        try {
+            String[] parts = str.split("/");
+            if (parts.length == 3) {
+                return LocalDate.of(
+                        Integer.parseInt(parts[2]),
+                        Integer.parseInt(parts[1]),
+                        Integer.parseInt(parts[0])
+                );
+            }
+        } catch (Exception ignored) {}
+
+        return null;
+
+    }
+
+    private String formatIsoDate(String str) {
+        LocalDate d = parsePortalDate(str);
+        return d != null ? d.toString() : null;
     }
 
     public PolicyResponse create(PolicyRequest req) {

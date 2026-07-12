@@ -46,7 +46,7 @@ public class PolicyController {
     public EtlPolicyResult fetchFromPortal(
             @RequestParam String plate
     ) {
-        return service.fetchFromEtl(plate);
+        return service.fetchFromPortal(plate);
     }
 
     @PostMapping
