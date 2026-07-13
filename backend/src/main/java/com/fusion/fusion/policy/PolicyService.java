@@ -385,7 +385,7 @@ public class PolicyService {
                     .vehicleBrand(req.vehicleBrand())
                     .bonus(req.bonus())
                     .statusDescricao(req.statusDescricao())
-                    .source(req.source() != null ? req.source() : PolicySource.PORTAL)
+                    .source(req.source() != null ? req.source() : PolicySource.ETL)
                     .build();
 
             return PolicyResponse.from(policyRepository.save(newPolicy));

@@ -21,7 +21,7 @@ public record PolicyResponse(
         LocalDateTime createdAt
 ) {
 
-    static PolicyStatus computeStatus(Policy p) {
+    public static PolicyStatus computeStatus(Policy p) {
         if (p.getStatus() == PolicyStatus.CANCELLED) {
             return PolicyStatus.CANCELLED;
         }
