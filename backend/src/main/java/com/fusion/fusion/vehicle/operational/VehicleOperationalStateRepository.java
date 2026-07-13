@@ -11,7 +11,7 @@ import java.util.Optional;
 public interface VehicleOperationalStateRepository
         extends JpaRepository<VehicleOperationalState, Long> {
 
-    Optional<VehicleOperationalState> findByVehicle(
+    Optional<VehicleOperationalState> findFirstByVehicle(
             Vehicle vehicle
     );
 

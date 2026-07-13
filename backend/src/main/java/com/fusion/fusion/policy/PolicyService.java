@@ -5,6 +5,7 @@ import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PolicyService {
@@ -197,12 +199,13 @@ public class PolicyService {
                 .toList();
 
         if (vigentes.isEmpty()) {
+            log.info("[POLICY] Nenhuma apólice vigente encontrada para placa={}", plate);
             return new EtlPolicyResult(false, null);
         }
 
         Map<String, Object> item = vigentes.get(0);
 
-        return new EtlPolicyResult(true, new EtlPolicyResult.EtlPolicyData(
+        EtlPolicyResult result = new EtlPolicyResult(true, new EtlPolicyResult.EtlPolicyData(
                 (String) item.get("numero_apolice"),
                 formatIsoDate((String) item.get("inicio_vigencia")),
                 formatIsoDate((String) item.get("fim_vigencia")),
@@ -213,6 +216,13 @@ public class PolicyService {
                 (String) item.get("veiculo_marca"),
                 item.get("bonus") != null ? ((Number) item.get("bonus")).intValue() : null
         ));
+
+        log.info("[POLICY] Dados retornados: startDate={}, endDate={}, policyNumber={}",
+                result.data() != null ? result.data().startDate() : null,
+                result.data() != null ? result.data().endDate() : null,
+                result.data() != null ? result.data().policyNumber() : null);
+
+        return result;
 
     }
 

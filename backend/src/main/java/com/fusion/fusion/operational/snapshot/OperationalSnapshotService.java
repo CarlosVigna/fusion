@@ -27,7 +27,7 @@ public class OperationalSnapshotService {
         refresh(
                 vehicle,
                 null,
-                repository.findByVehicle(vehicle)
+                repository.findFirstByVehicle(vehicle)
                         .orElse(null)
         );
 

@@ -130,7 +130,7 @@ public class TracknMeImportService {
 
                 Optional<VehicleOperationalState>
                         optionalOperational =
-                        operationalRepository.findByVehicle(
+                        operationalRepository.findFirstByVehicle(
                                 vehicle
                         );
 

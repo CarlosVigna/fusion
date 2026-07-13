@@ -39,7 +39,7 @@ public class VehicleDetailService {
                 ));
 
         OperationalSnapshot snapshot = snapshotRepository
-                .findByVehicle(vehicle)
+                .findFirstByVehicle(vehicle)
                 .orElse(null);
 
         DeviceLinkage activeLinkage = linkageRepository

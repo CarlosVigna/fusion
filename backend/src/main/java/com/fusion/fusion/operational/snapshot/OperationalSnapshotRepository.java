@@ -9,7 +9,7 @@ import java.util.Optional;
 public interface OperationalSnapshotRepository
         extends JpaRepository<OperationalSnapshot, Long> {
 
-    Optional<OperationalSnapshot> findByVehicle(
+    Optional<OperationalSnapshot> findFirstByVehicle(
             Vehicle vehicle
     );
 

@@ -82,7 +82,7 @@ public class MultiportalOperationalService {
 
             Optional<VehicleOperationalState>
                     optionalState =
-                    operationalRepository.findByVehicle(
+                    operationalRepository.findFirstByVehicle(
                             vehicle
                     );
 

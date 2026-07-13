@@ -32,7 +32,7 @@ public class VehicleOperationalProjectionService {
         return build(
                 vehicle,
                 operationalRepository
-                        .findByVehicle(vehicle)
+                        .findFirstByVehicle(vehicle)
                         .orElse(null)
         );
 
