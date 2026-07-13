@@ -11,7 +11,7 @@ public interface SignalReturnAlertRepository
 
     List<SignalReturnAlert> findByDismissedFalseOrderByDetectedAtDesc();
 
-    Optional<SignalReturnAlert> findByVehicleAndDismissedFalse(
+    Optional<SignalReturnAlert> findFirstByVehicleAndDismissedFalse(
             Vehicle vehicle
     );
 

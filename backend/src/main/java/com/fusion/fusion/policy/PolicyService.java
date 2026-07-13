@@ -187,6 +187,15 @@ public class PolicyService {
 
         List<Map<String, Object>> items = extractItems(response.getBody());
 
+        log.info("[POLICY] {} apólices encontradas para placa={}", items.size(), plate);
+        if (!items.isEmpty()) {
+            Map<String, Object> first = items.get(0);
+            log.info("[POLICY] Raw dates from portal: inicio_vigencia={}, fim_vigencia={}",
+                    first.get("inicio_vigencia"), first.get("fim_vigencia"));
+            log.info("[POLICY] status={}, status_descricao={}",
+                    first.get("status"), first.get("status_descricao"));
+        }
+
         List<Map<String, Object>> vigentes = items.stream()
                 .filter(i -> "Apólice vigente".equals(i.get("status_descricao")))
                 .sorted((a, b) -> {

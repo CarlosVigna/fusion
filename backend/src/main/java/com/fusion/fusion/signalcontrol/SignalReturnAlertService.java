@@ -58,7 +58,7 @@ public class SignalReturnAlertService {
             Integer previousDelayMinutes
     ) {
 
-        if (repository.findByVehicleAndDismissedFalse(vehicle)
+        if (repository.findFirstByVehicleAndDismissedFalse(vehicle)
                 .isPresent()) {
 
             return; // já existe um alerta ativo para esse veículo

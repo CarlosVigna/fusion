@@ -91,7 +91,7 @@ public class LetterRecordService {
         // Descarta alerta de retorno de sinal pendente para esse veiculo
         // para que o motor nao acumule alertas sem baixa.
         signalReturnAlertRepository
-                .findByVehicleAndDismissedFalse(record.getVehicle())
+                .findFirstByVehicleAndDismissedFalse(record.getVehicle())
                 .ifPresent(alert -> {
                     alert.setDismissed(true);
                     alert.setDismissedAt(LocalDateTime.now(ZoneOffset.UTC));

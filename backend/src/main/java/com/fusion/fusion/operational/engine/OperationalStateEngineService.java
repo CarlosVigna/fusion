@@ -110,10 +110,12 @@ public class OperationalStateEngineService {
             } catch (Exception e) {
 
                 log.error(
-                        "Erro ao processar estado operacional do veículo {}",
+                        "Erro ao processar estado operacional do veículo {} — {} : {}",
                         state.getVehicle() != null
                                 ? state.getVehicle().getPlate()
                                 : state.getId(),
+                        e.getClass().getSimpleName(),
+                        e.getMessage(),
                         e
                 );
 

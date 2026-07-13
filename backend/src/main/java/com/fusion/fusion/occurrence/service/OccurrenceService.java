@@ -21,7 +21,7 @@ public class OccurrenceService {
     ) {
 
         Optional<Occurrence> existing =
-                repository.findByAlert(alert);
+                repository.findFirstByAlert(alert);
 
         if (existing.isPresent()) {
             return;

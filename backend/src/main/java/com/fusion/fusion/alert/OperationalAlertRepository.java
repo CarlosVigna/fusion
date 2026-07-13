@@ -8,7 +8,7 @@ import java.util.Optional;
 public interface OperationalAlertRepository
         extends JpaRepository<OperationalAlert, Long> {
 
-    Optional<OperationalAlert> findByVehicleAndTypeAndStatus(
+    Optional<OperationalAlert> findFirstByVehicleAndTypeAndStatus(
             Vehicle vehicle,
             OperationalAlertType type,
             OperationalAlertStatus status

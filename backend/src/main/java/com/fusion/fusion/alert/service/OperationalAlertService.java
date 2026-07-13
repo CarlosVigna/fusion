@@ -47,7 +47,7 @@ public class OperationalAlertService {
     ) {
 
         Optional<OperationalAlert> existing =
-                repository.findByVehicleAndTypeAndStatus(
+                repository.findFirstByVehicleAndTypeAndStatus(
                         vehicle,
                         type,
                         OperationalAlertStatus.OPEN
@@ -103,7 +103,7 @@ public class OperationalAlertService {
     ) {
 
         Optional<OperationalAlert> existing =
-                repository.findByVehicleAndTypeAndStatus(
+                repository.findFirstByVehicleAndTypeAndStatus(
                         vehicle,
                         type,
                         OperationalAlertStatus.OPEN

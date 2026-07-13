@@ -9,7 +9,7 @@ import java.util.UUID;
 public interface OccurrenceRepository
         extends JpaRepository<Occurrence, UUID> {
 
-    Optional<Occurrence> findByAlert(
+    Optional<Occurrence> findFirstByAlert(
             OperationalAlert alert
     );
 
