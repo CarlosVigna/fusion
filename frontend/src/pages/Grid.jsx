@@ -145,6 +145,18 @@ const ALL_COLUMNS = [
         b.lastObservationText
       ),
   },
+  {
+    key: "policyStatus",
+    label: "Status Apólice",
+    optional: true,
+    sortValue: (v) => v.policyStatus ?? "",
+  },
+  {
+    key: "policyEndDate",
+    label: "Fim Vigência",
+    optional: true,
+    sortValue: (v) => v.policyEndDate ?? "",
+  },
 ];
 
 const OPTIONAL_COLUMNS = ALL_COLUMNS.filter(
@@ -160,6 +172,8 @@ const DEFAULT_VISIBLE_COLUMNS = {
   manufacturer: false,
   model: false,
   inMaintenance: false,
+  policyStatus: false,
+  policyEndDate: false,
 };
 
 const DEFAULT_COLUMN_ORDER = ALL_COLUMNS.map((c) => c.key);
@@ -322,6 +336,7 @@ export default function Grid() {
       status: "",
       operator: "",
       observation: "",
+      policyStatus: "",
     });
 
   const [visibleColumns, setVisibleColumns] =
@@ -644,13 +659,20 @@ export default function Grid() {
           ?.toLowerCase()
           .includes(columnFilters.observation.toLowerCase());
 
+      const matchesPolicyStatus =
+        !columnFilters.policyStatus ||
+        (columnFilters.policyStatus === "NO_POLICY"
+          ? !vehicle.policyStatus
+          : vehicle.policyStatus === columnFilters.policyStatus);
+
       return (
         matchesPlate &&
         matchesInsuredName &&
         matchesPlatform &&
         matchesStatus &&
         matchesOperator &&
-        matchesObservation
+        matchesObservation &&
+        matchesPolicyStatus
       );
 
     });
@@ -920,6 +942,49 @@ export default function Grid() {
           </button>
         );
 
+      case "policyStatus": {
+        const POLICY_STATUS_LABEL = {
+          ACTIVE: "Ativa",
+          EXPIRING: "Vencendo",
+          FUTURE: "Futura",
+          EXPIRED: "Vencida",
+          CANCELLED: "Cancelada",
+          SUPERSEDED: "Substituída",
+        };
+        const POLICY_STATUS_CLASS = {
+          ACTIVE: "bg-green-500/15 text-green-400",
+          EXPIRING: "bg-yellow-500/15 text-yellow-400",
+          FUTURE: "bg-blue-500/15 text-blue-400",
+          EXPIRED: "bg-red-500/15 text-red-400",
+          CANCELLED: "bg-zinc-700/40 text-zinc-400",
+          SUPERSEDED: "bg-zinc-700/40 text-zinc-400",
+        };
+        if (!vehicle.policyStatus) {
+          return <span className="text-zinc-500 text-xs">Sem apólice</span>;
+        }
+        return (
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              POLICY_STATUS_CLASS[vehicle.policyStatus] || "bg-zinc-700/40 text-zinc-400"
+            }`}
+          >
+            {POLICY_STATUS_LABEL[vehicle.policyStatus] || vehicle.policyStatus}
+          </span>
+        );
+      }
+
+      case "policyEndDate": {
+        if (!vehicle.policyEndDate) {
+          return <span className="text-zinc-500">--</span>;
+        }
+        const parts = vehicle.policyEndDate.split("-");
+        const d = new Date(vehicle.policyEndDate + "T00:00:00");
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const diff = Math.ceil((d - today) / 86400000);
+        const cls = diff < 0 ? "text-red-400" : diff <= 30 ? "text-yellow-400" : "text-green-400";
+        return <span className={cls}>{parts[2]}/{parts[1]}/{parts[0]}</span>;
+      }
+
       default:
         return null;
 
@@ -948,6 +1013,29 @@ export default function Grid() {
           <option value="STALE">STALE</option>
           <option value="LOW_BATTERY">LOW_BATTERY</option>
           <option value="MAINTENANCE">MAINTENANCE</option>
+        </select>
+      );
+    }
+
+    if (col.key === "policyStatus") {
+      return (
+        <select
+          value={columnFilters.policyStatus}
+          onChange={(e) =>
+            setColumnFilter("policyStatus", e.target.value)
+          }
+          className="
+            w-full rounded-lg border border-zinc-800
+            bg-zinc-900 px-2 py-1.5 text-xs
+            outline-none
+          "
+        >
+          <option value="">Todos</option>
+          <option value="ACTIVE">Ativa</option>
+          <option value="EXPIRING">Vencendo</option>
+          <option value="FUTURE">Futura</option>
+          <option value="EXPIRED">Vencida</option>
+          <option value="NO_POLICY">Sem apólice</option>
         </select>
       );
     }

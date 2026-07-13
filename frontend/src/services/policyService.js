@@ -40,6 +40,10 @@ export async function deletePolicy(id) {
   return apiClient.delete(`/policies/${id}`);
 }
 
+export async function getPolicyAlerts() {
+  return apiClient.get("/policies/alerts");
+}
+
 export async function getPolicyReport(type) {
   return apiClient.get(`/policies/report?type=${type}`);
 }

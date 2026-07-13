@@ -45,6 +45,11 @@ public class PolicyController {
         return service.getBadgeCounts();
     }
 
+    @GetMapping("/alerts")
+    public List<PolicyAlertResponse> getAlerts() {
+        return service.getAlerts();
+    }
+
     @PostMapping("/fetch")
     public EtlPolicyResult fetchFromPortal(
             @RequestParam String plate

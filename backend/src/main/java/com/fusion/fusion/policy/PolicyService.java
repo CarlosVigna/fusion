@@ -201,7 +201,6 @@ public class PolicyService {
         }
 
         List<Map<String, Object>> vigentes = items.stream()
-                .filter(i -> "Apólice vigente".equals(i.get("status_descricao")))
                 .sorted((a, b) -> {
                     LocalDate da = parsePortalDate((String) a.get("fim_vigencia"));
                     LocalDate db = parsePortalDate((String) b.get("fim_vigencia"));
@@ -212,7 +211,7 @@ public class PolicyService {
                 .toList();
 
         if (vigentes.isEmpty()) {
-            log.info("[POLICY] Nenhuma apólice vigente encontrada para placa={}", plate);
+            log.info("[POLICY] Nenhuma apólice encontrada para placa={}", plate);
             return new EtlPolicyResult(false, null);
         }
 
@@ -356,26 +355,57 @@ public class PolicyService {
 
     public PolicyResponse update(Long id, PolicyRequest req) {
 
-        Policy policy = policyRepository.findById(id)
+        Policy existing = policyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Apólice não encontrada"
                 ));
 
-        policy.setPolicyNumber(req.policyNumber());
-        policy.setStartDate(req.startDate());
-        policy.setEndDate(req.endDate());
-        policy.setInsuredName(req.insuredName());
-        policy.setCpfCnpj(req.cpfCnpj());
-        policy.setVehicleModel(req.vehicleModel());
-        policy.setVehicleBrand(req.vehicleBrand());
-        policy.setBonus(req.bonus());
-        policy.setStatusDescricao(req.statusDescricao());
+        boolean cancelled = req.status() == PolicyStatus.CANCELLED;
+        PolicyStatus existingStatus = existing.getStatus();
+        boolean keyChanged = !cancelled
+                && existingStatus != PolicyStatus.SUPERSEDED
+                && existingStatus != PolicyStatus.CANCELLED
+                && (!Objects.equals(existing.getPolicyNumber(), req.policyNumber())
+                        || !Objects.equals(existing.getEndDate(), req.endDate()));
 
-        if (req.status() == PolicyStatus.CANCELLED) {
-            policy.setStatus(PolicyStatus.CANCELLED);
+        if (keyChanged) {
+            existing.setStatus(PolicyStatus.SUPERSEDED);
+            policyRepository.save(existing);
+
+            Policy newPolicy = Policy.builder()
+                    .vehicle(existing.getVehicle())
+                    .plate(existing.getPlate())
+                    .policyNumber(req.policyNumber())
+                    .startDate(req.startDate())
+                    .endDate(req.endDate())
+                    .status(PolicyStatus.ACTIVE)
+                    .insuredName(req.insuredName())
+                    .cpfCnpj(req.cpfCnpj())
+                    .vehicleModel(req.vehicleModel())
+                    .vehicleBrand(req.vehicleBrand())
+                    .bonus(req.bonus())
+                    .statusDescricao(req.statusDescricao())
+                    .source(req.source() != null ? req.source() : PolicySource.PORTAL)
+                    .build();
+
+            return PolicyResponse.from(policyRepository.save(newPolicy));
         }
 
-        return PolicyResponse.from(policyRepository.save(policy));
+        existing.setPolicyNumber(req.policyNumber());
+        existing.setStartDate(req.startDate());
+        existing.setEndDate(req.endDate());
+        existing.setInsuredName(req.insuredName());
+        existing.setCpfCnpj(req.cpfCnpj());
+        existing.setVehicleModel(req.vehicleModel());
+        existing.setVehicleBrand(req.vehicleBrand());
+        existing.setBonus(req.bonus());
+        existing.setStatusDescricao(req.statusDescricao());
+
+        if (cancelled) {
+            existing.setStatus(PolicyStatus.CANCELLED);
+        }
+
+        return PolicyResponse.from(policyRepository.save(existing));
 
     }
 
@@ -387,6 +417,37 @@ public class PolicyService {
                 ));
 
         policyRepository.delete(policy);
+
+    }
+
+    public List<PolicyAlertResponse> getAlerts() {
+
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate limit = today.plusDays(30);
+
+        return policyRepository.findAll().stream()
+                .filter(p -> {
+                    PolicyStatus s = PolicyResponse.computeStatus(p);
+                    if (s == PolicyStatus.EXPIRED) return true;
+                    return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
+                            && p.getEndDate() != null
+                            && !p.getEndDate().isAfter(limit);
+                })
+                .sorted(Comparator.comparing(
+                        p -> p.getEndDate() != null ? p.getEndDate() : LocalDate.MAX
+                ))
+                .map(p -> {
+                    PolicyStatus s = PolicyResponse.computeStatus(p);
+                    Integer days = p.getEndDate() != null
+                            ? (int) (p.getEndDate().toEpochDay() - today.toEpochDay())
+                            : null;
+                    String alertType = s == PolicyStatus.EXPIRED ? "EXPIRED" : "EXPIRING";
+                    return new PolicyAlertResponse(
+                            p.getId(), p.getPlate(), p.getInsuredName(),
+                            p.getPolicyNumber(), p.getEndDate(), alertType, days
+                    );
+                })
+                .toList();
 
     }
 

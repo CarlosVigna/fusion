@@ -9,6 +9,10 @@ import com.fusion.fusion.observation.VehicleObservation;
 import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
+import com.fusion.fusion.policy.Policy;
+import com.fusion.fusion.policy.PolicyRepository;
+import com.fusion.fusion.policy.PolicyResponse;
+import com.fusion.fusion.policy.PolicyStatus;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -50,6 +54,8 @@ public class SignalControlService {
     private final LetterRecordRepository letterRecordRepository;
 
     private final MaintenanceRecordRepository maintenanceRecordRepository;
+
+    private final PolicyRepository policyRepository;
 
     public List<SignalControlResponse> findAll(boolean includeKako) {
 
@@ -146,6 +152,8 @@ public class SignalControlService {
 
         }
 
+        Map<String, Policy> activePolicyByPlate = buildActivePolicyByPlate();
+
         List<SignalControlResponse> result = new ArrayList<>();
 
         for (Vehicle vehicle : vehicleRepository.findAll()) {
@@ -197,6 +205,10 @@ public class SignalControlService {
             SignalReturnAlert activeAlert =
                     activeAlertByVehicleId.get(vehicle.getId());
 
+            Policy activePolicy = activePolicyByPlate.get(
+                    vehicle.getPlate().toUpperCase()
+            );
+
             result.add(
                     build(
                             vehicle,
@@ -207,7 +219,8 @@ public class SignalControlService {
                             lastObservation,
                             activeLetter != null ? activeLetter.getId() : null,
                             openMaintenance != null ? openMaintenance.getId() : null,
-                            activeAlert != null ? activeAlert.getId() : null
+                            activeAlert != null ? activeAlert.getId() : null,
+                            activePolicy
                     )
             );
 
@@ -224,6 +237,38 @@ public class SignalControlService {
 
     }
 
+    private Map<String, Policy> buildActivePolicyByPlate() {
+
+        Map<String, Policy> result = new HashMap<>();
+
+        for (Policy policy : policyRepository.findAll()) {
+
+            if (policy.getPlate() == null) continue;
+
+            String plate = policy.getPlate().toUpperCase();
+            PolicyStatus s = PolicyResponse.computeStatus(policy);
+            Policy existing = result.get(plate);
+
+            if (existing == null) {
+                result.put(plate, policy);
+            } else {
+                PolicyStatus es = PolicyResponse.computeStatus(existing);
+                boolean newGood = s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING || s == PolicyStatus.FUTURE;
+                boolean existGood = es == PolicyStatus.ACTIVE || es == PolicyStatus.EXPIRING || es == PolicyStatus.FUTURE;
+                if (newGood && !existGood) {
+                    result.put(plate, policy);
+                } else if (newGood && policy.getEndDate() != null
+                        && (existing.getEndDate() == null || policy.getEndDate().isAfter(existing.getEndDate()))) {
+                    result.put(plate, policy);
+                }
+            }
+
+        }
+
+        return result;
+
+    }
+
     private SignalControlResponse build(
             Vehicle vehicle,
             VehicleOperationalState state,
@@ -233,7 +278,8 @@ public class SignalControlService {
             VehicleObservation lastObservation,
             Long activeLetterId,
             Long openMaintenanceId,
-            Long signalReturnAlertId
+            Long signalReturnAlertId,
+            Policy activePolicy
     ) {
 
         SignalControlResponse.ObservationSummary observationSummary =
@@ -288,7 +334,11 @@ public class SignalControlService {
 
                 openMaintenanceId,
 
-                signalReturnAlertId
+                signalReturnAlertId,
+
+                activePolicy != null ? activePolicy.getEndDate() : null,
+
+                activePolicy != null ? activePolicy.getStatusDescricao() : null
 
         );
 

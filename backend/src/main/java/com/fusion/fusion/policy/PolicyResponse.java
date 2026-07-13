@@ -25,6 +25,9 @@ public record PolicyResponse(
         if (p.getStatus() == PolicyStatus.CANCELLED) {
             return PolicyStatus.CANCELLED;
         }
+        if (p.getStatus() == PolicyStatus.SUPERSEDED) {
+            return PolicyStatus.SUPERSEDED;
+        }
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         if (p.getEndDate() != null && p.getEndDate().isBefore(today)) {
             return PolicyStatus.EXPIRED;

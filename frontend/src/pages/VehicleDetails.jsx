@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import {
   Battery,
   Check,
+  FileText,
   Mail,
   Pencil,
   Printer,
@@ -28,6 +29,8 @@ import {
   checkObservation,
   getObservationHistory,
 } from "../services/observationService";
+
+import { getPolicies } from "../services/policyService";
 
 import { formatDelay } from "../utils/formatDelay";
 
@@ -144,6 +147,9 @@ export default function VehicleDetails() {
   const [observationHistory, setObservationHistory] =
     useState([]);
 
+  const [vehiclePolicies, setVehiclePolicies] =
+    useState([]);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -159,14 +165,17 @@ export default function VehicleDetails() {
 
     try {
 
-      const [detailData, historyData] = await Promise.all([
+      const [detailData, historyData, policiesData] = await Promise.all([
         getVehicleDetail(plate),
         getObservationHistory(plate),
+        getPolicies({ plate }),
       ]);
 
       setDetail(detailData);
 
       setObservationHistory(historyData);
+
+      setVehiclePolicies(Array.isArray(policiesData) ? policiesData : []);
 
     } catch (error) {
 
@@ -242,6 +251,28 @@ export default function VehicleDetails() {
 
   const lastObservation = observationHistory[0];
 
+  const currentPolicy = vehiclePolicies.find(
+    (p) => p.status === "ACTIVE" || p.status === "EXPIRING" || p.status === "FUTURE"
+  );
+
+  const POLICY_STATUS_LABEL = {
+    ACTIVE: "Ativa",
+    EXPIRING: "Vencendo",
+    FUTURE: "Futura",
+    EXPIRED: "Vencida",
+    CANCELLED: "Cancelada",
+    SUPERSEDED: "Substituída",
+  };
+
+  const POLICY_STATUS_CLASS = {
+    ACTIVE: "bg-green-500/15 text-green-400",
+    EXPIRING: "bg-yellow-500/15 text-yellow-400",
+    FUTURE: "bg-blue-500/15 text-blue-400",
+    EXPIRED: "bg-red-500/15 text-red-400",
+    CANCELLED: "bg-zinc-700/40 text-zinc-400",
+    SUPERSEDED: "bg-zinc-700/40 text-zinc-400",
+  };
+
   return (
     <div className="space-y-6 print:text-black">
 
@@ -292,6 +323,23 @@ export default function VehicleDetails() {
             </button>
 
             <StatusBadge status={detail.status} />
+
+            {currentPolicy && (
+              <span
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
+                  POLICY_STATUS_CLASS[currentPolicy.status] || "bg-zinc-700/40 text-zinc-400"
+                }`}
+              >
+                Apólice {POLICY_STATUS_LABEL[currentPolicy.status] || currentPolicy.status}
+                {currentPolicy.endDate && ` — ${formatLocalDate(currentPolicy.endDate)}`}
+              </span>
+            )}
+
+            {!currentPolicy && vehiclePolicies.length === 0 && (
+              <span className="rounded-full bg-zinc-700/40 px-3 py-1.5 text-xs font-semibold text-zinc-400">
+                Sem apólice
+              </span>
+            )}
 
           </div>
 
@@ -613,6 +661,68 @@ export default function VehicleDetails() {
             </div>
 
           )}
+
+        </div>
+
+      )}
+
+      {vehiclePolicies.length > 0 && (
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
+            <FileText size={16} className="text-zinc-500" />
+            Histórico de apólices
+          </h2>
+
+          <ul className="max-h-64 space-y-2 overflow-y-auto pr-1">
+
+            {[...vehiclePolicies]
+              .sort((a, b) => {
+                if (!a.endDate) return 1;
+                if (!b.endDate) return -1;
+                return b.endDate.localeCompare(a.endDate);
+              })
+              .map((policy) => (
+
+              <li
+                key={policy.id}
+                className="rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-sm"
+              >
+
+                <div className="flex items-center justify-between gap-2">
+
+                  <span className="font-mono text-zinc-300">
+                    {policy.policyNumber || "Nº não informado"}
+                  </span>
+
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      POLICY_STATUS_CLASS[policy.status] || "bg-zinc-700/40 text-zinc-400"
+                    }`}
+                  >
+                    {POLICY_STATUS_LABEL[policy.status] || policy.status}
+                  </span>
+
+                </div>
+
+                <div className="mt-1 flex flex-wrap gap-3 text-xs text-zinc-500">
+                  {policy.startDate && (
+                    <span>Início: {formatLocalDate(policy.startDate)}</span>
+                  )}
+                  {policy.endDate && (
+                    <span>Fim: {formatLocalDate(policy.endDate)}</span>
+                  )}
+                  {policy.statusDescricao && (
+                    <span className="text-zinc-400">{policy.statusDescricao}</span>
+                  )}
+                </div>
+
+              </li>
+
+            ))}
+
+          </ul>
 
         </div>
 

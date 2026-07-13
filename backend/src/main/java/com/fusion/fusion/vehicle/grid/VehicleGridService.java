@@ -4,6 +4,10 @@ import com.fusion.fusion.observation.VehicleObservation;
 import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
+import com.fusion.fusion.policy.Policy;
+import com.fusion.fusion.policy.PolicyRepository;
+import com.fusion.fusion.policy.PolicyResponse;
+import com.fusion.fusion.policy.PolicyStatus;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -30,6 +34,8 @@ public class VehicleGridService {
 
     private final VehicleObservationService
             observationService;
+
+    private final PolicyRepository policyRepository;
 
     public List<GridVehicleResponse> getGrid(boolean includeKako) {
 
@@ -91,14 +97,49 @@ public class VehicleGridService {
         Map<UUID, VehicleObservation> latestObservationByVehicleId =
                 observationService.findLatestByVehicleId();
 
+        Map<String, Policy> activePolicyByPlate = buildActivePolicyByPlate();
+
         return vehicles.stream()
                 .map(vehicle -> buildGridResponse(
                         vehicle,
                         snapshotsByVehicleId.get(vehicle.getId()),
                         activeLinkageByVehicleId.get(vehicle.getId()),
-                        latestObservationByVehicleId.get(vehicle.getId())
+                        latestObservationByVehicleId.get(vehicle.getId()),
+                        activePolicyByPlate.get(vehicle.getPlate().toUpperCase())
                 ))
                 .toList();
+
+    }
+
+    private Map<String, Policy> buildActivePolicyByPlate() {
+
+        Map<String, Policy> result = new HashMap<>();
+
+        for (Policy policy : policyRepository.findAll()) {
+
+            if (policy.getPlate() == null) continue;
+
+            String plate = policy.getPlate().toUpperCase();
+            PolicyStatus s = PolicyResponse.computeStatus(policy);
+            Policy existing = result.get(plate);
+
+            if (existing == null) {
+                result.put(plate, policy);
+            } else {
+                PolicyStatus es = PolicyResponse.computeStatus(existing);
+                boolean newGood = s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING || s == PolicyStatus.FUTURE;
+                boolean existGood = es == PolicyStatus.ACTIVE || es == PolicyStatus.EXPIRING || es == PolicyStatus.FUTURE;
+                if (newGood && !existGood) {
+                    result.put(plate, policy);
+                } else if (newGood && policy.getEndDate() != null
+                        && (existing.getEndDate() == null || policy.getEndDate().isAfter(existing.getEndDate()))) {
+                    result.put(plate, policy);
+                }
+            }
+
+        }
+
+        return result;
 
     }
 
@@ -106,7 +147,8 @@ public class VehicleGridService {
             Vehicle vehicle,
             OperationalSnapshot snapshot,
             DeviceLinkage activeLinkage,
-            VehicleObservation lastObservation
+            VehicleObservation lastObservation,
+            Policy activePolicy
     ) {
 
         String activeDevice = null;
@@ -204,7 +246,11 @@ public class VehicleGridService {
                         ? lastObservation.getCreatedAt()
                         : null,
 
-                vehicle.getVehicleGroup()
+                vehicle.getVehicleGroup(),
+
+                activePolicy != null ? activePolicy.getEndDate() : null,
+
+                activePolicy != null ? PolicyResponse.computeStatus(activePolicy).name() : null
 
         );
 

@@ -12,6 +12,8 @@ import { getActiveSignalReturnAlerts } from "../services/signalReturnAlertServic
 
 import { getOverdueMaintenanceRecords } from "../services/maintenanceService";
 
+import { getPolicyAlerts } from "../services/policyService";
+
 import { formatLocalDateTime } from "../utils/dateUtils";
 
 import { formatDelay } from "../utils/formatDelay";
@@ -42,6 +44,8 @@ export default function Home() {
 
   const [overdueMaintenances, setOverdueMaintenances] = useState([]);
 
+  const [policyAlerts, setPolicyAlerts] = useState([]);
+
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -50,12 +54,13 @@ export default function Home() {
 
       try {
 
-        const [dash, instCount, etl, alerts, maintenances] = await Promise.all([
+        const [dash, instCount, etl, alerts, maintenances, polAlerts] = await Promise.all([
           getDashboard(),
           getInstallationsPendingCount(),
           getEtlStatus(),
           getActiveSignalReturnAlerts(),
           getOverdueMaintenanceRecords(),
+          getPolicyAlerts(),
         ]);
 
         setDashboard(dash);
@@ -63,6 +68,7 @@ export default function Home() {
         setEtlStatus(Array.isArray(etl) ? etl : []);
         setSignalAlerts(alerts || []);
         setOverdueMaintenances(maintenances || []);
+        setPolicyAlerts(Array.isArray(polAlerts) ? polAlerts : []);
 
       } catch (error) {
 
@@ -160,7 +166,7 @@ export default function Home() {
       </div>
 
       {/* Alertas recentes */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
 
         {/* Retorno de sinal */}
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
@@ -232,6 +238,55 @@ export default function Home() {
                   </div>
                   {m.insuredName && (
                     <p className="mt-0.5 text-xs text-zinc-400">{m.insuredName}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+        </div>
+
+        {/* Apólices em alerta */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+
+          <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-3">
+            <p className="text-sm font-semibold">Apólices — vencidas / a vencer</p>
+            <Link
+              to="/policies"
+              className="text-xs text-zinc-400 transition hover:text-white"
+            >
+              Ver Apólices →
+            </Link>
+          </div>
+
+          {loading ? (
+            <LoadingSkeleton />
+          ) : policyAlerts.length === 0 ? (
+            <p className="px-5 py-8 text-center text-sm text-zinc-500">
+              Nenhuma apólice em alerta
+            </p>
+          ) : (
+            <div className="divide-y divide-zinc-800">
+              {policyAlerts.slice(0, 5).map((alert) => (
+                <div key={alert.id} className="px-5 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-mono text-sm font-semibold">{alert.plate}</p>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        alert.alertType === "EXPIRED"
+                          ? "bg-red-500/15 text-red-400"
+                          : "bg-yellow-500/15 text-yellow-400"
+                      }`}
+                    >
+                      {alert.alertType === "EXPIRED"
+                        ? "Vencida"
+                        : alert.daysRemaining === 0
+                          ? "Vence hoje"
+                          : `${alert.daysRemaining}d`}
+                    </span>
+                  </div>
+                  {alert.insuredName && (
+                    <p className="mt-0.5 text-xs text-zinc-400">{alert.insuredName}</p>
                   )}
                 </div>
               ))}

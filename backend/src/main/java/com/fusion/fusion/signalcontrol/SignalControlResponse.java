@@ -3,6 +3,7 @@ package com.fusion.fusion.signalcontrol;
 import com.fusion.fusion.vehicle.OperationalStatus;
 import com.fusion.fusion.vehicle.VehiclePlatform;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record SignalControlResponse(
@@ -31,7 +32,11 @@ public record SignalControlResponse(
 
         Long openMaintenanceId,
 
-        Long signalReturnAlertId
+        Long signalReturnAlertId,
+
+        LocalDate policyEndDate,
+
+        String policyStatusDescricao
 
 ) {
 

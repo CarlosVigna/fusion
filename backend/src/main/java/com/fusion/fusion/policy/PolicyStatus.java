@@ -5,5 +5,6 @@ public enum PolicyStatus {
     FUTURE,
     EXPIRING,
     EXPIRED,
-    CANCELLED
+    CANCELLED,
+    SUPERSEDED
 }

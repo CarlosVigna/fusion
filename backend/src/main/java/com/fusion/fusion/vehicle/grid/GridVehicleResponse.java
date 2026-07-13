@@ -5,6 +5,7 @@ import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -52,7 +53,11 @@ public record GridVehicleResponse(
 
         LocalDateTime lastObservationAt,
 
-        VehicleGroup vehicleGroup
+        VehicleGroup vehicleGroup,
+
+        LocalDate policyEndDate,
+
+        String policyStatus
 
 ) {
 }

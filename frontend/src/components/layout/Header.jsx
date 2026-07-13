@@ -13,6 +13,8 @@ import {
   getActiveSignalReturnAlerts,
 } from "../../services/signalReturnAlertService";
 
+import { getPolicyAlerts } from "../../services/policyService";
+
 import { formatDelay } from "../../utils/formatDelay";
 
 const POLL_INTERVAL_MS = 60000;
@@ -71,6 +73,9 @@ export default function Header() {
   const [alerts, setAlerts] =
     useState([]);
 
+  const [policyAlerts, setPolicyAlerts] =
+    useState([]);
+
   const [alertsOpen, setAlertsOpen] =
     useState(false);
 
@@ -86,9 +91,13 @@ export default function Header() {
 
     try {
 
-      const data = await getActiveSignalReturnAlerts();
+      const [signalData, polData] = await Promise.all([
+        getActiveSignalReturnAlerts(),
+        getPolicyAlerts(),
+      ]);
 
-      setAlerts(data);
+      setAlerts(signalData || []);
+      setPolicyAlerts(Array.isArray(polData) ? polData : []);
 
     } catch (error) {
 
@@ -249,7 +258,7 @@ export default function Header() {
           >
             <Bell size={18} />
 
-            {alerts.length > 0 && (
+            {(alerts.length + policyAlerts.length) > 0 && (
               <span
                 className="
                   absolute -right-1 -top-1
@@ -258,7 +267,7 @@ export default function Header() {
                   text-xs font-bold text-white
                 "
               >
-                {alerts.length}
+                {alerts.length + policyAlerts.length}
               </span>
             )}
           </button>
@@ -273,6 +282,41 @@ export default function Header() {
                 bg-zinc-950 p-3 shadow-xl
               "
             >
+
+              {policyAlerts.length > 0 && (
+                <div className="mb-2">
+                  <p className="mb-1 px-2 text-xs font-semibold text-zinc-500">
+                    APÓLICES
+                  </p>
+                  <div className="space-y-1">
+                    {policyAlerts.slice(0, 5).map((pa) => (
+                      <div
+                        key={pa.id}
+                        className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono font-semibold">{pa.plate}</span>
+                          <span
+                            className={`text-xs font-semibold ${
+                              pa.alertType === "EXPIRED" ? "text-red-400" : "text-yellow-400"
+                            }`}
+                          >
+                            {pa.alertType === "EXPIRED"
+                              ? "Vencida"
+                              : pa.daysRemaining === 0
+                                ? "Hoje"
+                                : `${pa.daysRemaining}d`}
+                          </span>
+                        </div>
+                        {pa.insuredName && (
+                          <p className="text-xs text-zinc-400">{pa.insuredName}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="my-2 border-t border-zinc-800" />
+                </div>
+              )}
 
               <div className="flex items-center justify-between px-2 py-1">
 
@@ -296,13 +340,13 @@ export default function Header() {
 
               </div>
 
-              {alerts.length === 0 ? (
+              {alerts.length === 0 && policyAlerts.length === 0 ? (
 
                 <p className="px-2 py-4 text-center text-sm text-zinc-500">
                   Nenhum alerta ativo
                 </p>
 
-              ) : (
+              ) : alerts.length === 0 ? null : (
 
                 <div className="space-y-2">
 

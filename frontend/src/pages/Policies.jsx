@@ -86,6 +86,7 @@ const STATUS_LABEL = {
   FUTURE: "Futura",
   EXPIRED: "Vencida",
   CANCELLED: "Cancelada",
+  SUPERSEDED: "Substituída",
 };
 
 const STATUS_CLASS = {
@@ -94,6 +95,7 @@ const STATUS_CLASS = {
   FUTURE: "bg-blue-500/15 text-blue-400",
   EXPIRED: "bg-red-500/15 text-red-400",
   CANCELLED: "bg-zinc-700/40 text-zinc-400",
+  SUPERSEDED: "bg-zinc-700/40 text-zinc-400",
 };
 
 function StatusBadge({ status }) {
@@ -244,7 +246,9 @@ export default function Policies() {
   );
 
   const historyPolicies = useMemo(
-    () => policies.filter((p) => p.status === "EXPIRED" || p.status === "CANCELLED"),
+    () => policies.filter(
+      (p) => p.status === "EXPIRED" || p.status === "CANCELLED" || p.status === "SUPERSEDED"
+    ),
     [policies]
   );
 

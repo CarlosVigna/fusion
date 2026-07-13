@@ -389,6 +389,8 @@ export default function SignalControl() {
       "LINHA",
       "ULTIMA ATUALIZAÇÃO",
       "TEMPO ATRASADO",
+      "FIM VIGÊNCIA",
+      "STATUS APÓLICE",
       "OBS",
     ];
 
@@ -398,6 +400,10 @@ export default function SignalControl() {
       vehicle.lineNumber || "SEM LINHA",
       formatDateTimeForExport(vehicle.lastCommunicationAt),
       formatDelayDaysHours(vehicle.signalDelayMinutes),
+      vehicle.policyEndDate
+        ? vehicle.policyEndDate.split("-").reverse().join("/")
+        : "S/A",
+      vehicle.policyStatusDescricao || "S/A",
       vehicle.lastObservation?.text || "",
     ]);
 
@@ -663,6 +669,8 @@ export default function SignalControl() {
                 <th className="px-4 py-4">Segurado</th>
                 <th className="px-4 py-4">Última comunicação</th>
                 <th className="px-4 py-4">Atraso</th>
+                <th className="px-4 py-4">Fim Vigência</th>
+                <th className="px-4 py-4">Status Apólice</th>
                 <th className="px-4 py-4">Última observação</th>
                 <th className="px-4 py-4">Conferido</th>
                 <th className="px-4 py-4">Ações</th>
@@ -674,7 +682,7 @@ export default function SignalControl() {
               {loading ? (
 
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-zinc-500">
+                  <td colSpan={10} className="px-6 py-10 text-center text-zinc-500">
                     Carregando...
                   </td>
                 </tr>
@@ -682,7 +690,7 @@ export default function SignalControl() {
               ) : filteredVehicles.length === 0 ? (
 
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-zinc-500">
+                  <td colSpan={10} className="px-6 py-10 text-center text-zinc-500">
                     Nenhum veículo nessas condições
                   </td>
                 </tr>
@@ -725,6 +733,21 @@ export default function SignalControl() {
                         })()}
                       >
                         {formatDelay(calculateDelayMinutes(vehicle.lastCommunicationAt))}
+                      </td>
+
+                      <td className="px-4 py-4 text-sm">
+                        {vehicle.policyEndDate ? (() => {
+                          const parts = vehicle.policyEndDate.split("-");
+                          const d = new Date(vehicle.policyEndDate + "T00:00:00");
+                          const today = new Date(); today.setHours(0,0,0,0);
+                          const diff = Math.ceil((d - today) / 86400000);
+                          const cls = diff < 0 ? "text-red-400" : diff <= 30 ? "text-yellow-400" : "text-green-400";
+                          return <span className={cls}>{parts[2]}/{parts[1]}/{parts[0]}</span>;
+                        })() : <span className="text-zinc-500">--</span>}
+                      </td>
+
+                      <td className="px-4 py-4 text-sm text-zinc-400">
+                        {vehicle.policyStatusDescricao || "--"}
                       </td>
 
                       <td className="max-w-xs truncate px-4 py-4 text-zinc-400">
