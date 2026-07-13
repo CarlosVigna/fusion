@@ -16,6 +16,7 @@ public record PolicyResponse(
         String vehicleModel,
         String vehicleBrand,
         Integer bonus,
+        String statusDescricao,
         PolicySource source,
         LocalDateTime createdAt
 ) {
@@ -50,6 +51,7 @@ public record PolicyResponse(
                 p.getVehicleModel(),
                 p.getVehicleBrand(),
                 p.getBonus(),
+                p.getStatusDescricao(),
                 p.getSource(),
                 p.getCreatedAt()
         );

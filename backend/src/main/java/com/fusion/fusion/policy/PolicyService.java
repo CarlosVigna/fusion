@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
 
 @Slf4j
 @Service
@@ -223,7 +224,8 @@ public class PolicyService {
                 (String) item.get("placa"),
                 (String) item.get("veiculo_modelo"),
                 (String) item.get("veiculo_marca"),
-                item.get("bonus") != null ? ((Number) item.get("bonus")).intValue() : null
+                item.get("bonus") != null ? ((Number) item.get("bonus")).intValue() : null,
+                (String) item.get("status_descricao")
         ));
 
         log.info("[POLICY] Dados retornados: startDate={}, endDate={}, policyNumber={}",
@@ -341,6 +343,7 @@ public class PolicyService {
                 .vehicleModel(req.vehicleModel())
                 .vehicleBrand(req.vehicleBrand())
                 .bonus(req.bonus())
+                .statusDescricao(req.statusDescricao())
                 .source(req.source() != null ? req.source() : PolicySource.MANUAL)
                 .build();
 
@@ -363,6 +366,7 @@ public class PolicyService {
         policy.setVehicleModel(req.vehicleModel());
         policy.setVehicleBrand(req.vehicleBrand());
         policy.setBonus(req.bonus());
+        policy.setStatusDescricao(req.statusDescricao());
 
         if (req.status() == PolicyStatus.CANCELLED) {
             policy.setStatus(PolicyStatus.CANCELLED);
@@ -380,6 +384,154 @@ public class PolicyService {
                 ));
 
         policyRepository.delete(policy);
+
+    }
+
+    public List<PolicyReportRow> getReport(String typeStr) {
+
+        PolicyReportType type = PolicyReportType.valueOf(typeStr);
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        if (type == PolicyReportType.NO_POLICY) {
+            Set<String> platesWithActive = policyRepository.findAll().stream()
+                    .filter(p -> {
+                        PolicyStatus s = PolicyResponse.computeStatus(p);
+                        return s == PolicyStatus.ACTIVE
+                                || s == PolicyStatus.FUTURE
+                                || s == PolicyStatus.EXPIRING;
+                    })
+                    .map(Policy::getPlate)
+                    .filter(Objects::nonNull)
+                    .map(String::toUpperCase)
+                    .collect(Collectors.toSet());
+
+            return vehicleRepository.findAll().stream()
+                    .filter(v -> v.getDeletedAt() == null
+                            && !platesWithActive.contains(v.getPlate().toUpperCase()))
+                    .map(v -> new PolicyReportRow(
+                            v.getPlate(),
+                            v.getInsuredName(),
+                            null,
+                            null,
+                            null,
+                            "SEM_APOLICE"
+                    ))
+                    .sorted(Comparator.comparing(PolicyReportRow::plate, String.CASE_INSENSITIVE_ORDER))
+                    .toList();
+        }
+
+        return policyRepository.findAll().stream()
+                .filter(p -> matchesReportType(p, type, today))
+                .sorted(Comparator.comparing(
+                        p -> p.getEndDate() != null ? p.getEndDate() : LocalDate.MAX
+                ))
+                .map(p -> toReportRow(p, today))
+                .toList();
+
+    }
+
+    private boolean matchesReportType(Policy p, PolicyReportType type, LocalDate today) {
+        LocalDate end = p.getEndDate();
+        PolicyStatus s = PolicyResponse.computeStatus(p);
+        return switch (type) {
+            case EXPIRING_TODAY -> end != null && end.isEqual(today)
+                    && s != PolicyStatus.CANCELLED;
+            case EXPIRING_WEEK -> end != null && !end.isBefore(today)
+                    && !end.isAfter(today.plusDays(7))
+                    && s != PolicyStatus.CANCELLED;
+            case EXPIRING_MONTH -> end != null && !end.isBefore(today)
+                    && !end.isAfter(today.plusDays(30))
+                    && s != PolicyStatus.CANCELLED;
+            case EXPIRED -> s == PolicyStatus.EXPIRED;
+            default -> false;
+        };
+    }
+
+    private PolicyReportRow toReportRow(Policy p, LocalDate today) {
+        Integer days = p.getEndDate() != null
+                ? (int) (p.getEndDate().toEpochDay() - today.toEpochDay())
+                : null;
+        return new PolicyReportRow(
+                p.getPlate(),
+                p.getInsuredName(),
+                p.getPolicyNumber(),
+                p.getEndDate(),
+                days,
+                PolicyResponse.computeStatus(p).name()
+        );
+    }
+
+    public PolicyVerifyResult verifyAll() {
+
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        Map<String, Policy> activePoliciesByPlate = policyRepository.findAll().stream()
+                .filter(p -> {
+                    PolicyStatus s = PolicyResponse.computeStatus(p);
+                    return s == PolicyStatus.ACTIVE
+                            || s == PolicyStatus.EXPIRING
+                            || s == PolicyStatus.FUTURE;
+                })
+                .collect(Collectors.toMap(
+                        p -> p.getPlate().toUpperCase(),
+                        p -> p,
+                        (a, b) -> {
+                            if (a.getEndDate() == null) return b;
+                            if (b.getEndDate() == null) return a;
+                            return a.getEndDate().isAfter(b.getEndDate()) ? a : b;
+                        }
+                ));
+
+        List<PolicyVerifyResult.PolicyVerifyEntry> correct   = new ArrayList<>();
+        List<PolicyVerifyResult.PolicyVerifyEntry> divergent = new ArrayList<>();
+        List<PolicyVerifyResult.PolicyVerifyEntry> notFound  = new ArrayList<>();
+
+        for (Map.Entry<String, Policy> entry : activePoliciesByPlate.entrySet()) {
+
+            String plate  = entry.getKey();
+            Policy policy = entry.getValue();
+
+            try {
+
+                EtlPolicyResult portalResult = fetchFromPortal(plate);
+
+                if (!portalResult.found() || portalResult.data() == null) {
+                    notFound.add(new PolicyVerifyResult.PolicyVerifyEntry(
+                            policy.getId(), plate,
+                            policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
+                            null, null, null
+                    ));
+                    continue;
+                }
+
+                EtlPolicyResult.EtlPolicyData portal = portalResult.data();
+                LocalDate portalEndDate = portal.endDate() != null
+                        ? parsePortalDate(portal.endDate()) : null;
+
+                boolean same = Objects.equals(policy.getPolicyNumber(), portal.policyNumber())
+                        && Objects.equals(policy.getEndDate(), portalEndDate)
+                        && Objects.equals(policy.getStatusDescricao(), portal.statusDescricao());
+
+                PolicyVerifyResult.PolicyVerifyEntry e = new PolicyVerifyResult.PolicyVerifyEntry(
+                        policy.getId(), plate,
+                        policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
+                        portal.policyNumber(), portalEndDate, portal.statusDescricao()
+                );
+
+                if (same) {
+                    correct.add(e);
+                } else {
+                    divergent.add(e);
+                }
+
+            } catch (Exception e) {
+                log.error("[POLICY] Erro ao verificar placa={}: {} — {}", plate,
+                        e.getClass().getSimpleName(), e.getMessage());
+            }
+
+        }
+
+        return new PolicyVerifyResult(correct, divergent, notFound);
 
     }
 

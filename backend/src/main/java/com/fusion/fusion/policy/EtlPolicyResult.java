@@ -13,6 +13,7 @@ public record EtlPolicyResult(
             String plate,
             String vehicleModel,
             String vehicleBrand,
-            Integer bonus
+            Integer bonus,
+            String statusDescricao
     ) {}
 }

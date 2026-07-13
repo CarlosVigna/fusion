@@ -13,6 +13,7 @@ public record PolicyRequest(
         String vehicleModel,
         String vehicleBrand,
         Integer bonus,
+        String statusDescricao,
         PolicySource source
 ) {
 }

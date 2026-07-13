@@ -39,3 +39,11 @@ export async function updatePolicy(id, data) {
 export async function deletePolicy(id) {
   return apiClient.delete(`/policies/${id}`);
 }
+
+export async function getPolicyReport(type) {
+  return apiClient.get(`/policies/report?type=${type}`);
+}
+
+export async function verifyAllPolicies() {
+  return apiClient.post("/policies/verify-all");
+}

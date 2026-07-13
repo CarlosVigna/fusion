@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/policies")
@@ -47,6 +48,18 @@ public class PolicyController {
             @RequestParam String plate
     ) {
         return service.fetchFromPortal(plate);
+    }
+
+    @GetMapping("/report")
+    public List<PolicyReportRow> getReport(
+            @RequestParam String type
+    ) {
+        return service.getReport(type);
+    }
+
+    @PostMapping("/verify-all")
+    public PolicyVerifyResult verifyAll() {
+        return service.verifyAll();
     }
 
     @PostMapping

@@ -46,6 +46,8 @@ public class Policy {
 
     private Integer bonus;
 
+    private String statusDescricao;
+
     private String plate;
 
     @Enumerated(EnumType.STRING)
