@@ -302,22 +302,16 @@ public class PolicyService {
 
     }
 
-    private LocalDate parsePortalDate(String str) {
+    private LocalDate parsePortalDate(String dateStr) {
 
-        if (str == null || str.isBlank()) return null;
+        if (dateStr == null || dateStr.isBlank()) return null;
 
         try {
-            String[] parts = str.split("/");
-            if (parts.length == 3) {
-                return LocalDate.of(
-                        Integer.parseInt(parts[2]),
-                        Integer.parseInt(parts[1]),
-                        Integer.parseInt(parts[0])
-                );
-            }
-        } catch (Exception ignored) {}
-
-        return null;
+            return LocalDate.parse(dateStr);
+        } catch (Exception e) {
+            log.warn("[POLICY] Falha ao parsear data: {}", dateStr);
+            return null;
+        }
 
     }
 
