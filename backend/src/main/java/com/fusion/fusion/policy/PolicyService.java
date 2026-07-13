@@ -13,9 +13,12 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
+import org.springframework.scheduling.annotation.Async;
+
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.ArrayList;
 
@@ -461,78 +464,94 @@ public class PolicyService {
         );
     }
 
-    public PolicyVerifyResult verifyAll() {
+    private final ConcurrentHashMap<String, VerificationJob> verificationJobs = new ConcurrentHashMap<>();
 
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+    @Async
+    public void startVerificationAsync(String jobId) {
 
-        Map<String, Policy> activePoliciesByPlate = policyRepository.findAll().stream()
-                .filter(p -> {
-                    PolicyStatus s = PolicyResponse.computeStatus(p);
-                    return s == PolicyStatus.ACTIVE
-                            || s == PolicyStatus.EXPIRING
-                            || s == PolicyStatus.FUTURE;
-                })
-                .collect(Collectors.toMap(
-                        p -> p.getPlate().toUpperCase(),
-                        p -> p,
-                        (a, b) -> {
-                            if (a.getEndDate() == null) return b;
-                            if (b.getEndDate() == null) return a;
-                            return a.getEndDate().isAfter(b.getEndDate()) ? a : b;
-                        }
-                ));
+        try {
 
-        List<PolicyVerifyResult.PolicyVerifyEntry> correct   = new ArrayList<>();
-        List<PolicyVerifyResult.PolicyVerifyEntry> divergent = new ArrayList<>();
-        List<PolicyVerifyResult.PolicyVerifyEntry> notFound  = new ArrayList<>();
-
-        for (Map.Entry<String, Policy> entry : activePoliciesByPlate.entrySet()) {
-
-            String plate  = entry.getKey();
-            Policy policy = entry.getValue();
-
-            try {
-
-                EtlPolicyResult portalResult = fetchFromPortal(plate);
-
-                if (!portalResult.found() || portalResult.data() == null) {
-                    notFound.add(new PolicyVerifyResult.PolicyVerifyEntry(
-                            policy.getId(), plate,
-                            policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
-                            null, null, null
+            Map<String, Policy> byPlate = policyRepository.findAll().stream()
+                    .filter(p -> {
+                        PolicyStatus s = PolicyResponse.computeStatus(p);
+                        return s == PolicyStatus.ACTIVE
+                                || s == PolicyStatus.EXPIRING
+                                || s == PolicyStatus.FUTURE;
+                    })
+                    .collect(Collectors.toMap(
+                            p -> p.getPlate().toUpperCase(),
+                            p -> p,
+                            (a, b) -> {
+                                if (a.getEndDate() == null) return b;
+                                if (b.getEndDate() == null) return a;
+                                return a.getEndDate().isAfter(b.getEndDate()) ? a : b;
+                            }
                     ));
-                    continue;
+
+            int total = byPlate.size();
+            verificationJobs.put(jobId, new VerificationJob("RUNNING", 0, total, null));
+
+            List<PolicyVerifyResult.PolicyVerifyEntry> correct   = new ArrayList<>();
+            List<PolicyVerifyResult.PolicyVerifyEntry> divergent = new ArrayList<>();
+            List<PolicyVerifyResult.PolicyVerifyEntry> notFound  = new ArrayList<>();
+            int processed = 0;
+
+            for (Map.Entry<String, Policy> entry : byPlate.entrySet()) {
+
+                String plate  = entry.getKey();
+                Policy policy = entry.getValue();
+
+                try {
+
+                    EtlPolicyResult portalResult = fetchFromPortal(plate);
+
+                    if (!portalResult.found() || portalResult.data() == null) {
+                        notFound.add(new PolicyVerifyResult.PolicyVerifyEntry(
+                                policy.getId(), plate,
+                                policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
+                                null, null, null
+                        ));
+                    } else {
+                        EtlPolicyResult.EtlPolicyData portal = portalResult.data();
+                        LocalDate portalEndDate = portal.endDate() != null
+                                ? parsePortalDate(portal.endDate()) : null;
+
+                        boolean same = Objects.equals(policy.getPolicyNumber(), portal.policyNumber())
+                                && Objects.equals(policy.getEndDate(), portalEndDate)
+                                && Objects.equals(policy.getStatusDescricao(), portal.statusDescricao());
+
+                        PolicyVerifyResult.PolicyVerifyEntry e = new PolicyVerifyResult.PolicyVerifyEntry(
+                                policy.getId(), plate,
+                                policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
+                                portal.policyNumber(), portalEndDate, portal.statusDescricao()
+                        );
+
+                        if (same) correct.add(e);
+                        else      divergent.add(e);
+                    }
+
+                } catch (Exception e) {
+                    log.error("[POLICY] Erro ao verificar placa={}: {} — {}",
+                            plate, e.getClass().getSimpleName(), e.getMessage());
                 }
 
-                EtlPolicyResult.EtlPolicyData portal = portalResult.data();
-                LocalDate portalEndDate = portal.endDate() != null
-                        ? parsePortalDate(portal.endDate()) : null;
-
-                boolean same = Objects.equals(policy.getPolicyNumber(), portal.policyNumber())
-                        && Objects.equals(policy.getEndDate(), portalEndDate)
-                        && Objects.equals(policy.getStatusDescricao(), portal.statusDescricao());
-
-                PolicyVerifyResult.PolicyVerifyEntry e = new PolicyVerifyResult.PolicyVerifyEntry(
-                        policy.getId(), plate,
-                        policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
-                        portal.policyNumber(), portalEndDate, portal.statusDescricao()
-                );
-
-                if (same) {
-                    correct.add(e);
-                } else {
-                    divergent.add(e);
-                }
-
-            } catch (Exception e) {
-                log.error("[POLICY] Erro ao verificar placa={}: {} — {}", plate,
-                        e.getClass().getSimpleName(), e.getMessage());
+                processed++;
+                verificationJobs.put(jobId, new VerificationJob("RUNNING", processed, total, null));
             }
 
+            verificationJobs.put(jobId, new VerificationJob("DONE", total, total,
+                    new PolicyVerifyResult(correct, divergent, notFound)));
+
+        } catch (Exception e) {
+            log.error("[POLICY] Erro fatal no job de verificação {}: {}", jobId, e.getMessage(), e);
+            verificationJobs.put(jobId, new VerificationJob("ERROR", 0, 0, null));
         }
 
-        return new PolicyVerifyResult(correct, divergent, notFound);
+    }
 
+    public VerificationJob getVerificationStatus(String jobId) {
+        return verificationJobs.getOrDefault(jobId,
+                new VerificationJob("NOT_FOUND", 0, 0, null));
     }
 
     private String normalizePlate(String plate) {

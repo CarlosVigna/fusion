@@ -1,10 +1,12 @@
 package com.fusion.fusion.policy;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/policies")
@@ -58,8 +60,17 @@ public class PolicyController {
     }
 
     @PostMapping("/verify-all")
-    public PolicyVerifyResult verifyAll() {
-        return service.verifyAll();
+    public ResponseEntity<Map<String, String>> startVerification() {
+        String jobId = UUID.randomUUID().toString();
+        service.startVerificationAsync(jobId);
+        return ResponseEntity.ok(Map.of("jobId", jobId));
+    }
+
+    @GetMapping("/verify-status/{jobId}")
+    public ResponseEntity<VerificationJob> getVerificationStatus(
+            @PathVariable String jobId
+    ) {
+        return ResponseEntity.ok(service.getVerificationStatus(jobId));
     }
 
     @PostMapping

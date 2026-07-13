@@ -44,6 +44,10 @@ export async function getPolicyReport(type) {
   return apiClient.get(`/policies/report?type=${type}`);
 }
 
-export async function verifyAllPolicies() {
+export async function startVerification() {
   return apiClient.post("/policies/verify-all");
+}
+
+export async function getVerificationStatus(jobId) {
+  return apiClient.get(`/policies/verify-status/${jobId}`);
 }

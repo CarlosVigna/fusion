@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import toast from "react-hot-toast";
 import ExcelJS from "exceljs";
@@ -14,8 +14,9 @@ import {
   getPendingVehicles,
   getPolicies,
   getPolicyReport,
+  getVerificationStatus,
+  startVerification,
   updatePolicy,
-  verifyAllPolicies,
 } from "../services/policyService";
 
 import { formatLocalDate } from "../utils/dateUtils";
@@ -206,11 +207,14 @@ export default function Policies() {
 
   // Conferir com Portal
   const [verifying, setVerifying] = useState(false);
+  const [verifyProgress, setVerifyProgress] = useState(null); // { processed, total }
   const [verifyModal, setVerifyModal] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const pollingRef = useRef(null);
 
   useEffect(() => {
     loadData();
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
   }, []);
 
   async function loadData() {
@@ -368,16 +372,45 @@ export default function Policies() {
     }
   }
 
+  function stopPolling() {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }
+
   async function handleVerifyAll() {
     setVerifying(true);
+    setVerifyProgress(null);
     try {
-      const result = await verifyAllPolicies();
-      setVerifyModal(result);
+      const { jobId } = await startVerification();
+
+      pollingRef.current = setInterval(async () => {
+        try {
+          const status = await getVerificationStatus(jobId);
+          setVerifyProgress({ processed: status.processed, total: status.total });
+
+          if (status.status === "DONE") {
+            stopPolling();
+            setVerifying(false);
+            setVerifyProgress(null);
+            setVerifyModal(status.result);
+          } else if (status.status === "ERROR" || status.status === "NOT_FOUND") {
+            stopPolling();
+            setVerifying(false);
+            toast.error("Erro durante a verificação. Tente novamente.");
+          }
+        } catch (e) {
+          stopPolling();
+          setVerifying(false);
+          toast.error("Erro ao verificar status da conferência");
+        }
+      }, 3000);
+
     } catch (error) {
       console.error(error);
-      toast.error("Erro ao conferir apólices com o portal");
-    } finally {
       setVerifying(false);
+      toast.error("Erro ao iniciar conferência com o portal");
     }
   }
 
@@ -532,7 +565,12 @@ export default function Policies() {
                   className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {verifying ? (
-                    <><Loader2 size={14} className="animate-spin" /> Conferindo...</>
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      {verifyProgress
+                        ? `Verificando ${verifyProgress.processed}/${verifyProgress.total}...`
+                        : "Iniciando..."}
+                    </>
                   ) : (
                     "Conferir com Portal"
                   )}
