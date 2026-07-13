@@ -13,6 +13,8 @@ import {
   updatePolicy,
 } from "../services/policyService";
 
+import { formatLocalDate } from "../utils/dateUtils";
+
 const EMPTY_FORM = {
   policyNumber: "",
   startDate: "",
@@ -23,12 +25,6 @@ const EMPTY_FORM = {
   vehicleBrand: "",
   bonus: "",
 };
-
-function formatDate(dateStr) {
-  if (!dateStr) return "--";
-  const [y, m, d] = dateStr.split("-");
-  return `${d}/${m}/${y}`;
-}
 
 function daysRemaining(endDate) {
   if (!endDate) return null;
@@ -442,10 +438,10 @@ export default function Policies() {
                               {policy.policyNumber || "--"}
                             </td>
                             <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                              {formatDate(policy.startDate)}
+                              {formatLocalDate(policy.startDate)}
                             </td>
                             <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                              {formatDate(policy.endDate)}
+                              {formatLocalDate(policy.endDate)}
                             </td>
                             <td className="px-4 py-3">
                               <span
@@ -534,10 +530,10 @@ export default function Policies() {
                             {policy.policyNumber || "--"}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                            {formatDate(policy.startDate)}
+                            {formatLocalDate(policy.startDate)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                            {formatDate(policy.endDate)}
+                            {formatLocalDate(policy.endDate)}
                           </td>
                           <td className="px-4 py-3">
                             <StatusBadge status={policy.status} />
@@ -769,7 +765,7 @@ export default function Policies() {
             <div className="space-y-2 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm">
               <Row label="Apólice" value={confirmModal.result.data.policyNumber} />
               <Row label="Vigência" value={
-                `${formatDate(confirmModal.result.data.startDate)} → ${formatDate(confirmModal.result.data.endDate)}`
+                `${formatLocalDate(confirmModal.result.data.startDate)} → ${formatLocalDate(confirmModal.result.data.endDate)}`
               } />
               <Row label="Segurado" value={confirmModal.result.data.insuredName} />
               <Row label="CPF/CNPJ" value={confirmModal.result.data.cpfCnpj} />

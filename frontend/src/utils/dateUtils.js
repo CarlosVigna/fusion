@@ -14,10 +14,17 @@ export function formatLocalDateTime(utcString) {
   });
 }
 
-// Formata só a data
-export function formatLocalDate(utcString) {
-  if (!utcString) return "--";
-  const date = new Date(utcString + "Z");
+// Formata só a data.
+// Strings date-only (yyyy-MM-dd) são tratadas como data de calendário — sem
+// conversão de fuso — para evitar que "2025-01-01Z" (inválido) ou UTC-3
+// desloque o dia exibido. Strings com horário seguem o path UTC→Brasília.
+export function formatLocalDate(str) {
+  if (!str) return "--";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const [y, m, d] = str.split("-");
+    return `${d}/${m}/${y}`;
+  }
+  const date = new Date(str + "Z");
   return date.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
