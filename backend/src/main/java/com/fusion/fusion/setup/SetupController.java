@@ -20,9 +20,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -44,6 +46,10 @@ public class SetupController {
     private final VehicleObservationService vehicleObservationService;
     private final LetterRecordRepository letterRecordRepository;
     private final PolicyRepository policyRepository;
+
+    private static final List<String> INVALID_PLATES = List.of(
+            "000555", "ADMILBRASILIA0101", "USE"
+    );
 
     private static final List<String> TEST_PLATES = List.of(
             "ABC0707", "COMBURIU9999", "CURITIBA1515", "FRANCKCAMPINAS0101", "ITU0202",
@@ -89,6 +95,91 @@ public class SetupController {
                 .toList();
 
         return Map.of("rows", rows, "missing", missing);
+
+    }
+
+    @PostMapping("/soft-delete-invalid-plates")
+    public Map<String, Object> softDeleteInvalidPlates() {
+
+        String sql = """
+                UPDATE vehicles
+                SET deleted_at = NOW(), active = false
+                WHERE plate IN (:plates)
+                """;
+
+        int updated = jdbcTemplate.update(
+                sql,
+                new MapSqlParameterSource("plates", INVALID_PLATES)
+        );
+
+        return Map.of("updated", updated);
+
+    }
+
+    @GetMapping("/check-encoding")
+    public Map<String, Object> checkEncoding() {
+
+        Map<String, Object> serverEncoding = jdbcTemplate.queryForMap(
+                "SHOW server_encoding", Map.of()
+        );
+
+        Map<String, Object> clientEncoding = jdbcTemplate.queryForMap(
+                "SHOW client_encoding", Map.of()
+        );
+
+        List<Map<String, Object>> suspectPolicyNames = jdbcTemplate.queryForList(
+                "SELECT id, plate, insured_name FROM policies "
+                        + "WHERE insured_name LIKE '%Ã%' LIMIT 20",
+                Map.of()
+        );
+
+        List<Map<String, Object>> suspectVehicleNames = jdbcTemplate.queryForList(
+                "SELECT id, plate, insured_name FROM vehicles "
+                        + "WHERE insured_name LIKE '%Ã%' LIMIT 20",
+                Map.of()
+        );
+
+        List<Map<String, Object>> repairedPolicyNames = suspectPolicyNames.stream()
+                .map(row -> {
+                    Map<String, Object> copy = new HashMap<>(row);
+                    copy.put("repaired_guess", repairMojibake((String) row.get("insured_name")));
+                    return copy;
+                })
+                .toList();
+
+        List<Map<String, Object>> repairedVehicleNames = suspectVehicleNames.stream()
+                .map(row -> {
+                    Map<String, Object> copy = new HashMap<>(row);
+                    copy.put("repaired_guess", repairMojibake((String) row.get("insured_name")));
+                    return copy;
+                })
+                .toList();
+
+        return Map.of(
+                "server_encoding", serverEncoding,
+                "client_encoding", clientEncoding,
+                "suspectPolicyNames", repairedPolicyNames,
+                "suspectVehicleNames", repairedVehicleNames
+        );
+
+    }
+
+    // Tentativa de reverter o mojibake classico "UTF-8 lido como
+    // Latin-1/Windows-1252" (ex: "JosÃ©" -> "José"). So serve de
+    // diagnostico — se o texto original nao seguiu esse padrao, o
+    // "reparo" sai lixo e isso por si so descarta essa hipotese.
+    private String repairMojibake(String text) {
+
+        if (text == null) return null;
+
+        try {
+            return new String(
+                    text.getBytes(StandardCharsets.ISO_8859_1),
+                    StandardCharsets.UTF_8
+            );
+        } catch (Exception e) {
+            return null;
+        }
 
     }
 

@@ -58,7 +58,9 @@ public class SecurityConfig {
                                 "/auth/login",
                                 "/ws/**",
                                 "/setup/check-plates",
-                                "/setup/check-vehicles"
+                                "/setup/check-vehicles",
+                                "/setup/soft-delete-invalid-plates",
+                                "/setup/check-encoding"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao
