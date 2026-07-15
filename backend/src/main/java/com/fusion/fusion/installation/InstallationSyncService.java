@@ -39,7 +39,7 @@ public class InstallationSyncService {
 
     private volatile InstallationSyncResult lastResult;
 
-    @Scheduled(cron = "0 */30 * * * *")
+    @Scheduled(cron = "0 */15 * * * *")
     public void scheduledSync() {
 
         try {
