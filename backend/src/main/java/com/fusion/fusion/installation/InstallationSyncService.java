@@ -83,25 +83,12 @@ public class InstallationSyncService {
             int inserted = 0;
             int skipped = 0;
 
-            if (!allItems.isEmpty()) {
-                log.info("[INSTALACOES] Campos da primeira ordem recebida: {}", allItems.get(0).keySet());
-                log.info("[INSTALACOES] Valores da primeira ordem: {}", allItems.get(0));
-            }
-
             for (Map<String, Object> item : allItems) {
 
-                String externalId = extractString(item, "id");
-
-                Object rawId = item.get("id");
-                log.info("[INSTALACOES] Raw id={} (type={}), plate={}, customerName={}, dataCriacao={}",
-                        rawId,
-                        rawId == null ? "null" : rawId.getClass().getSimpleName(),
-                        item.get("placa"),
-                        item.get("nome_cliente"),
-                        item.get("data_criacao"));
+                String externalId = extractString(item, "externalId");
 
                 if (externalId == null) {
-                    log.warn("[INSTALACOES] externalId nulo, ignorando item: {}", item);
+                    log.warn("[INSTALACOES] externalId nulo, ignorando item id={}", item.get("id"));
                     skipped++;
                     continue;
                 }
@@ -111,21 +98,27 @@ public class InstallationSyncService {
                     continue;
                 }
 
+                String logradouro = extractNestedString(item, "segurado", "endereco", "logradouro");
+                String numero     = extractNestedString(item, "segurado", "endereco", "numero");
+                String address    = (logradouro != null && numero != null)
+                        ? logradouro + ", " + numero
+                        : logradouro;
+
                 Installation installation = Installation.builder()
                         .externalId(externalId)
-                        .customerName(extractString(item, "nome_cliente", "nomeCliente", "nome", "customer_name", "customerName"))
-                        .address(extractString(item, "endereco", "address", "logradouro"))
-                        .neighborhood(extractString(item, "bairro", "neighborhood"))
-                        .city(extractString(item, "cidade", "city", "municipio"))
-                        .state(extractString(item, "estado", "state", "uf"))
-                        .zipCode(extractString(item, "cep", "zipCode", "zip_code"))
-                        .phone(extractString(item, "telefone", "phone", "celular"))
-                        .plate(extractString(item, "placa", "plate"))
-                        .model(extractString(item, "modelo", "model", "veiculo_modelo", "veiculoModelo"))
-                        .numeroProposta(extractLong(item, "numero_proposta", "numeroProposta", "proposta"))
-                        .portalCreatedAt(extractDateTime(item, "data_criacao", "dataCriacao", "createdAt", "created_at"))
-                        .serviceType(extractString(item, "tipo_servico", "tipoServico", "serviceType", "service_type"))
-                        .portalStatus(extractString(item, "status", "portalStatus", "portal_status", "situacao"))
+                        .customerName(extractNestedString(item, "segurado", "nome"))
+                        .address(address)
+                        .neighborhood(extractNestedString(item, "segurado", "endereco", "bairro"))
+                        .city(extractNestedString(item, "segurado", "endereco", "cidade"))
+                        .state(extractNestedString(item, "segurado", "endereco", "uf"))
+                        .zipCode(extractNestedString(item, "segurado", "endereco", "cep"))
+                        .phone(formatPhone(item))
+                        .plate(extractNestedString(item, "veiculo", "placa"))
+                        .model(extractNestedString(item, "veiculo", "modelo"))
+                        .numeroProposta(extractNestedLong(item, "proposta", "numeroProposta"))
+                        .portalCreatedAt(extractDateTime(item, "dataCriacao", "data_criacao"))
+                        .serviceType(extractString(item, "tipoServico", "tipo_servico"))
+                        .portalStatus(extractString(item, "statusAtual", "status"))
                         .build();
 
                 log.info("[INSTALACOES] Tentando inserir: externalId={}, plate={}, customerName={}",
@@ -137,7 +130,7 @@ public class InstallationSyncService {
             }
 
             long durationMs = System.currentTimeMillis() - startMs;
-            LocalDateTime nextRun = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(30);
+            LocalDateTime nextRun = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(15);
 
             etlStatusService.heartbeat(new EtlHeartbeatRequest(
                     ImportType.INSTALACOES, EtlRunStatus.SUCCESS,
@@ -294,12 +287,44 @@ public class InstallationSyncService {
         return null;
     }
 
-    private Long extractLong(Map<String, Object> map, String... keys) {
-        for (String key : keys) {
-            Object val = map.get(key);
-            if (val instanceof Number n) return n.longValue();
+    @SuppressWarnings("unchecked")
+    private String extractNestedString(Map<String, Object> map, String... path) {
+        Object current = map;
+        for (int i = 0; i < path.length - 1; i++) {
+            if (!(current instanceof Map<?, ?> m)) return null;
+            current = m.get(path[i]);
         }
+        if (!(current instanceof Map<?, ?> m)) return null;
+        Object val = m.get(path[path.length - 1]);
+        if (val == null) return null;
+        if (val instanceof String s && !s.isBlank()) return s;
+        if (val instanceof Number) return val.toString();
         return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Long extractNestedLong(Map<String, Object> map, String... path) {
+        Object current = map;
+        for (int i = 0; i < path.length - 1; i++) {
+            if (!(current instanceof Map<?, ?> m)) return null;
+            current = m.get(path[i]);
+        }
+        if (!(current instanceof Map<?, ?> m)) return null;
+        Object val = m.get(path[path.length - 1]);
+        if (val instanceof Number n) return n.longValue();
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String formatPhone(Map<String, Object> map) {
+        Object segurado = map.get("segurado");
+        if (!(segurado instanceof Map<?, ?> s)) return null;
+        Object telefone = s.get("telefonePrincipal");
+        if (!(telefone instanceof Map<?, ?> t)) return null;
+        Object ddd = t.get("ddd");
+        Object numero = t.get("numero");
+        if (ddd == null || numero == null) return null;
+        return "(" + ddd + ") " + numero;
     }
 
     private LocalDateTime extractDateTime(Map<String, Object> map, String... keys) {
