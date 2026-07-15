@@ -431,6 +431,17 @@ public class PolicyService {
 
     }
 
+    public void dismissAlert(Long id) {
+
+        Policy policy = policyRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Apólice não encontrada"));
+
+        policy.setAlertDismissedAt(LocalDate.now(ZoneOffset.UTC));
+
+        policyRepository.save(policy);
+
+    }
+
     public List<PolicyAlertResponse> getAlerts() {
 
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
@@ -438,6 +449,7 @@ public class PolicyService {
 
         return policyRepository.findAll().stream()
                 .filter(p -> {
+                    if (today.equals(p.getAlertDismissedAt())) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
                     if (s == PolicyStatus.EXPIRED) return true;
                     return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)

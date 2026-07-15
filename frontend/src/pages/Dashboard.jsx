@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { Link } from "react-router-dom";
 
+import toast from "react-hot-toast";
+
 import {
   AlertTriangle,
   CheckCircle2,
@@ -10,9 +12,12 @@ import {
   Mail,
   RadioTower,
   RefreshCw,
+  ShieldAlert,
   Truck,
   Wrench,
 } from "lucide-react";
+
+import { dismissPolicyAlert, getPolicyAlerts } from "../services/policyService";
 
 import { realtimeService } from "../services/realtime/realtimeService";
 
@@ -49,9 +54,19 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] =
     useState("delayed");
 
+  const [policyAlerts, setPolicyAlerts] =
+    useState([]);
+
+  const [dismissingPolicyId, setDismissingPolicyId] =
+    useState(null);
+
   useEffect(() => {
 
     loadDashboard();
+
+    getPolicyAlerts()
+      .then((data) => setPolicyAlerts(Array.isArray(data) ? data : []))
+      .catch(console.error);
 
     const unsubscribe =
       realtimeService.onDashboardEvent(
@@ -165,6 +180,34 @@ export default function Dashboard() {
     return tab;
 
   });
+
+  async function handleDismissPolicy(id) {
+
+    setDismissingPolicyId(id);
+
+    try {
+
+      await dismissPolicyAlert(id);
+
+      setPolicyAlerts((current) =>
+        current.filter((pa) => pa.id !== id)
+      );
+
+      toast.success("Alerta dispensado");
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao dispensar alerta");
+
+    } finally {
+
+      setDismissingPolicyId(null);
+
+    }
+
+  }
 
   if (loading && !dashboard) {
 
@@ -288,6 +331,96 @@ export default function Dashboard() {
         </div>
 
       </div>
+
+      {policyAlerts.filter((pa) => pa.alertType === "EXPIRED").length > 0 && (
+        <div
+          className="
+            rounded-2xl border border-red-500/20
+            bg-zinc-900 p-6
+          "
+        >
+
+          <div className="mb-4 flex items-center gap-2">
+
+            <ShieldAlert size={18} className="text-red-400" />
+
+            <h2 className="text-xl font-semibold">
+              Apólices vencidas
+            </h2>
+
+            <span className="ml-auto rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-400">
+              {policyAlerts.filter((pa) => pa.alertType === "EXPIRED").length}
+            </span>
+
+          </div>
+
+          <div className="overflow-x-auto">
+
+            <table className="w-full text-sm">
+
+              <thead>
+                <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500">
+                  <th className="pb-2 pr-4 font-medium">Placa</th>
+                  <th className="pb-2 pr-4 font-medium">Segurado</th>
+                  <th className="pb-2 pr-4 font-medium">Fim Vigência</th>
+                  <th className="pb-2 pr-4 font-medium">Status Portal</th>
+                  <th className="pb-2 font-medium" />
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-zinc-800">
+
+                {policyAlerts
+                  .filter((pa) => pa.alertType === "EXPIRED")
+                  .map((pa) => (
+                    <tr key={pa.id} className="text-sm">
+
+                      <td className="py-2 pr-4">
+                        <span className="font-mono font-semibold">
+                          {pa.plate}
+                        </span>
+                      </td>
+
+                      <td className="py-2 pr-4 text-zinc-400">
+                        {pa.insuredName || "—"}
+                      </td>
+
+                      <td className="py-2 pr-4 text-red-400">
+                        {pa.endDate
+                          ? new Date(pa.endDate + "T00:00:00").toLocaleDateString("pt-BR")
+                          : "—"}
+                      </td>
+
+                      <td className="py-2 pr-4 text-zinc-400">
+                        {pa.policyNumber || "—"}
+                      </td>
+
+                      <td className="py-2 text-right">
+                        <button
+                          onClick={() => handleDismissPolicy(pa.id)}
+                          disabled={dismissingPolicyId === pa.id}
+                          className="
+                            rounded-lg bg-zinc-800 px-3 py-1
+                            text-xs font-semibold text-zinc-300
+                            transition hover:bg-zinc-700
+                            disabled:opacity-40
+                          "
+                        >
+                          Dispensar
+                        </button>
+                      </td>
+
+                    </tr>
+                  ))}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </div>
+      )}
 
       <div
         className="

@@ -13,7 +13,7 @@ import {
   getActiveSignalReturnAlerts,
 } from "../../services/signalReturnAlertService";
 
-import { getPolicyAlerts } from "../../services/policyService";
+import { dismissPolicyAlert, getPolicyAlerts } from "../../services/policyService";
 
 import { formatDelay } from "../../utils/formatDelay";
 
@@ -84,6 +84,9 @@ export default function Header() {
 
   const [dismissingAll, setDismissingAll] =
     useState(false);
+
+  const [dismissingPolicyId, setDismissingPolicyId] =
+    useState(null);
 
   const alertsRef = useRef(null);
 
@@ -165,6 +168,34 @@ export default function Header() {
     } finally {
 
       setDismissingId(null);
+
+    }
+
+  }
+
+  async function handleDismissPolicy(id) {
+
+    setDismissingPolicyId(id);
+
+    try {
+
+      await dismissPolicyAlert(id);
+
+      setPolicyAlerts((current) =>
+        current.filter((pa) => pa.id !== id)
+      );
+
+      toast.success("Alerta de apólice dispensado");
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao dispensar alerta");
+
+    } finally {
+
+      setDismissingPolicyId(null);
 
     }
 
@@ -296,17 +327,31 @@ export default function Header() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="font-mono font-semibold">{pa.plate}</span>
-                          <span
-                            className={`text-xs font-semibold ${
-                              pa.alertType === "EXPIRED" ? "text-red-400" : "text-yellow-400"
-                            }`}
-                          >
-                            {pa.alertType === "EXPIRED"
-                              ? "Vencida"
-                              : pa.daysRemaining === 0
-                                ? "Hoje"
-                                : `${pa.daysRemaining}d`}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-xs font-semibold ${
+                                pa.alertType === "EXPIRED" ? "text-red-400" : "text-yellow-400"
+                              }`}
+                            >
+                              {pa.alertType === "EXPIRED"
+                                ? "Vencida"
+                                : pa.daysRemaining === 0
+                                  ? "Hoje"
+                                  : `${pa.daysRemaining}d`}
+                            </span>
+                            <button
+                              onClick={() => handleDismissPolicy(pa.id)}
+                              disabled={dismissingPolicyId === pa.id}
+                              title="Dispensar"
+                              className="
+                                text-zinc-500 hover:text-white
+                                disabled:opacity-40 transition
+                                leading-none
+                              "
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                         {pa.insuredName && (
                           <p className="text-xs text-zinc-400">{pa.insuredName}</p>

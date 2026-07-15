@@ -50,6 +50,8 @@ public class Policy {
 
     private String plate;
 
+    private LocalDate alertDismissedAt;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private PolicySource source = PolicySource.MANUAL;
