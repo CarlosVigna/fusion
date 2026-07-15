@@ -1,225 +1,176 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { FileSpreadsheet, Upload, X } from "lucide-react";
+import { FileSpreadsheet } from "lucide-react";
 
-import { getOperationalGrid } from "../services/gridService";
+import { getMultiportalSheet } from "../services/reportsService";
 
-// Normaliza placa para comparação (remove traço, espaços, uppercase)
-function normalizePlate(raw) {
-  if (!raw) return "";
-  return String(raw).replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+import { todayForFilename } from "../utils/exportXlsx";
+
+const BLACK = "FF000000";
+const HEADER_FILL = "FF18181B";
+const RED_FILL = "FFFCA5A5";
+const YELLOW_FILL = "FFFDE68A";
+
+const COLUMNS = [
+  { key: "ordem", header: "Ordem", width: 8 },
+  { key: "plate", header: "Placa", width: 14 },
+  { key: "numberStr", header: "Dispositivo", width: 16 },
+  { key: "lastCommunicationDate", header: "Posição", width: 12 },
+  { key: "lastCommunicationTime", header: "Hora", width: 10 },
+  { key: "status", header: "Status", width: 40 },
+  { key: "insuredName", header: "Nome Segurado", width: 32 },
+  { key: "policyNumber", header: "Apólice", width: 18 },
+  { key: "policyEndDate", header: "Fim Vigência", width: 14 },
+  { key: "cpfCnpj", header: "CPF/CNPJ", width: 18 },
+];
+
+function formatDate(isoDate) {
+  if (!isoDate) return "";
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
 }
 
-// Converte LocalDateTime UTC do backend para data/hora no horário de Brasília
-function toLocaleBrasilia(isoString) {
-  if (!isoString) return { date: "", time: "" };
-  // Backend serializa LocalDateTime sem fuso → interpretar como UTC
-  const dt = new Date(isoString + "Z");
-  const date = dt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  const time = dt.toLocaleTimeString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+function formatTime(isoTime) {
+  if (!isoTime) return "";
+  return isoTime.slice(0, 5);
+}
+
+function rowStatusFill(status) {
+  if (!status) return null;
+  if (status.includes("#CARTASUSPENSAO")) return RED_FILL;
+  if (status.includes("#MANUTENCAO")) return YELLOW_FILL;
+  return null;
+}
+
+function verificationFill(row) {
+  if (!row.lastCommunicationDate) return RED_FILL;
+  if (!row.policyNumber) return YELLOW_FILL;
+  return null;
+}
+
+async function buildWorkbook(data) {
+  const { default: ExcelJS } = await import("exceljs");
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Fusion";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet("MULTIPORTAL");
+
+  const lastCol = COLUMNS.length;
+
+  const blocks = [
+    { title: "OPERACIONAIS", block: data.operational, isVerification: false },
+    { title: "KAKO", block: data.kako, isVerification: false },
+    { title: "TESTES", block: data.tests, isVerification: false },
+    { title: "VERIFICAÇÃO", block: data.verification, isVerification: true },
+  ];
+
+  for (const { title, block, isVerification } of blocks) {
+    addBlock(sheet, lastCol, title, block, isVerification);
+  }
+
+  COLUMNS.forEach((col, index) => {
+    sheet.getColumn(index + 1).width = col.width;
   });
-  return { date, time };
+
+  return workbook;
 }
 
-export default function Reports() {
-  const [file, setFile] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+function addBlock(sheet, lastCol, title, block, isVerification) {
+  const separatorRow = sheet.addRow([`${title} — ${block.total} veículo(s)`]);
+  sheet.mergeCells(separatorRow.number, 1, separatorRow.number, lastCol);
+  separatorRow.height = 22;
 
-  // Form de adição manual de veículos ausentes da planilha
-  const [addForm, setAddForm] = useState({ plate: "", name: "" });
+  const separatorCell = separatorRow.getCell(1);
+  separatorCell.font = { bold: true, size: 12, color: { argb: "FFFFFFFF" } };
+  separatorCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: BLACK } };
+  separatorCell.alignment = { vertical: "middle", horizontal: "left" };
 
-  // Referência ao workbook ExcelJS processado, para permitir re-download
-  // após o usuário adicionar linhas manualmente.
-  const workbookRef = useRef(null);
+  const headerRow = sheet.addRow(COLUMNS.map((col) => col.header));
+  headerRow.eachCell((cell) => {
+    cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: HEADER_FILL } };
+    cell.alignment = { vertical: "middle" };
+  });
 
-  const fileInputRef = useRef(null);
+  for (const row of block.rows) {
+    const excelRow = sheet.addRow([
+      row.ordem,
+      row.plate,
+      row.numberStr ?? "",
+      formatDate(row.lastCommunicationDate),
+      formatTime(row.lastCommunicationTime),
+      row.status ?? "",
+      row.insuredName ?? "",
+      row.policyNumber ?? "",
+      formatDate(row.policyEndDate),
+      row.cpfCnpj ?? "",
+    ]);
 
-  function handleFileChange(e) {
-    const selected = e.target.files?.[0];
-    if (selected) {
-      setFile(selected);
-      setResult(null);
-      workbookRef.current = null;
-    }
-  }
+    const fill = isVerification ? verificationFill(row) : rowStatusFill(row.status);
 
-  function handleDrop(e) {
-    e.preventDefault();
-    const dropped = e.dataTransfer.files?.[0];
-    if (dropped && dropped.name.endsWith(".xlsx")) {
-      setFile(dropped);
-      setResult(null);
-      workbookRef.current = null;
-    }
-  }
-
-  async function handleGenerate() {
-    if (!file) return;
-
-    setLoading(true);
-    setResult(null);
-
-    try {
-      // Carrega ExcelJS dinamicamente (evita bundle main)
-      const { default: ExcelJS } = await import("exceljs");
-
-      // Lê o xlsx como ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(arrayBuffer);
-
-      // Busca dados do grid no backend (sem filtros = todos os veículos)
-      const gridVehicles = await getOperationalGrid();
-
-      // Índice por placa normalizada
-      const gridMap = {};
-      for (const v of gridVehicles) {
-        gridMap[normalizePlate(v.plate)] = v;
-      }
-
-      const worksheet = workbook.worksheets[0];
-
-      // Varre todas as colunas de cada linha até achar a linha de cabeçalho
-      // (identifica por qualquer célula cujo texto seja exatamente "PLACA").
-      // A planilha pode ter colunas auxiliares antes da coluna PLACA (ex: col A = "O").
-      let headerRowNum = -1;
-      let colPlaca = -1;   // índice 1-based
-      let colData  = -1;   // coluna POSIÇÃO / data
-      let colHora  = -1;   // coluna HO / hora
-
-      function cellText(cell) {
-        return String(cell.text ?? cell.value ?? "").trim();
-      }
-
-      worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-        if (headerRowNum !== -1) return;
-        row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
-          const txt = cellText(cell).toLowerCase()
-            .normalize("NFD").replace(/[̀-ͯ]/g, ""); // remove acentos
-          if (txt === "placa")   colPlaca = colNumber;
-          if (txt.startsWith("posi")) colData = colNumber; // POSIÇÃO, POSICAO, etc.
-          if (txt === "ho" || txt === "hora") colHora = colNumber;
-        });
-        if (colPlaca !== -1) headerRowNum = rowNumber;
+    if (fill) {
+      excelRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
       });
-
-      if (headerRowNum === -1 || colPlaca === -1) {
-        toast.error("Cabeçalho 'PLACA' não encontrado na planilha.");
-        setLoading(false);
-        return;
-      }
-
-      // Fallback: se não achou POSIÇÃO/HO pelo nome, usa D e E por convenção
-      if (colData === -1) colData = 4;
-      if (colHora === -1) colHora = 5;
-
-      const updated = [];
-      const notInGrid = []; // Na planilha mas não no sistema
-      const sheetsPlates = new Set();
-
-      for (let rowNum = headerRowNum + 1; rowNum <= worksheet.rowCount; rowNum++) {
-        const row = worksheet.getRow(rowNum);
-        const rawPlate = cellText(row.getCell(colPlaca));
-        const plate = normalizePlate(rawPlate);
-
-        if (!plate) continue;
-
-        sheetsPlates.add(plate);
-
-        const vehicle = gridMap[plate];
-
-        if (!vehicle) {
-          notInGrid.push(rawPlate);
-          continue;
-        }
-
-        if (vehicle.lastCommunicationAt) {
-          const { date, time } = toLocaleBrasilia(vehicle.lastCommunicationAt);
-
-          // Atualiza apenas o valor — o estilo da célula original é preservado
-          // pelo ExcelJS ao ler e reescrever o workbook.
-          row.getCell(colData).value = date;
-          row.getCell(colHora).value = time;
-
-          updated.push(plate);
-        }
-      }
-
-      // Placas no sistema mas ausentes da planilha
-      const notInSheet = gridVehicles
-        .map((v) => v.plate)
-        .filter((p) => !sheetsPlates.has(normalizePlate(p)));
-
-      workbookRef.current = workbook;
-
-      // Dispara o download imediatamente
-      await downloadWorkbook(workbook, file.name);
-
-      setResult({ updated, notInGrid, notInSheet });
-
-      toast.success(`${updated.length} veículos atualizados`);
-    } catch (error) {
-      console.error(error);
-      toast.error("Erro ao processar planilha: " + error.message);
-    } finally {
-      setLoading(false);
     }
   }
 
-  async function downloadWorkbook(workbook, originalName) {
-    const buffer = await workbook.xlsx.writeBuffer();
+  const totalRow = sheet.addRow([`Total: ${block.total} veículo(s)`]);
+  sheet.mergeCells(totalRow.number, 1, totalRow.number, lastCol);
+  totalRow.getCell(1).font = { bold: true };
+
+  sheet.addRow([]);
+}
+
+function downloadWorkbook(workbook, filename) {
+  return workbook.xlsx.writeBuffer().then((buffer) => {
     const blob = new Blob([buffer], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = originalName || "CONTROLE_DE_VEÍCULOS_MULTIPORTAL.xlsx";
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  }
+  });
+}
 
-  async function handleAddToSheet() {
-    if (!workbookRef.current) return;
+export default function Reports() {
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState(null);
 
-    const plate = normalizePlate(addForm.plate);
-    const name = addForm.name.trim();
+  async function handleGenerate() {
+    setLoading(true);
+    setSummary(null);
 
-    if (!plate) {
-      toast.error("Informe a placa");
-      return;
+    try {
+      const data = await getMultiportalSheet();
+      const workbook = await buildWorkbook(data);
+
+      await downloadWorkbook(
+        workbook,
+        `planilha-multiportal-${todayForFilename()}.xlsx`
+      );
+
+      setSummary({
+        operational: data.operational.total,
+        kako: data.kako.total,
+        tests: data.tests.total,
+        verification: data.verification.total,
+      });
+
+      toast.success("Planilha MULTIPORTAL gerada com sucesso");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao gerar planilha: " + error.message);
+    } finally {
+      setLoading(false);
     }
-
-    const worksheet = workbookRef.current.worksheets[0];
-
-    // Adiciona uma nova linha ao final com placa e nome
-    const newRow = worksheet.addRow([plate, "", "", "", "", "", "", "", "", "", "", name]);
-    newRow.commit();
-
-    await downloadWorkbook(workbookRef.current, file?.name);
-
-    setAddForm({ plate: "", name: "" });
-
-    // Remove do notInSheet se estava lá
-    setResult((prev) =>
-      prev
-        ? {
-            ...prev,
-            notInSheet: prev.notInSheet.filter(
-              (p) => normalizePlate(p) !== plate
-            ),
-          }
-        : prev
-    );
-
-    toast.success(`Veículo ${plate} adicionado à planilha`);
   }
 
   return (
@@ -234,69 +185,18 @@ export default function Reports() {
             <div>
               <h2 className="text-lg font-semibold">Planilha MULTIPORTAL</h2>
               <p className="mt-0.5 text-sm text-zinc-500">
-                Atualiza data e hora de posicionamento (colunas D e E) para
-                cada placa encontrada no Grid.
+                Gera e baixa automaticamente a planilha com os dados atuais
+                do banco — separada em blocos de Operacionais, KAKO, Testes
+                e Verificação.
               </p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-4 p-6">
-
-          {/* Drop zone */}
-          <div
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => fileInputRef.current?.click()}
-            className="
-              flex cursor-pointer flex-col items-center justify-center
-              gap-3 rounded-xl border-2 border-dashed border-zinc-700
-              bg-zinc-950 px-6 py-10
-              transition hover:border-zinc-500 hover:bg-zinc-900
-            "
-          >
-            <Upload size={28} className="text-zinc-500" />
-            {file ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium text-white">{file.name}</span>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFile(null);
-                    setResult(null);
-                    workbookRef.current = null;
-                    fileInputRef.current.value = "";
-                  }}
-                  className="rounded p-0.5 text-zinc-400 hover:text-white"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <>
-                <p className="text-sm text-zinc-400">
-                  Arraste o arquivo aqui ou{" "}
-                  <span className="text-white underline">clique para selecionar</span>
-                </p>
-                <p className="text-xs text-zinc-600">
-                  CONTROLE_DE_VEÍCULOS_MULTIPORTAL.xlsx
-                </p>
-              </>
-            )}
-          </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
-          {/* Botão gerar */}
+        <div className="p-6">
           <button
             onClick={handleGenerate}
-            disabled={!file || loading}
+            disabled={loading}
             className="
               w-full rounded-xl bg-white py-3
               text-sm font-semibold text-black
@@ -304,134 +204,31 @@ export default function Reports() {
               disabled:cursor-not-allowed disabled:opacity-40
             "
           >
-            {loading ? "Processando..." : "Gerar e Baixar"}
+            {loading ? "Gerando..." : "Gerar e Baixar Planilha MULTIPORTAL"}
           </button>
-
         </div>
 
       </div>
 
-      {/* Resultado */}
-      {result && (
-        <div className="space-y-4">
-
-          {/* Contadores */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
-              <p className="text-3xl font-bold text-white">{result.updated.length}</p>
-              <p className="mt-1 text-sm text-zinc-400">Atualizados</p>
-            </div>
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
-              <p className="text-3xl font-bold text-yellow-400">{result.notInGrid.length}</p>
-              <p className="mt-1 text-sm text-zinc-400">Na planilha, fora do sistema</p>
-            </div>
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
-              <p className="text-3xl font-bold text-orange-400">{result.notInSheet.length}</p>
-              <p className="mt-1 text-sm text-zinc-400">No sistema, fora da planilha</p>
-            </div>
+      {/* Resumo */}
+      {summary && (
+        <div className="grid grid-cols-4 gap-4">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
+            <p className="text-3xl font-bold text-white">{summary.operational}</p>
+            <p className="mt-1 text-sm text-zinc-400">Operacionais</p>
           </div>
-
-          {/* Na planilha mas fora do sistema */}
-          {result.notInGrid.length > 0 && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
-              <div className="border-b border-zinc-800 p-4">
-                <p className="text-sm font-semibold text-yellow-400">
-                  Na planilha mas não encontrados no sistema
-                </p>
-                <p className="mt-0.5 text-xs text-zinc-500">
-                  Podem ser veículos inativos ou de teste — mantidos na planilha sem alteração.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 p-4">
-                {result.notInGrid.map((plate) => (
-                  <span
-                    key={plate}
-                    className="rounded-lg bg-zinc-800 px-3 py-1 font-mono text-sm"
-                  >
-                    {plate}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* No sistema mas fora da planilha */}
-          {result.notInSheet.length > 0 && (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
-              <div className="border-b border-zinc-800 p-4">
-                <p className="text-sm font-semibold text-orange-400">
-                  No sistema mas ausentes da planilha
-                </p>
-                <p className="mt-0.5 text-xs text-zinc-500">
-                  Adicione manualmente ou inclua na planilha com o formulário abaixo.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 p-4">
-                {result.notInSheet.map((plate) => (
-                  <button
-                    key={plate}
-                    onClick={() => setAddForm((f) => ({ ...f, plate }))}
-                    className="
-                      rounded-lg bg-zinc-800 px-3 py-1 font-mono text-sm
-                      transition hover:bg-zinc-700
-                    "
-                    title="Clique para preencher o formulário"
-                  >
-                    {plate}
-                  </button>
-                ))}
-              </div>
-
-              {/* Formulário de adição */}
-              <div className="border-t border-zinc-800 p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Adicionar à planilha
-                </p>
-                <div className="flex gap-3">
-                  <input
-                    type="text"
-                    placeholder="Placa"
-                    value={addForm.plate}
-                    onChange={(e) =>
-                      setAddForm((f) => ({ ...f, plate: e.target.value }))
-                    }
-                    className="
-                      w-36 rounded-lg border border-zinc-700 bg-zinc-950
-                      px-3 py-2 font-mono text-sm
-                      placeholder:text-zinc-600
-                      focus:outline-none focus:ring-1 focus:ring-zinc-500
-                    "
-                  />
-                  <input
-                    type="text"
-                    placeholder="Nome / Razão Social"
-                    value={addForm.name}
-                    onChange={(e) =>
-                      setAddForm((f) => ({ ...f, name: e.target.value }))
-                    }
-                    className="
-                      flex-1 rounded-lg border border-zinc-700 bg-zinc-950
-                      px-3 py-2 text-sm
-                      placeholder:text-zinc-600
-                      focus:outline-none focus:ring-1 focus:ring-zinc-500
-                    "
-                  />
-                  <button
-                    onClick={handleAddToSheet}
-                    disabled={!addForm.plate}
-                    className="
-                      rounded-lg bg-zinc-700 px-4 py-2 text-sm font-semibold
-                      transition hover:bg-zinc-600
-                      disabled:cursor-not-allowed disabled:opacity-40
-                    "
-                  >
-                    Adicionar e Baixar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
+            <p className="text-3xl font-bold text-white">{summary.kako}</p>
+            <p className="mt-1 text-sm text-zinc-400">KAKO</p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
+            <p className="text-3xl font-bold text-white">{summary.tests}</p>
+            <p className="mt-1 text-sm text-zinc-400">Testes</p>
+          </div>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 text-center">
+            <p className="text-3xl font-bold text-orange-400">{summary.verification}</p>
+            <p className="mt-1 text-sm text-zinc-400">Verificação</p>
+          </div>
         </div>
       )}
 
