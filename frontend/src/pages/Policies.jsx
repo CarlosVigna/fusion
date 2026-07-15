@@ -127,6 +127,59 @@ function PortalStatusBadge({ status }) {
 
 // ---------- Export helpers ----------
 
+const INACTIVE_HEADERS = ["Placa", "Segurado", "Apólice", "Início Vigência", "Fim Vigência", "Status Portal", "Observações"];
+
+function inactiveRow(p) {
+  return [
+    p.plate || "",
+    p.insuredName || "",
+    p.policyNumber || "",
+    p.startDate ? formatLocalDate(p.startDate) : "",
+    p.endDate ? formatLocalDate(p.endDate) : "",
+    p.statusDescricao || "",
+    STATUS_LABEL[p.status] || p.status || "",
+  ];
+}
+
+async function exportInactivasExcel(rows) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("Encerradas");
+
+  ws.addRow(INACTIVE_HEADERS);
+  ws.getRow(1).font = { bold: true };
+
+  for (const p of rows) ws.addRow(inactiveRow(p));
+
+  ws.columns.forEach((col) => { col.width = 22; });
+
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "apolices-encerradas.xlsx";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportInativasPDF(rows) {
+  const doc = new jsPDF({ orientation: "landscape" });
+  doc.setFontSize(13);
+  doc.text("Relatório de Apólices — Encerradas", 14, 16);
+
+  autoTable(doc, {
+    startY: 22,
+    head: [INACTIVE_HEADERS],
+    body: rows.map(inactiveRow),
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [30, 30, 30], textColor: 255 },
+  });
+
+  doc.save("apolices-encerradas.pdf");
+}
+
 async function exportExcel(rows, reportLabel) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet(reportLabel);
@@ -567,6 +620,28 @@ export default function Policies() {
 
           {/* ── Encerradas ── */}
           {tab === "inactive" && (
+            <div className="space-y-3">
+              {inactivePolicies.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-zinc-400">
+                    {inactivePolicies.length} registro{inactivePolicies.length !== 1 ? "s" : ""}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => exportInactivasExcel(inactivePolicies)}
+                      className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                    >
+                      Exportar Excel
+                    </button>
+                    <button
+                      onClick={() => exportInativasPDF(inactivePolicies)}
+                      className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
+                    >
+                      Exportar PDF
+                    </button>
+                  </div>
+                </div>
+              )}
             <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
               {inactivePolicies.length === 0 ? (
                 <p className="py-12 text-center text-zinc-500">Nenhuma apólice encerrada ou cancelada</p>
@@ -623,6 +698,7 @@ export default function Policies() {
                   </table>
                 </div>
               )}
+            </div>
             </div>
           )}
 
