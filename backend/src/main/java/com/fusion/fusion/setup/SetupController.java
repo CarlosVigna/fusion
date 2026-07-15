@@ -127,32 +127,50 @@ public class SetupController {
                 "SHOW client_encoding", Map.of()
         );
 
+        // "Ã" sozinho da falso positivo em nomes corretos (ex: GALVÃO,
+        // GUIMARÃES ja sao grafias corretas — "ÃO"/"ÃES" e final valido
+        // em portugues). Mojibake de verdade sempre tem um simbolo
+        // Latin-1 improvavel logo depois (©, ¡, ³, º, §, ¢, ª), que e o
+        // segundo byte UTF-8 de a/e/i/o/u/c acentuado lido como Latin-1.
+        // Monta os pares corrompidos por codigo numerico (char) 0x00XX em
+        // vez de literal acentuado no .java — evita depender do encoding
+        // de leitura do proprio arquivo fonte pelo compilador/IDE, o que
+        // seria ironico justamente numa investigacao de bug de encoding.
+        char c3 = (char) 0x00C3; // "Ã" — primeiro byte UTF-8 de a/e/i/o/u/c acentuado, lido como Latin-1
+
+        String moji_a = "" + c3 + (char) 0x00A1; // "a" corrompido (a acentuado)
+        String moji_e = "" + c3 + (char) 0x00A9; // "e" corrompido (e acentuado)
+        String moji_i = "" + c3 + (char) 0x00AD; // "i" corrompido (i acentuado)
+        String moji_o = "" + c3 + (char) 0x00B3; // "o" corrompido (o acentuado)
+        String moji_u = "" + c3 + (char) 0x00BA; // "u" corrompido (u acentuado)
+        String moji_c = "" + c3 + (char) 0x00A7; // "c" corrompido (c cedilha)
+        String moji_A = "" + c3 + (char) 0x00A2; // "a" corrompido (a circunflexo)
+        String moji_E = "" + c3 + (char) 0x00AA; // "e" corrompido (e circunflexo)
+
+        String mojibakeFilter =
+                "(insured_name LIKE '%" + moji_a + "%' OR insured_name LIKE '%" + moji_e + "%' "
+                        + "OR insured_name LIKE '%" + moji_i + "%' OR insured_name LIKE '%" + moji_o + "%' "
+                        + "OR insured_name LIKE '%" + moji_u + "%' OR insured_name LIKE '%" + moji_c + "%' "
+                        + "OR insured_name LIKE '%" + moji_A + "%' OR insured_name LIKE '%" + moji_E + "%')";
+
         List<Map<String, Object>> suspectPolicyNames = jdbcTemplate.queryForList(
-                "SELECT id, plate, insured_name FROM policies "
-                        + "WHERE insured_name LIKE '%Ã%' LIMIT 20",
+                "SELECT id, plate, insured_name FROM policies WHERE "
+                        + mojibakeFilter + " LIMIT 20",
                 Map.of()
         );
 
         List<Map<String, Object>> suspectVehicleNames = jdbcTemplate.queryForList(
-                "SELECT id, plate, insured_name FROM vehicles "
-                        + "WHERE insured_name LIKE '%Ã%' LIMIT 20",
+                "SELECT id, plate, insured_name FROM vehicles WHERE "
+                        + mojibakeFilter + " LIMIT 20",
                 Map.of()
         );
 
         List<Map<String, Object>> repairedPolicyNames = suspectPolicyNames.stream()
-                .map(row -> {
-                    Map<String, Object> copy = new HashMap<>(row);
-                    copy.put("repaired_guess", repairMojibake((String) row.get("insured_name")));
-                    return copy;
-                })
+                .map(this::withRepairedGuess)
                 .toList();
 
         List<Map<String, Object>> repairedVehicleNames = suspectVehicleNames.stream()
-                .map(row -> {
-                    Map<String, Object> copy = new HashMap<>(row);
-                    copy.put("repaired_guess", repairMojibake((String) row.get("insured_name")));
-                    return copy;
-                })
+                .map(this::withRepairedGuess)
                 .toList();
 
         return Map.of(
@@ -164,10 +182,30 @@ public class SetupController {
 
     }
 
+    private Map<String, Object> withRepairedGuess(Map<String, Object> row) {
+
+        Map<String, Object> copy = new HashMap<>(row);
+
+        String repaired = repairMojibake((String) row.get("insured_name"));
+
+        copy.put("repaired_guess", repaired);
+
+        char replacementChar = (char) 0xFFFD; // U+FFFD, aparece quando o "reparo" gera lixo
+
+        copy.put(
+                "repair_plausible",
+                repaired != null && repaired.indexOf(replacementChar) == -1
+        );
+
+        return copy;
+
+    }
+
     // Tentativa de reverter o mojibake classico "UTF-8 lido como
     // Latin-1/Windows-1252" (ex: "JosÃ©" -> "José"). So serve de
     // diagnostico — se o texto original nao seguiu esse padrao, o
-    // "reparo" sai lixo e isso por si so descarta essa hipotese.
+    // "reparo" sai lixo (contem U+FFFD) e isso por si so descarta essa
+    // hipotese pra aquela linha.
     private String repairMojibake(String text) {
 
         if (text == null) return null;
