@@ -16,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.scheduling.annotation.Async;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -106,7 +107,7 @@ public class PolicyService {
 
     public List<PolicyResponse> findExpiring(int days) {
 
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
         LocalDate limit = today.plusDays(days);
 
         return policyRepository.findAll()
@@ -151,7 +152,7 @@ public class PolicyService {
 
     public PolicyBadgeCountsResponse getBadgeCounts() {
 
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
         LocalDate limit = today.plusDays(30);
         long expired = 0;
         long expiring = 0;
@@ -436,7 +437,7 @@ public class PolicyService {
         Policy policy = policyRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Apólice não encontrada"));
 
-        policy.setAlertDismissedAt(LocalDate.now(ZoneOffset.UTC));
+        policy.setAlertDismissedAt(LocalDate.now(ZoneId.of("America/Sao_Paulo")));
 
         policyRepository.save(policy);
 
@@ -444,7 +445,7 @@ public class PolicyService {
 
     public List<PolicyAlertResponse> getAlerts() {
 
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
         LocalDate limit = today.plusDays(30);
 
         return policyRepository.findAll().stream()
@@ -477,7 +478,7 @@ public class PolicyService {
     public List<PolicyReportRow> getReport(String typeStr) {
 
         PolicyReportType type = PolicyReportType.valueOf(typeStr);
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
 
         if (type == PolicyReportType.NO_POLICY) {
             Set<String> platesWithActive = policyRepository.findAll().stream()

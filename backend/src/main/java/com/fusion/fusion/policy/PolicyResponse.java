@@ -2,6 +2,7 @@ package com.fusion.fusion.policy;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 
 public record PolicyResponse(
@@ -34,7 +35,7 @@ public record PolicyResponse(
             if (lower.contains("encerrada")) return PolicyStatus.EXPIRED;
             if (lower.contains("cancelada")) return PolicyStatus.CANCELLED;
         }
-        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
         if (p.getEndDate() != null && p.getEndDate().isBefore(today)) {
             return PolicyStatus.EXPIRED;
         }
