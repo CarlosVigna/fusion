@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
@@ -82,11 +83,23 @@ public class InstallationSyncService {
             int inserted = 0;
             int skipped = 0;
 
+            if (!allItems.isEmpty()) {
+                log.info("[INSTALACOES] Campos da primeira ordem recebida: {}", allItems.get(0).keySet());
+                log.info("[INSTALACOES] Valores da primeira ordem: {}", allItems.get(0));
+            }
+
             for (Map<String, Object> item : allItems) {
 
                 String externalId = extractString(item, "id");
 
+                log.info("[INSTALACOES] Raw id={}, plate={}, customerName={}, dataCriacao={}",
+                        item.get("id"),
+                        item.get("placa"),
+                        item.get("nome_cliente"),
+                        item.get("data_criacao"));
+
                 if (externalId == null) {
+                    log.warn("[INSTALACOES] externalId nulo, ignorando item: {}", item);
                     skipped++;
                     continue;
                 }
@@ -112,6 +125,9 @@ public class InstallationSyncService {
                         .serviceType(extractString(item, "tipo_servico"))
                         .portalStatus(extractString(item, "status"))
                         .build();
+
+                log.info("[INSTALACOES] Tentando inserir: externalId={}, plate={}, customerName={}",
+                        installation.getExternalId(), installation.getPlate(), installation.getCustomerName());
 
                 installationRepository.save(installation);
                 inserted++;
@@ -165,16 +181,28 @@ public class InstallationSyncService {
                     + "&size=50"
                     + "&status=AGUARDANDO_AGENDAMENTO";
 
+            log.info("[INSTALACOES] GET {}", url);
+
             HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(token);
 
-            ResponseEntity<Object> response = restTemplate.exchange(
-                    url, HttpMethod.GET,
-                    new HttpEntity<>(headers),
-                    Object.class
-            );
+            ResponseEntity<Object> response;
+            try {
+                response = restTemplate.exchange(
+                        url, HttpMethod.GET,
+                        new HttpEntity<>(headers),
+                        Object.class
+                );
+            } catch (HttpClientErrorException e) {
+                log.error("[INSTALACOES] Portal retornou {}: body={}", e.getStatusCode(), e.getResponseBodyAsString());
+                throw e;
+            }
+
+            log.info("[INSTALACOES] Página {} — HTTP {}, body type={}", page, response.getStatusCode(), response.getBody() == null ? "null" : response.getBody().getClass().getSimpleName());
 
             List<Map<String, Object>> items = extractItems(response.getBody());
+
+            log.info("[INSTALACOES] Página {} — {} itens extraídos", page, items.size());
 
             if (items.isEmpty()) break;
 
