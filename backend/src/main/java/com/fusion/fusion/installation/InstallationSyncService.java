@@ -92,8 +92,10 @@ public class InstallationSyncService {
 
                 String externalId = extractString(item, "id");
 
-                log.info("[INSTALACOES] Raw id={}, plate={}, customerName={}, dataCriacao={}",
-                        item.get("id"),
+                Object rawId = item.get("id");
+                log.info("[INSTALACOES] Raw id={} (type={}), plate={}, customerName={}, dataCriacao={}",
+                        rawId,
+                        rawId == null ? "null" : rawId.getClass().getSimpleName(),
                         item.get("placa"),
                         item.get("nome_cliente"),
                         item.get("data_criacao"));
@@ -111,19 +113,19 @@ public class InstallationSyncService {
 
                 Installation installation = Installation.builder()
                         .externalId(externalId)
-                        .customerName(extractString(item, "nome_cliente", "nome"))
-                        .address(extractString(item, "endereco"))
-                        .neighborhood(extractString(item, "bairro"))
-                        .city(extractString(item, "cidade"))
-                        .state(extractString(item, "estado"))
-                        .zipCode(extractString(item, "cep"))
-                        .phone(extractString(item, "telefone"))
-                        .plate(extractString(item, "placa"))
-                        .model(extractString(item, "modelo"))
-                        .numeroProposta(extractLong(item, "numero_proposta"))
-                        .portalCreatedAt(extractDateTime(item, "data_criacao", "createdAt"))
-                        .serviceType(extractString(item, "tipo_servico"))
-                        .portalStatus(extractString(item, "status"))
+                        .customerName(extractString(item, "nome_cliente", "nomeCliente", "nome", "customer_name", "customerName"))
+                        .address(extractString(item, "endereco", "address", "logradouro"))
+                        .neighborhood(extractString(item, "bairro", "neighborhood"))
+                        .city(extractString(item, "cidade", "city", "municipio"))
+                        .state(extractString(item, "estado", "state", "uf"))
+                        .zipCode(extractString(item, "cep", "zipCode", "zip_code"))
+                        .phone(extractString(item, "telefone", "phone", "celular"))
+                        .plate(extractString(item, "placa", "plate"))
+                        .model(extractString(item, "modelo", "model", "veiculo_modelo", "veiculoModelo"))
+                        .numeroProposta(extractLong(item, "numero_proposta", "numeroProposta", "proposta"))
+                        .portalCreatedAt(extractDateTime(item, "data_criacao", "dataCriacao", "createdAt", "created_at"))
+                        .serviceType(extractString(item, "tipo_servico", "tipoServico", "serviceType", "service_type"))
+                        .portalStatus(extractString(item, "status", "portalStatus", "portal_status", "situacao"))
                         .build();
 
                 log.info("[INSTALACOES] Tentando inserir: externalId={}, plate={}, customerName={}",
@@ -285,7 +287,9 @@ public class InstallationSyncService {
     private String extractString(Map<String, Object> map, String... keys) {
         for (String key : keys) {
             Object val = map.get(key);
+            if (val == null) continue;
             if (val instanceof String s && !s.isBlank()) return s;
+            if (val instanceof Number) return val.toString();
         }
         return null;
     }
