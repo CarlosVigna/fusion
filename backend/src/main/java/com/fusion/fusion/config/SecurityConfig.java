@@ -56,7 +56,8 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/auth/login",
-                                "/ws/**"
+                                "/ws/**",
+                                "/setup/check-plates"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao
