@@ -5,9 +5,10 @@ import ExcelJS from "exceljs";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-import { CheckCircle2, AlertTriangle, XCircle, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 
 import {
+  cancelPolicy,
   createPolicy,
   deletePolicy,
   fetchPolicyFromPortal,
@@ -267,6 +268,8 @@ export default function Policies() {
   const [verifyProgress, setVerifyProgress] = useState(null); // { processed, total }
   const [verifyModal, setVerifyModal] = useState(null);
   const [updatingId, setUpdatingId] = useState(null);
+  const [acceptingStatusChangeId, setAcceptingStatusChangeId] = useState(null);
+  const [savingNewPolicyPlate, setSavingNewPolicyPlate] = useState(null);
   const pollingRef = useRef(null);
 
   useEffect(() => {
@@ -508,6 +511,71 @@ export default function Policies() {
     }
   }
 
+  async function handleAcceptStatusChange(entry) {
+    setAcceptingStatusChangeId(entry.id);
+    try {
+      if (entry.newStatus === "ACTIVE") {
+        await createPolicy({
+          plate:           entry.plate,
+          policyNumber:    entry.portalData.policyNumber,
+          startDate:       entry.portalData.startDate,
+          endDate:         entry.portalData.endDate,
+          insuredName:     entry.portalData.insuredName || entry.insuredName,
+          cpfCnpj:         entry.portalData.cpfCnpj,
+          vehicleModel:    entry.portalData.vehicleModel,
+          vehicleBrand:    entry.portalData.vehicleBrand,
+          bonus:           entry.portalData.bonus,
+          statusDescricao: entry.portalData.statusDescricao,
+          source:          "ETL",
+        });
+        toast.success(`Renovação de ${entry.plate} salva`);
+      } else {
+        await cancelPolicy(entry.id);
+        toast.success(`Apólice de ${entry.plate} marcada como cancelada`);
+      }
+      setVerifyModal((prev) => ({
+        ...prev,
+        statusChanged: prev.statusChanged.filter((e) => e.id !== entry.id),
+      }));
+      loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao aceitar mudança de status");
+    } finally {
+      setAcceptingStatusChangeId(null);
+    }
+  }
+
+  async function handleSaveNewPolicy(entry) {
+    setSavingNewPolicyPlate(entry.plate);
+    try {
+      await createPolicy({
+        plate:           entry.plate,
+        policyNumber:    entry.portalData.policyNumber,
+        startDate:       entry.portalData.startDate,
+        endDate:         entry.portalData.endDate,
+        insuredName:     entry.portalData.insuredName || entry.insuredName,
+        cpfCnpj:         entry.portalData.cpfCnpj,
+        vehicleModel:    entry.portalData.vehicleModel,
+        vehicleBrand:    entry.portalData.vehicleBrand,
+        bonus:           entry.portalData.bonus,
+        statusDescricao: entry.portalData.statusDescricao,
+        source:          "ETL",
+      });
+      toast.success(`Apólice de ${entry.plate} salva`);
+      setVerifyModal((prev) => ({
+        ...prev,
+        newPolicies: prev.newPolicies.filter((e) => e.plate !== entry.plate),
+      }));
+      loadData();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao salvar nova apólice");
+    } finally {
+      setSavingNewPolicyPlate(null);
+    }
+  }
+
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
@@ -525,31 +593,49 @@ export default function Policies() {
   return (
     <div className="space-y-6">
 
-      {/* Tabs */}
-      <div className="flex gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-1.5">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`
-              flex flex-1 items-center justify-center gap-2
-              rounded-xl px-4 py-2.5 text-sm font-semibold
-              transition
-              ${tab === t.key ? "bg-white text-black shadow" : "text-zinc-400 hover:text-white"}
-            `}
-          >
-            {t.label}
-            {t.count != null && t.count > 0 && (
-              <span
-                className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                  tab === t.key ? "bg-black/10 text-black" : "bg-zinc-700 text-zinc-300"
-                }`}
-              >
-                {t.count}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Tabs + botão global */}
+      <div className="flex items-center gap-3">
+        <div className="flex flex-1 gap-2 rounded-2xl border border-zinc-800 bg-zinc-900 p-1.5">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`
+                flex flex-1 items-center justify-center gap-2
+                rounded-xl px-4 py-2.5 text-sm font-semibold
+                transition
+                ${tab === t.key ? "bg-white text-black shadow" : "text-zinc-400 hover:text-white"}
+              `}
+            >
+              {t.label}
+              {t.count != null && t.count > 0 && (
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                    tab === t.key ? "bg-black/10 text-black" : "bg-zinc-700 text-zinc-300"
+                  }`}
+                >
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleVerifyAll}
+          disabled={verifying}
+          className="shrink-0 flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {verifying ? (
+            <>
+              <Loader2 size={14} className="animate-spin" />
+              {verifyProgress
+                ? `Verificando ${verifyProgress.processed}/${verifyProgress.total}...`
+                : "Iniciando..."}
+            </>
+          ) : (
+            "Conferir com Portal"
+          )}
+        </button>
       </div>
 
       {loading ? (
@@ -704,27 +790,7 @@ export default function Policies() {
 
           {/* ── Vigentes ── */}
           {tab === "active" && (
-            <div className="space-y-3">
-              <div className="flex justify-end">
-                <button
-                  onClick={handleVerifyAll}
-                  disabled={verifying || activePolicies.length === 0}
-                  className="flex items-center gap-2 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {verifying ? (
-                    <>
-                      <Loader2 size={14} className="animate-spin" />
-                      {verifyProgress
-                        ? `Verificando ${verifyProgress.processed}/${verifyProgress.total}...`
-                        : "Iniciando..."}
-                    </>
-                  ) : (
-                    "Conferir com Portal"
-                  )}
-                </button>
-              </div>
-
-              <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+            <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
                 {activePolicies.length === 0 ? (
                   <p className="py-12 text-center text-zinc-500">Nenhuma apólice vigente cadastrada</p>
                 ) : (
@@ -790,7 +856,6 @@ export default function Policies() {
                   </div>
                 )}
               </div>
-            </div>
           )}
 
           {/* ── Histórico ── */}
@@ -1120,7 +1185,7 @@ export default function Policies() {
               <div>
                 <h3 className="text-lg font-semibold">Resultado da Conferência com Portal</h3>
                 <p className="text-sm text-zinc-400 mt-1">
-                  {verifyModal.correct.length} corretas · {verifyModal.divergent.length} divergentes · {verifyModal.notFound.length} não encontradas
+                  {verifyModal.correct.length} corretas · {verifyModal.divergent.length} divergentes · {verifyModal.statusChanged.length} mudaram de status · {verifyModal.newPolicies.length} novas
                 </p>
               </div>
               <button
@@ -1170,19 +1235,100 @@ export default function Policies() {
               </div>
             )}
 
-            {/* Não encontradas */}
-            {verifyModal.notFound.length > 0 && (
+            {/* Mudaram de status */}
+            {verifyModal.statusChanged.length > 0 && (
               <div className="mb-5">
-                <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold text-red-400">
-                  <XCircle size={16} /> Não encontradas no portal ({verifyModal.notFound.length})
+                <h4 className="mb-3 text-sm font-semibold text-blue-400">
+                  🔄 Mudaram de status ({verifyModal.statusChanged.length})
                 </h4>
-                <div className="space-y-1">
-                  {verifyModal.notFound.map((e) => (
-                    <div key={e.id} className="flex items-center justify-between rounded-xl border border-red-500/20 bg-zinc-950 px-4 py-2.5">
-                      <span className="font-mono text-sm font-semibold">{e.plate}</span>
-                      <span className="text-xs text-zinc-500">{e.policyNumber || "--"}</span>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto rounded-xl border border-blue-500/20 bg-zinc-950">
+                  <table className="min-w-full">
+                    <thead className="text-left text-xs text-zinc-500">
+                      <tr>
+                        <th className="px-4 py-2">Placa</th>
+                        <th className="px-4 py-2">Segurado</th>
+                        <th className="px-4 py-2">Status Atual</th>
+                        <th className="px-4 py-2"></th>
+                        <th className="px-4 py-2">Novo Status</th>
+                        <th className="px-4 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {verifyModal.statusChanged.map((e) => (
+                        <tr key={e.id} className="border-t border-zinc-800">
+                          <td className="px-4 py-2.5 font-mono text-sm font-semibold">{e.plate}</td>
+                          <td className="px-4 py-2.5 text-sm text-zinc-300">{e.insuredName || "--"}</td>
+                          <td className="px-4 py-2.5"><StatusBadge status={e.currentStatus} /></td>
+                          <td className="px-4 py-2.5 text-zinc-500">→</td>
+                          <td className="px-4 py-2.5"><StatusBadge status={e.newStatus} /></td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => handleAcceptStatusChange(e)}
+                              disabled={acceptingStatusChangeId === e.id}
+                              className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
+                            >
+                              {acceptingStatusChangeId === e.id ? (
+                                <><Loader2 size={12} className="animate-spin" /> Processando...</>
+                              ) : (
+                                "Aceitar mudança"
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Novas apólices */}
+            {verifyModal.newPolicies.length > 0 && (
+              <div className="mb-5">
+                <h4 className="mb-3 text-sm font-semibold text-purple-400">
+                  🆕 Novas apólices encontradas ({verifyModal.newPolicies.length})
+                </h4>
+                <div className="overflow-x-auto rounded-xl border border-purple-500/20 bg-zinc-950">
+                  <table className="min-w-full">
+                    <thead className="text-left text-xs text-zinc-500">
+                      <tr>
+                        <th className="px-4 py-2">Placa</th>
+                        <th className="px-4 py-2">Segurado</th>
+                        <th className="px-4 py-2">Apólice</th>
+                        <th className="px-4 py-2">Vigência</th>
+                        <th className="px-4 py-2">Status Portal</th>
+                        <th className="px-4 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {verifyModal.newPolicies.map((e) => (
+                        <tr key={e.plate} className="border-t border-zinc-800">
+                          <td className="px-4 py-2.5 font-mono text-sm font-semibold">{e.plate}</td>
+                          <td className="px-4 py-2.5 text-sm text-zinc-300">{e.insuredName || "--"}</td>
+                          <td className="px-4 py-2.5 text-sm font-mono text-zinc-300">{e.portalData?.policyNumber || "--"}</td>
+                          <td className="whitespace-nowrap px-4 py-2.5 text-sm text-zinc-400">
+                            {formatLocalDate(e.portalData?.startDate)} → {formatLocalDate(e.portalData?.endDate)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <PortalStatusBadge status={e.portalData?.statusDescricao} />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              onClick={() => handleSaveNewPolicy(e)}
+                              disabled={savingNewPolicyPlate === e.plate}
+                              className="flex items-center gap-1.5 rounded-xl bg-white px-3 py-1.5 text-xs font-semibold text-black transition hover:opacity-90 disabled:opacity-50"
+                            >
+                              {savingNewPolicyPlate === e.plate ? (
+                                <><Loader2 size={12} className="animate-spin" /> Salvando...</>
+                              ) : (
+                                "Salvar"
+                              )}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}

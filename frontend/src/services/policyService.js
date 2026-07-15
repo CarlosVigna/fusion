@@ -48,6 +48,10 @@ export async function getPolicyAlerts() {
   return apiClient.get("/policies/alerts");
 }
 
+export async function cancelPolicy(id) {
+  return apiClient.post(`/policies/${id}/cancel`);
+}
+
 export async function dismissPolicyAlert(id) {
   return apiClient.post(`/policies/${id}/dismiss-alert`);
 }

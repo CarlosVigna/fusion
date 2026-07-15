@@ -6,7 +6,8 @@ import java.util.List;
 public record PolicyVerifyResult(
         List<PolicyVerifyEntry> correct,
         List<PolicyVerifyEntry> divergent,
-        List<PolicyVerifyEntry> notFound
+        List<StatusChangedEntry> statusChanged,
+        List<NewPolicyEntry> newPolicies
 ) {
     public record PolicyVerifyEntry(
             Long id,
@@ -17,5 +18,20 @@ public record PolicyVerifyResult(
             String portalPolicyNumber,
             LocalDate portalEndDate,
             String portalStatusDescricao
+    ) {}
+
+    public record StatusChangedEntry(
+            Long id,
+            String plate,
+            String insuredName,
+            String currentStatus,
+            String newStatus,
+            EtlPolicyResult.EtlPolicyData portalData
+    ) {}
+
+    public record NewPolicyEntry(
+            String plate,
+            String insuredName,
+            EtlPolicyResult.EtlPolicyData portalData
     ) {}
 }

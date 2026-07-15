@@ -1,6 +1,7 @@
 package com.fusion.fusion.policy;
 
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
+import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
@@ -432,6 +433,17 @@ public class PolicyService {
 
     }
 
+    public void cancelPolicy(Long id) {
+
+        Policy policy = policyRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Apólice não encontrada"));
+
+        policy.setStatus(PolicyStatus.CANCELLED);
+
+        policyRepository.save(policy);
+
+    }
+
     public void dismissAlert(Long id) {
 
         Policy policy = policyRepository.findById(id)
@@ -556,7 +568,10 @@ public class PolicyService {
 
         try {
 
-            Map<String, Policy> byPlate = policyRepository.findAll().stream()
+            List<Policy> allPolicies = policyRepository.findAll();
+
+            // Fase 1: apólices vigentes — mais recente por placa
+            Map<String, Policy> activePoliciesByPlate = allPolicies.stream()
                     .filter(p -> {
                         PolicyStatus s = PolicyResponse.computeStatus(p);
                         return s == PolicyStatus.ACTIVE
@@ -573,15 +588,49 @@ public class PolicyService {
                             }
                     ));
 
-            int total = byPlate.size();
+            // Fase 2: apólices encerradas (EXPIRED/CANCELLED) — mais recente por placa, excluindo placas já ativas
+            Map<String, Policy> inactivePoliciesByPlate = allPolicies.stream()
+                    .filter(p -> {
+                        PolicyStatus s = PolicyResponse.computeStatus(p);
+                        return (s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED)
+                                && !activePoliciesByPlate.containsKey(p.getPlate().toUpperCase());
+                    })
+                    .collect(Collectors.toMap(
+                            p -> p.getPlate().toUpperCase(),
+                            p -> p,
+                            (a, b) -> {
+                                if (a.getEndDate() == null) return b;
+                                if (b.getEndDate() == null) return a;
+                                return a.getEndDate().isAfter(b.getEndDate()) ? a : b;
+                            }
+                    ));
+
+            // Fase 3: veículos sem apólice alguma
+            Set<String> allPolicyPlates = new HashSet<>();
+            allPolicyPlates.addAll(activePoliciesByPlate.keySet());
+            allPolicyPlates.addAll(inactivePoliciesByPlate.keySet());
+
+            List<Vehicle> pendingVehicles = vehicleRepository.findAll().stream()
+                    .filter(v -> v.getDeletedAt() == null
+                            && !allPolicyPlates.contains(v.getPlate().toUpperCase()))
+                    .toList();
+
+            int total = activePoliciesByPlate.size()
+                    + inactivePoliciesByPlate.size()
+                    + pendingVehicles.size();
+
             verificationJobs.put(jobId, new VerificationJob("RUNNING", 0, total, null));
 
-            List<PolicyVerifyResult.PolicyVerifyEntry> correct   = new ArrayList<>();
-            List<PolicyVerifyResult.PolicyVerifyEntry> divergent = new ArrayList<>();
-            List<PolicyVerifyResult.PolicyVerifyEntry> notFound  = new ArrayList<>();
+            List<PolicyVerifyResult.PolicyVerifyEntry>  correct       = new ArrayList<>();
+            List<PolicyVerifyResult.PolicyVerifyEntry>  divergent     = new ArrayList<>();
+            List<PolicyVerifyResult.StatusChangedEntry> statusChanged = new ArrayList<>();
+            List<PolicyVerifyResult.NewPolicyEntry>     newPolicies   = new ArrayList<>();
             int processed = 0;
 
-            for (Map.Entry<String, Policy> entry : byPlate.entrySet()) {
+            LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+
+            // --- Fase 1: verificar vigentes ---
+            for (Map.Entry<String, Policy> entry : activePoliciesByPlate.entrySet()) {
 
                 String plate  = entry.getKey();
                 Policy policy = entry.getValue();
@@ -590,42 +639,120 @@ public class PolicyService {
 
                     EtlPolicyResult portalResult = fetchFromPortal(plate);
 
-                    if (!portalResult.found() || portalResult.data() == null) {
-                        notFound.add(new PolicyVerifyResult.PolicyVerifyEntry(
-                                policy.getId(), plate,
-                                policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
-                                null, null, null
-                        ));
-                    } else {
+                    if (portalResult.found() && portalResult.data() != null) {
+
                         EtlPolicyResult.EtlPolicyData portal = portalResult.data();
-                        LocalDate portalEndDate = portal.endDate() != null
-                                ? parsePortalDate(portal.endDate()) : null;
+                        boolean portalCancelled = portal.statusDescricao() != null
+                                && portal.statusDescricao().toLowerCase().contains("cancel");
 
-                        boolean same = Objects.equals(policy.getPolicyNumber(), portal.policyNumber())
-                                && Objects.equals(policy.getEndDate(), portalEndDate)
-                                && Objects.equals(policy.getStatusDescricao(), portal.statusDescricao());
+                        if (portalCancelled) {
 
-                        PolicyVerifyResult.PolicyVerifyEntry e = new PolicyVerifyResult.PolicyVerifyEntry(
-                                policy.getId(), plate,
-                                policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
-                                portal.policyNumber(), portalEndDate, portal.statusDescricao()
-                        );
+                            statusChanged.add(new PolicyVerifyResult.StatusChangedEntry(
+                                    policy.getId(), plate, policy.getInsuredName(),
+                                    PolicyResponse.computeStatus(policy).name(), "CANCELLED",
+                                    portal
+                            ));
 
-                        if (same) correct.add(e);
-                        else      divergent.add(e);
+                        } else {
+
+                            LocalDate portalEndDate = portal.endDate() != null
+                                    ? parsePortalDate(portal.endDate()) : null;
+
+                            boolean same = Objects.equals(policy.getPolicyNumber(), portal.policyNumber())
+                                    && Objects.equals(policy.getEndDate(), portalEndDate)
+                                    && Objects.equals(policy.getStatusDescricao(), portal.statusDescricao());
+
+                            PolicyVerifyResult.PolicyVerifyEntry e = new PolicyVerifyResult.PolicyVerifyEntry(
+                                    policy.getId(), plate,
+                                    policy.getPolicyNumber(), policy.getEndDate(), policy.getStatusDescricao(),
+                                    portal.policyNumber(), portalEndDate, portal.statusDescricao()
+                            );
+
+                            if (same) correct.add(e);
+                            else      divergent.add(e);
+
+                        }
+
                     }
 
                 } catch (Exception e) {
-                    log.error("[POLICY] Erro ao verificar placa={}: {} — {}",
+                    log.error("[POLICY] Erro ao verificar vigente placa={}: {} — {}",
                             plate, e.getClass().getSimpleName(), e.getMessage());
                 }
 
                 processed++;
                 verificationJobs.put(jobId, new VerificationJob("RUNNING", processed, total, null));
+
+            }
+
+            // --- Fase 2: verificar encerradas (renovação?) ---
+            for (Map.Entry<String, Policy> entry : inactivePoliciesByPlate.entrySet()) {
+
+                String plate  = entry.getKey();
+                Policy policy = entry.getValue();
+
+                try {
+
+                    EtlPolicyResult portalResult = fetchFromPortal(plate);
+
+                    if (portalResult.found() && portalResult.data() != null) {
+
+                        EtlPolicyResult.EtlPolicyData portal = portalResult.data();
+                        LocalDate portalEndDate = portal.endDate() != null
+                                ? parsePortalDate(portal.endDate()) : null;
+
+                        boolean portalActive = portalEndDate != null
+                                && !portalEndDate.isBefore(today)
+                                && (portal.statusDescricao() == null
+                                        || !portal.statusDescricao().toLowerCase().contains("cancel"));
+
+                        if (portalActive) {
+                            statusChanged.add(new PolicyVerifyResult.StatusChangedEntry(
+                                    policy.getId(), plate, policy.getInsuredName(),
+                                    PolicyResponse.computeStatus(policy).name(), "ACTIVE",
+                                    portal
+                            ));
+                        }
+
+                    }
+
+                } catch (Exception e) {
+                    log.error("[POLICY] Erro ao verificar encerrada placa={}: {} — {}",
+                            plate, e.getClass().getSimpleName(), e.getMessage());
+                }
+
+                processed++;
+                verificationJobs.put(jobId, new VerificationJob("RUNNING", processed, total, null));
+
+            }
+
+            // --- Fase 3: verificar veículos sem apólice ---
+            for (Vehicle vehicle : pendingVehicles) {
+
+                String plate = vehicle.getPlate().toUpperCase();
+
+                try {
+
+                    EtlPolicyResult portalResult = fetchFromPortal(plate);
+
+                    if (portalResult.found() && portalResult.data() != null) {
+                        newPolicies.add(new PolicyVerifyResult.NewPolicyEntry(
+                                vehicle.getPlate(), vehicle.getInsuredName(), portalResult.data()
+                        ));
+                    }
+
+                } catch (Exception e) {
+                    log.error("[POLICY] Erro ao verificar sem apólice placa={}: {} — {}",
+                            plate, e.getClass().getSimpleName(), e.getMessage());
+                }
+
+                processed++;
+                verificationJobs.put(jobId, new VerificationJob("RUNNING", processed, total, null));
+
             }
 
             verificationJobs.put(jobId, new VerificationJob("DONE", total, total,
-                    new PolicyVerifyResult(correct, divergent, notFound)));
+                    new PolicyVerifyResult(correct, divergent, statusChanged, newPolicies)));
 
         } catch (Exception e) {
             log.error("[POLICY] Erro fatal no job de verificação {}: {}", jobId, e.getMessage(), e);
