@@ -19,6 +19,8 @@ public class InstallationController {
 
     private final InstallationService service;
 
+    private final InstallationSyncService syncService;
+
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
 
@@ -59,6 +61,18 @@ public class InstallationController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.delete(id);
+    }
+
+    @PostMapping("/sync-portal")
+    public InstallationSyncResult syncPortal() {
+        return syncService.syncFromPortal();
+    }
+
+    @GetMapping("/last-sync")
+    public ResponseEntity<InstallationSyncResult> lastSync() {
+        InstallationSyncResult result = syncService.getLastResult();
+        if (result == null) return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(result);
     }
 
     @PostMapping("/sync")

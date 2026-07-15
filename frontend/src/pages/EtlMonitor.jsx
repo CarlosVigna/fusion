@@ -6,6 +6,8 @@ import { getEtlStatus } from "../services/etlStatusService";
 
 import { getImportHistory } from "../services/auditService";
 
+import { apiClient } from "../services/api/apiClient";
+
 import { formatLocalDateTime } from "../utils/dateUtils";
 
 import { realtimeService } from "../services/realtime/realtimeService";
@@ -16,6 +18,7 @@ const TYPE_LABELS = {
   MULTIPORTAL_LINKAGE: "Vínculo",
   MULTIPORTAL_OPERATIONAL: "Lista Operacional",
   TRACKNME: "TracknMe",
+  INSTALACOES: "Instalações",
 };
 
 const POLL_INTERVAL_MS = 15000;
@@ -81,6 +84,9 @@ export default function EtlMonitor() {
   const [history, setHistory] =
     useState([]);
 
+  const [installationSync, setInstallationSync] =
+    useState(null);
+
   const [loading, setLoading] =
     useState(true);
 
@@ -88,14 +94,17 @@ export default function EtlMonitor() {
 
     try {
 
-      const [statusData, historyData] = await Promise.all([
+      const [statusData, historyData, syncData] = await Promise.all([
         getEtlStatus(),
         getImportHistory(),
+        apiClient.get("/installations/last-sync").catch(() => null),
       ]);
 
       setStatuses(statusData);
 
       setHistory(historyData.slice(0, 15));
+
+      if (syncData) setInstallationSync(syncData);
 
     } catch (error) {
 
@@ -152,6 +161,7 @@ export default function EtlMonitor() {
         {knownTypes.map((type) => {
 
           const status = statuses.find((s) => s.type === type);
+          const isInstalacoes = type === "INSTALACOES";
 
           return (
             <div
@@ -186,10 +196,27 @@ export default function EtlMonitor() {
                   <dd>{formatLocalDateTime(status?.nextRunAt)}</dd>
                 </div>
 
-                <div className="flex justify-between">
-                  <dt className="text-zinc-500">Registros</dt>
-                  <dd>{status?.lastRecordsProcessed ?? "--"}</dd>
-                </div>
+                {isInstalacoes ? (
+                  <>
+                    <div className="flex justify-between">
+                      <dt className="text-zinc-500">Encontradas</dt>
+                      <dd>{installationSync?.found ?? "--"}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-zinc-500">Inseridas</dt>
+                      <dd>{installationSync?.inserted ?? "--"}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt className="text-zinc-500">Ignoradas</dt>
+                      <dd>{installationSync?.skipped ?? "--"}</dd>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between">
+                    <dt className="text-zinc-500">Registros</dt>
+                    <dd>{status?.lastRecordsProcessed ?? "--"}</dd>
+                  </div>
+                )}
 
               </dl>
 
