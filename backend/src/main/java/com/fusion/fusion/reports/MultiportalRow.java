@@ -5,8 +5,6 @@ import java.time.LocalTime;
 
 public record MultiportalRow(
 
-        int ordem,
-
         String plate,
 
         String numberStr,
@@ -23,7 +21,9 @@ public record MultiportalRow(
 
         LocalDate policyEndDate,
 
-        String cpfCnpj
+        String cpfCnpj,
+
+        String block
 
 ) {
 }

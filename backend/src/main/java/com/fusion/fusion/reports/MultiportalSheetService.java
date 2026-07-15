@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -33,7 +34,7 @@ public class MultiportalSheetService {
 
     // Veiculos de teste usados para validar o pipeline de sync MULTIPORTAL
     // — ficam soft-deletados no banco, nunca aparecem nos blocos
-    // operacionais, mas precisam ser conferidos manualmente (bloco 3).
+    // operacionais, mas precisam ser conferidos manualmente (bloco tests).
     private static final List<String> TEST_PLATES = List.of(
             "ABC0707", "COMBURIU9999", "CURITIBA1515", "FRANCKCAMPINAS0101", "ITU0202",
             "LINKS-BAU", "LINKS-CARU", "LINKS-FEIRA", "LINKS-FORTA", "LINKS-INDAIA",
@@ -109,26 +110,20 @@ public class MultiportalSheetService {
                 })
                 .toList();
 
-        return new MultiportalSheetResponse(
-                buildBlock("Operacionais", operationalVehicles, snapshotByVehicleId,
-                        activeLinkageByVehicleId, latestObservationByVehicleId,
-                        activeLetterByVehicleId, policyByPlate),
-                buildBlock("KAKO", kakoVehicles, snapshotByVehicleId,
-                        activeLinkageByVehicleId, latestObservationByVehicleId,
-                        activeLetterByVehicleId, policyByPlate),
-                buildBlock("Testes", testVehicles, snapshotByVehicleId,
-                        activeLinkageByVehicleId, latestObservationByVehicleId,
-                        activeLetterByVehicleId, policyByPlate),
-                buildBlock("Verificação", verificationVehicles, snapshotByVehicleId,
-                        activeLinkageByVehicleId, latestObservationByVehicleId,
-                        activeLetterByVehicleId, policyByPlate)
+        MultiportalBlocks blocks = new MultiportalBlocks(
+                buildRows(operationalVehicles, "operational", snapshotByVehicleId, activeLinkageByVehicleId, latestObservationByVehicleId, activeLetterByVehicleId, policyByPlate),
+                buildRows(kakoVehicles, "kako", snapshotByVehicleId, activeLinkageByVehicleId, latestObservationByVehicleId, activeLetterByVehicleId, policyByPlate),
+                buildRows(testVehicles, "tests", snapshotByVehicleId, activeLinkageByVehicleId, latestObservationByVehicleId, activeLetterByVehicleId, policyByPlate),
+                buildRows(verificationVehicles, "verification", snapshotByVehicleId, activeLinkageByVehicleId, latestObservationByVehicleId, activeLetterByVehicleId, policyByPlate)
         );
+
+        return new MultiportalSheetResponse(blocks, LocalDateTime.now(ZoneOffset.UTC));
 
     }
 
-    private MultiportalBlock buildBlock(
-            String title,
+    private List<MultiportalRow> buildRows(
             List<Vehicle> vehicles,
+            String blockKey,
             Map<UUID, OperationalSnapshot> snapshotByVehicleId,
             Map<UUID, DeviceLinkage> activeLinkageByVehicleId,
             Map<UUID, VehicleObservation> latestObservationByVehicleId,
@@ -138,13 +133,11 @@ public class MultiportalSheetService {
 
         List<MultiportalRow> rows = new ArrayList<>();
 
-        int ordem = 1;
-
         for (Vehicle vehicle : vehicles) {
 
             rows.add(buildRow(
-                    ordem++,
                     vehicle,
+                    blockKey,
                     snapshotByVehicleId.get(vehicle.getId()),
                     activeLinkageByVehicleId.get(vehicle.getId()),
                     latestObservationByVehicleId.get(vehicle.getId()),
@@ -154,7 +147,7 @@ public class MultiportalSheetService {
 
         }
 
-        return new MultiportalBlock(title, rows, rows.size());
+        return rows;
 
     }
 
@@ -199,8 +192,8 @@ public class MultiportalSheetService {
     }
 
     private MultiportalRow buildRow(
-            int ordem,
             Vehicle vehicle,
+            String blockKey,
             OperationalSnapshot snapshot,
             DeviceLinkage activeLinkage,
             VehicleObservation lastObservation,
@@ -235,7 +228,6 @@ public class MultiportalSheetService {
                 : vehicle.getInsuredName();
 
         return new MultiportalRow(
-                ordem,
                 vehicle.getPlate(),
                 numberStr,
                 lastCommunicationAt != null ? lastCommunicationAt.toLocalDate() : null,
@@ -244,7 +236,8 @@ public class MultiportalSheetService {
                 insuredName,
                 policy != null ? policy.getPolicyNumber() : null,
                 policy != null ? policy.getEndDate() : null,
-                policy != null ? policy.getCpfCnpj() : null
+                policy != null ? policy.getCpfCnpj() : null,
+                blockKey
         );
 
     }

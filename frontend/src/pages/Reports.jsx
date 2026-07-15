@@ -13,17 +13,48 @@ const HEADER_FILL = "FF18181B";
 const RED_FILL = "FFFCA5A5";
 const YELLOW_FILL = "FFFDE68A";
 
+const SNAPSHOT_KEY = "fusion_multiportal_snapshot";
+
+const BLOCK_ORDER = ["operational", "kako", "tests", "verification"];
+
+const BLOCK_LABELS = {
+  operational: "Operacionais",
+  kako: "KAKO",
+  tests: "Testes",
+  verification: "Verificação",
+};
+
+const FIELD_LABELS = {
+  numberStr: "dispositivo",
+  status: "status",
+  insuredName: "segurado",
+  policyNumber: "apólice",
+  policyEndDate: "fim de vigência",
+  cpfCnpj: "CPF/CNPJ",
+};
+
+// Campos comparados no diff — data/hora de comunicação ficam de fora de
+// propósito (mudam toda hora e gerariam ruído em praticamente todo diff).
+const DIFF_FIELDS = [
+  "policyNumber",
+  "insuredName",
+  "cpfCnpj",
+  "policyEndDate",
+  "numberStr",
+  "status",
+];
+
 const COLUMNS = [
-  { key: "ordem", header: "Ordem", width: 8 },
-  { key: "plate", header: "Placa", width: 14 },
-  { key: "numberStr", header: "Dispositivo", width: 16 },
-  { key: "lastCommunicationDate", header: "Posição", width: 12 },
-  { key: "lastCommunicationTime", header: "Hora", width: 10 },
-  { key: "status", header: "Status", width: 40 },
-  { key: "insuredName", header: "Nome Segurado", width: 32 },
-  { key: "policyNumber", header: "Apólice", width: 18 },
-  { key: "policyEndDate", header: "Fim Vigência", width: 14 },
-  { key: "cpfCnpj", header: "CPF/CNPJ", width: 18 },
+  { header: "Ordem", width: 8 },
+  { header: "Placa", width: 14 },
+  { header: "Dispositivo", width: 16 },
+  { header: "Posição", width: 12 },
+  { header: "Hora", width: 10 },
+  { header: "Status", width: 40 },
+  { header: "Nome Segurado", width: 32 },
+  { header: "Apólice", width: 18 },
+  { header: "Fim Vigência", width: 14 },
+  { header: "CPF/CNPJ", width: 18 },
 ];
 
 function formatDate(isoDate) {
@@ -50,7 +81,7 @@ function verificationFill(row) {
   return null;
 }
 
-async function buildWorkbook(data) {
+async function buildWorkbook(blocks) {
   const { default: ExcelJS } = await import("exceljs");
 
   const workbook = new ExcelJS.Workbook();
@@ -61,15 +92,8 @@ async function buildWorkbook(data) {
 
   const lastCol = COLUMNS.length;
 
-  const blocks = [
-    { title: "OPERACIONAIS", block: data.operational, isVerification: false },
-    { title: "KAKO", block: data.kako, isVerification: false },
-    { title: "TESTES", block: data.tests, isVerification: false },
-    { title: "VERIFICAÇÃO", block: data.verification, isVerification: true },
-  ];
-
-  for (const { title, block, isVerification } of blocks) {
-    addBlock(sheet, lastCol, title, block, isVerification);
+  for (const blockKey of BLOCK_ORDER) {
+    addBlock(sheet, lastCol, blockKey, blocks[blockKey] ?? []);
   }
 
   COLUMNS.forEach((col, index) => {
@@ -79,8 +103,11 @@ async function buildWorkbook(data) {
   return workbook;
 }
 
-function addBlock(sheet, lastCol, title, block, isVerification) {
-  const separatorRow = sheet.addRow([`${title} — ${block.total} veículo(s)`]);
+function addBlock(sheet, lastCol, blockKey, rows) {
+  const title = BLOCK_LABELS[blockKey] ?? blockKey;
+  const isVerification = blockKey === "verification";
+
+  const separatorRow = sheet.addRow([`${title} — ${rows.length} veículo(s)`]);
   sheet.mergeCells(separatorRow.number, 1, separatorRow.number, lastCol);
   separatorRow.height = 22;
 
@@ -96,9 +123,9 @@ function addBlock(sheet, lastCol, title, block, isVerification) {
     cell.alignment = { vertical: "middle" };
   });
 
-  for (const row of block.rows) {
+  rows.forEach((row, index) => {
     const excelRow = sheet.addRow([
-      row.ordem,
+      index + 1,
       row.plate,
       row.numberStr ?? "",
       formatDate(row.lastCommunicationDate),
@@ -117,9 +144,9 @@ function addBlock(sheet, lastCol, title, block, isVerification) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
       });
     }
-  }
+  });
 
-  const totalRow = sheet.addRow([`Total: ${block.total} veículo(s)`]);
+  const totalRow = sheet.addRow([`Total: ${rows.length} veículo(s)`]);
   sheet.mergeCells(totalRow.number, 1, totalRow.number, lastCol);
   totalRow.getCell(1).font = { bold: true };
 
@@ -140,9 +167,151 @@ function downloadWorkbook(workbook, filename) {
   });
 }
 
+function loadSnapshot() {
+  try {
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSnapshot(snapshot) {
+  localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+}
+
+// Snapshot comparavel entre gerações — sem data/hora de comunicação de
+// propósito, ver comentário em DIFF_FIELDS.
+function buildSnapshot(blocks) {
+  const snapshot = {};
+
+  for (const blockKey of BLOCK_ORDER) {
+    for (const row of blocks[blockKey] ?? []) {
+      snapshot[row.plate] = {
+        numberStr: row.numberStr,
+        status: row.status,
+        insuredName: row.insuredName,
+        policyNumber: row.policyNumber,
+        policyEndDate: row.policyEndDate,
+        cpfCnpj: row.cpfCnpj,
+        block: row.block,
+      };
+    }
+  }
+
+  return snapshot;
+}
+
+function diffSnapshots(oldSnapshot, newSnapshot) {
+  const messages = [];
+
+  // Primeira geração (sem snapshot salvo) — nada a comparar.
+  if (!oldSnapshot) return messages;
+
+  const oldPlates = Object.keys(oldSnapshot);
+  const newPlates = Object.keys(newSnapshot);
+
+  for (const plate of newPlates) {
+    if (!oldSnapshot[plate]) {
+      messages.push(`Placa ${plate}: nova placa no sistema`);
+    }
+  }
+
+  for (const plate of oldPlates) {
+    if (!newSnapshot[plate]) {
+      messages.push(`Placa ${plate}: saiu do sistema`);
+    }
+  }
+
+  for (const plate of newPlates) {
+    const before = oldSnapshot[plate];
+    const after = newSnapshot[plate];
+
+    if (!before) continue;
+
+    if (before.block !== after.block) {
+      const fromLabel = BLOCK_LABELS[before.block] ?? before.block;
+      const toLabel = BLOCK_LABELS[after.block] ?? after.block;
+      messages.push(`Placa ${plate} mudou de bloco: ${fromLabel} → ${toLabel}`);
+    }
+
+    for (const field of DIFF_FIELDS) {
+      const beforeValue = before[field] ?? "";
+      const afterValue = after[field] ?? "";
+
+      if (beforeValue !== afterValue) {
+        messages.push(
+          `Placa ${plate}: ${FIELD_LABELS[field]} mudou de "${beforeValue || "vazio"}" para "${afterValue || "vazio"}"`
+        );
+      }
+    }
+  }
+
+  return messages;
+}
+
+function ChangesModal({ changes, onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="flex max-h-[80vh] w-full max-w-lg flex-col rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
+        <h3 className="text-lg font-semibold">Mudanças desde a última planilha</h3>
+        <p className="mt-1 text-sm text-zinc-500">
+          {changes.length} mudança(s) detectada(s) em relação à última planilha gerada neste navegador.
+        </p>
+
+        <ul className="mt-4 flex-1 space-y-2 overflow-y-auto text-sm text-zinc-300">
+          {changes.map((message, index) => (
+            <li key={index} className="rounded-lg bg-zinc-950 px-3 py-2">
+              {message}
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 rounded-xl border border-zinc-700 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 rounded-xl bg-white py-2.5 text-sm font-semibold text-black transition hover:bg-zinc-200"
+          >
+            Entendi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(null);
+  const [pending, setPending] = useState(null);
+
+  async function finalizeGeneration(blocks, snapshot) {
+    const workbook = await buildWorkbook(blocks);
+
+    await downloadWorkbook(
+      workbook,
+      `planilha-multiportal-${todayForFilename()}.xlsx`
+    );
+
+    saveSnapshot(snapshot);
+
+    setSummary({
+      operational: blocks.operational.length,
+      kako: blocks.kako.length,
+      tests: blocks.tests.length,
+      verification: blocks.verification.length,
+    });
+
+    toast.success("Planilha MULTIPORTAL gerada com sucesso");
+
+    setLoading(false);
+  }
 
   async function handleGenerate() {
     setLoading(true);
@@ -150,27 +319,43 @@ export default function Reports() {
 
     try {
       const data = await getMultiportalSheet();
-      const workbook = await buildWorkbook(data);
+      const newSnapshot = buildSnapshot(data.blocks);
+      const oldSnapshot = loadSnapshot();
+      const changes = diffSnapshots(oldSnapshot, newSnapshot);
 
-      await downloadWorkbook(
-        workbook,
-        `planilha-multiportal-${todayForFilename()}.xlsx`
-      );
+      if (changes.length > 0) {
+        setPending({ blocks: data.blocks, snapshot: newSnapshot, changes });
+        setLoading(false);
+        return;
+      }
 
-      setSummary({
-        operational: data.operational.total,
-        kako: data.kako.total,
-        tests: data.tests.total,
-        verification: data.verification.total,
-      });
-
-      toast.success("Planilha MULTIPORTAL gerada com sucesso");
+      await finalizeGeneration(data.blocks, newSnapshot);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao gerar planilha: " + error.message);
-    } finally {
       setLoading(false);
     }
+  }
+
+  async function handleConfirmChanges() {
+    if (!pending) return;
+
+    const { blocks, snapshot } = pending;
+
+    setPending(null);
+    setLoading(true);
+
+    try {
+      await finalizeGeneration(blocks, snapshot);
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao gerar planilha: " + error.message);
+      setLoading(false);
+    }
+  }
+
+  function handleCancelChanges() {
+    setPending(null);
   }
 
   return (
@@ -230,6 +415,14 @@ export default function Reports() {
             <p className="mt-1 text-sm text-zinc-400">Verificação</p>
           </div>
         </div>
+      )}
+
+      {pending && (
+        <ChangesModal
+          changes={pending.changes}
+          onConfirm={handleConfirmChanges}
+          onCancel={handleCancelChanges}
+        />
       )}
 
     </div>

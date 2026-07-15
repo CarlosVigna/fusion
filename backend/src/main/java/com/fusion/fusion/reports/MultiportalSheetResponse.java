@@ -1,14 +1,12 @@
 package com.fusion.fusion.reports;
 
+import java.time.LocalDateTime;
+
 public record MultiportalSheetResponse(
 
-        MultiportalBlock operational,
+        MultiportalBlocks blocks,
 
-        MultiportalBlock kako,
-
-        MultiportalBlock tests,
-
-        MultiportalBlock verification
+        LocalDateTime generatedAt
 
 ) {
 }
