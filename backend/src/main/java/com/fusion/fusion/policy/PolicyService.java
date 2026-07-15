@@ -67,14 +67,8 @@ public class PolicyService {
 
     public List<PendingVehicleResponse> findPendingVehicles() {
 
-        Set<String> platesWithActivePolicy = policyRepository.findAll()
+        Set<String> platesWithAnyPolicy = policyRepository.findAll()
                 .stream()
-                .filter(p -> {
-                    PolicyStatus s = PolicyResponse.computeStatus(p);
-                    return s == PolicyStatus.ACTIVE
-                            || s == PolicyStatus.FUTURE
-                            || s == PolicyStatus.EXPIRING;
-                })
                 .map(Policy::getPlate)
                 .filter(Objects::nonNull)
                 .map(String::toUpperCase)
@@ -90,7 +84,7 @@ public class PolicyService {
         return vehicleRepository.findAll()
                 .stream()
                 .filter(v -> v.getDeletedAt() == null
-                        && !platesWithActivePolicy.contains(v.getPlate().toUpperCase()))
+                        && !platesWithAnyPolicy.contains(v.getPlate().toUpperCase()))
                 .map(v -> {
                     DeviceLinkage dl = linkageByVehicleId.get(v.getId());
                     String activeDevice = dl != null && dl.getDevice() != null
@@ -133,6 +127,23 @@ public class PolicyService {
         return policyRepository.findAll()
                 .stream()
                 .filter(p -> PolicyResponse.computeStatus(p) == PolicyStatus.EXPIRED)
+                .map(PolicyResponse::from)
+                .toList();
+
+    }
+
+    public List<PolicyResponse> findInactive() {
+
+        return policyRepository.findAll()
+                .stream()
+                .filter(p -> {
+                    PolicyStatus s = PolicyResponse.computeStatus(p);
+                    return s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED;
+                })
+                .sorted(Comparator.comparing(
+                        (Policy p) -> p.getEndDate() != null ? p.getEndDate() : LocalDate.MIN,
+                        Comparator.reverseOrder()
+                ))
                 .map(PolicyResponse::from)
                 .toList();
 

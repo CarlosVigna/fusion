@@ -40,6 +40,11 @@ public class PolicyController {
         return service.findExpired();
     }
 
+    @GetMapping("/inactive")
+    public List<PolicyResponse> findInactive() {
+        return service.findInactive();
+    }
+
     @GetMapping("/badge-counts")
     public PolicyBadgeCountsResponse getBadgeCounts() {
         return service.getBadgeCounts();

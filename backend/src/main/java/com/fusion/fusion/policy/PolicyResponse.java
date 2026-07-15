@@ -28,6 +28,12 @@ public record PolicyResponse(
         if (p.getStatus() == PolicyStatus.SUPERSEDED) {
             return PolicyStatus.SUPERSEDED;
         }
+        String desc = p.getStatusDescricao();
+        if (desc != null) {
+            String lower = desc.toLowerCase();
+            if (lower.contains("encerrada")) return PolicyStatus.EXPIRED;
+            if (lower.contains("cancelada")) return PolicyStatus.CANCELLED;
+        }
         LocalDate today = LocalDate.now(ZoneOffset.UTC);
         if (p.getEndDate() != null && p.getEndDate().isBefore(today)) {
             return PolicyStatus.EXPIRED;

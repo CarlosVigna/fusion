@@ -11,6 +11,7 @@ import {
   createPolicy,
   deletePolicy,
   fetchPolicyFromPortal,
+  getInactivePolicies,
   getPendingVehicles,
   getPolicies,
   getPolicyReport,
@@ -188,6 +189,7 @@ export default function Policies() {
   const [tab, setTab] = useState("pending");
   const [policies, setPolicies] = useState([]);
   const [pendingVehicles, setPendingVehicles] = useState([]);
+  const [inactivePolicies, setInactivePolicies] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Create / edit modal
@@ -222,9 +224,14 @@ export default function Policies() {
   async function loadData() {
     setLoading(true);
     try {
-      const [pol, pend] = await Promise.all([getPolicies(), getPendingVehicles()]);
+      const [pol, pend, inact] = await Promise.all([
+        getPolicies(),
+        getPendingVehicles(),
+        getInactivePolicies(),
+      ]);
       setPolicies(pol);
       setPendingVehicles(pend);
+      setInactivePolicies(Array.isArray(inact) ? inact : []);
     } catch (error) {
       console.error(error);
       toast.error("Erro ao carregar apólices");
@@ -246,9 +253,7 @@ export default function Policies() {
   );
 
   const historyPolicies = useMemo(
-    () => policies.filter(
-      (p) => p.status === "EXPIRED" || p.status === "CANCELLED" || p.status === "SUPERSEDED"
-    ),
+    () => policies.filter((p) => p.status === "SUPERSEDED"),
     [policies]
   );
 
@@ -458,6 +463,7 @@ export default function Policies() {
 
   const tabs = [
     { key: "pending",  label: "Sem Apólice", count: pendingVehicles.length },
+    { key: "inactive", label: "Encerradas",  count: inactivePolicies.length },
     { key: "active",   label: "Vigentes",    count: activePolicies.length },
     { key: "history",  label: "Histórico",   count: historyPolicies.length },
     { key: "reports",  label: "Relatórios",  count: null },
@@ -547,6 +553,67 @@ export default function Policies() {
                                 ) : (
                                   "Buscar no Portal"
                                 )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Encerradas ── */}
+          {tab === "inactive" && (
+            <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+              {inactivePolicies.length === 0 ? (
+                <p className="py-12 text-center text-zinc-500">Nenhuma apólice encerrada ou cancelada</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full">
+                    <thead className="bg-zinc-950 text-left text-xs text-zinc-400">
+                      <tr>
+                        <th className="px-4 py-3">Placa</th>
+                        <th className="px-4 py-3">Segurado</th>
+                        <th className="px-4 py-3">Apólice</th>
+                        <th className="px-4 py-3">Início</th>
+                        <th className="px-4 py-3">Fim</th>
+                        <th className="px-4 py-3">Status Portal</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inactivePolicies.map((policy) => (
+                        <tr key={policy.id} className="border-t border-zinc-800 hover:bg-zinc-800/40">
+                          <td className="px-4 py-3 font-mono font-semibold">{policy.plate || "--"}</td>
+                          <td className="px-4 py-3 text-sm">{policy.insuredName || "--"}</td>
+                          <td className="px-4 py-3 text-sm font-mono text-zinc-300">{policy.policyNumber || "--"}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">{formatLocalDate(policy.startDate)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">{formatLocalDate(policy.endDate)}</td>
+                          <td className="px-4 py-3">
+                            <PortalStatusBadge status={policy.statusDescricao} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <StatusBadge status={policy.status} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => openEditModal(policy)}
+                                title="Editar"
+                                className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 transition hover:bg-zinc-800"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(policy)}
+                                title="Remover"
+                                className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+                              >
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </td>
