@@ -3,6 +3,7 @@ package com.fusion.fusion.letter;
 import com.fusion.fusion.vehicle.Vehicle;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,5 +29,7 @@ public interface LetterRecordRepository
     long countByStatus(LetterStatus status);
 
     List<LetterRecord> findByVehicleOrderByDataEnvioDesc(Vehicle vehicle);
+
+    boolean existsByVehicleAndDataEnvio(Vehicle vehicle, LocalDate dataEnvio);
 
 }
