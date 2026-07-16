@@ -88,7 +88,13 @@ async function expandParentMenuIfNeeded(menuFrame, childSelector) {
         return;
     }
 
-    await menuFrame.locator(`table[onclick="openMenu(${RELATORIOS_MENU_ID})"]`).click();
+    // Aguardar o frame mymenu carregar completamente antes de interagir
+    await menuFrame.page().waitForTimeout(3000);
+
+    // Garantir que o elemento está visível antes de clicar
+    const menuItem = menuFrame.locator(`table[onclick="openMenu(${RELATORIOS_MENU_ID})"]`);
+    await menuItem.waitFor({ state: 'visible', timeout: 30000 });
+    await menuItem.click();
 
     await childLocator.waitFor({ state: 'visible', timeout: 10000 });
 
@@ -140,7 +146,9 @@ async function downloadKmMensal(page, plate, startIso, endIso, outputDir) {
 
     log('[SINISTRO] Abrindo KM Mensal...');
 
-    const menuFrame = await waitForFrame(page, '/system/layout/menu.seam');
+    // Garante que o frame de menu carregou via URL, depois acessa pelo name
+    await waitForFrame(page, '/system/layout/menu.seam');
+    const menuFrame = page.frame({ name: 'mymenu' });
 
     await expandParentMenuIfNeeded(
         menuFrame,
@@ -188,7 +196,9 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
 
     log(`[SINISTRO] Abrindo Excesso de Velocidade (bloco ${blockIndex}: ${blockStartIso} a ${blockEndIso})...`);
 
-    const menuFrame = await waitForFrame(page, '/system/layout/menu.seam');
+    // Garante que o frame de menu carregou via URL, depois acessa pelo name
+    await waitForFrame(page, '/system/layout/menu.seam');
+    const menuFrame = page.frame({ name: 'mymenu' });
 
     await expandParentMenuIfNeeded(
         menuFrame,
