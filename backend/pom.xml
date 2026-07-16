@@ -120,6 +120,13 @@
 			<version>5.2.5</version>
 		</dependency>
 
+		<!-- PDF (modulo de Analise de Sinistro) -->
+		<dependency>
+			<groupId>com.github.librepdf</groupId>
+			<artifactId>openpdf</artifactId>
+			<version>1.3.42</version>
+		</dependency>
+
 		<!-- LOAD .env INTO ENVIRONMENT FOR LOCAL DEV -->
 		<dependency>
 			<groupId>me.paulschwarz</groupId>

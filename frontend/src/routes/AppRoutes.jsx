@@ -19,6 +19,7 @@ import InstallationReports from "../pages/InstallationReports";
 import Policies from "../pages/Policies";
 import EtlMonitor from "../pages/EtlMonitor";
 import Reports from "../pages/Reports";
+import AnaliseSinistro from "../pages/AnaliseSinistro";
 import Account from "../pages/Account";
 import Login from "../pages/Login";
 import VehicleDetails from "../pages/VehicleDetails";
@@ -109,6 +110,11 @@ export default function AppRoutes() {
                 <Route
                     path="reports"
                     element={<Reports />}
+                />
+
+                <Route
+                    path="sinistro"
+                    element={<AnaliseSinistro />}
                 />
 
                 <Route

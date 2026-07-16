@@ -76,7 +76,8 @@ public class SecurityConfig {
                                 "/imports/upload",
                                 "/etl/poll",
                                 "/etl/heartbeat",
-                                "/installations/sync"
+                                "/installations/sync",
+                                "/sinistro/upload"
                         ).permitAll()
 
                         .requestMatchers(

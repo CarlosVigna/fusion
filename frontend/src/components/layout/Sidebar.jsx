@@ -13,6 +13,7 @@ import {
     MonitorCheck,
     Radio,
     ScrollText,
+    Search,
     Shield,
     Wrench,
 } from "lucide-react";
@@ -44,6 +45,7 @@ const GROUPS = [
             { label: "Manutenções",         icon: Wrench,         path: "/maintenance" },
             { label: "Veículos",            icon: Car,            path: "/vehicles" },
             { label: "Relatórios",          icon: FileSpreadsheet,path: "/reports" },
+            { label: "Análise de Sinistro", icon: Search,         path: "/sinistro" },
             { label: "Monitor ETL",         icon: Activity,       path: "/etl" },
         ],
     },

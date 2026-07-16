@@ -40,7 +40,7 @@ async function pollOnce(runners) {
         return;
     }
 
-    let type;
+    let data;
 
     try {
 
@@ -49,7 +49,7 @@ async function pollOnce(runners) {
             timeout: 10000,
         });
 
-        type = response.data?.type;
+        data = response.data;
 
     } catch {
 
@@ -59,42 +59,73 @@ async function pollOnce(runners) {
 
     }
 
-    const runner = type && runners[type];
+    const runner = data?.type && runners[data.type];
 
-    if (!runner) {
+    if (runner) {
+
+        running = true;
+
+        const startedAt = Date.now();
+
+        log(`[POLL] Pedido de atualização manual recebido (${runner.label})`);
+
+        await reportHeartbeat({ type: data.type, status: 'RUNNING' });
+
+        try {
+
+            await withRetry(runner.run, runner.label, 1, POLL_RETRY_DELAY_MS);
+
+            await reportHeartbeat({
+                type: data.type,
+                status: 'SUCCESS',
+                durationMs: Date.now() - startedAt,
+            });
+
+        } catch (error) {
+
+            await reportHeartbeat({
+                type: data.type,
+                status: 'ERROR',
+                durationMs: Date.now() - startedAt,
+                error: error.message,
+            });
+
+        } finally {
+
+            running = false;
+
+        }
+
         return;
+
     }
 
-    running = true;
+    // Analise de Sinistro — job parametrizado (placa/periodo), por isso
+    // nao cabe no mapa fixo de runners por ImportType. Nao usa o
+    // heartbeat de EtlStatus: o proprio index-sinistro.js reporta
+    // sucesso/erro direto em /sinistro/upload, e a UI acompanha via
+    // GET /sinistro/{id}/status, nao pela tela de monitoramento do ETL.
+    if (data?.sinistroJob) {
 
-    const startedAt = Date.now();
+        running = true;
 
-    log(`[POLL] Pedido de atualização manual recebido (${runner.label})`);
+        const job = data.sinistroJob;
 
-    await reportHeartbeat({ type, status: 'RUNNING' });
+        log(`[POLL] Análise de Sinistro pendente recebida (placa=${job.plate}, id=${job.id})`);
 
-    try {
+        try {
 
-        await withRetry(runner.run, runner.label, 1, POLL_RETRY_DELAY_MS);
+            await require('../index-sinistro').run(job);
 
-        await reportHeartbeat({
-            type,
-            status: 'SUCCESS',
-            durationMs: Date.now() - startedAt,
-        });
+        } catch (error) {
 
-    } catch (error) {
+            log(`[POLL] Análise de Sinistro ${job.id} falhou: ${error.message}`);
 
-        await reportHeartbeat({
-            type,
-            status: 'ERROR',
-            durationMs: Date.now() - startedAt,
-            error: error.message,
-        });
+        } finally {
 
-    } finally {
+            running = false;
 
-        running = false;
+        }
 
     }
 

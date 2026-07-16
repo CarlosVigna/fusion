@@ -1,5 +1,6 @@
 package com.fusion.fusion.etl;
 
+import com.fusion.fusion.sinistro.SinistroAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,6 +21,8 @@ public class EtlController {
 
     private final EtlStatusService statusService;
 
+    private final SinistroAnalysisService sinistroAnalysisService;
+
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
 
@@ -37,7 +40,8 @@ public class EtlController {
 
         return ResponseEntity.ok(
                 new EtlPollResponse(
-                        triggerService.poll().orElse(null)
+                        triggerService.poll().orElse(null),
+                        sinistroAnalysisService.claimNextPending().orElse(null)
                 )
         );
 
