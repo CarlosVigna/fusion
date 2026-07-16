@@ -66,6 +66,40 @@ function buildWeeklyBlocks(startIso, endIso) {
 
 }
 
+// O menu do Multiportal e' hierarquico — o item filho (ex: KM Mensal)
+// so fica clicavel depois do item pai ("Relatórios") expandir. So clica
+// no pai se o filho ainda nao estiver visivel: o clique no pai parece
+// ser toggle, entao clicar de novo com o menu ja aberto (ex: entre o
+// download de KM Mensal e o de Excesso de Velocidade, ambos sob
+// "Relatórios") corre o risco de FECHAR o que um passo anterior ja
+// deixou aberto.
+//
+// NAO CONFIRMADO: os outros scripts deste ETL (index.js, index-
+// ultima-posicao.js) expandem o menu pai clicando em
+// table[onclick="openMenu(N)"], com N fixo por categoria (1 =
+// Rastreamentos, 36 = outra categoria) — mais preciso que filtrar por
+// texto, mas nao sei qual N corresponde a "Relatórios" sem inspecionar
+// o DOM do portal de verdade. Usando filtro por texto como fallback
+// generico por enquanto; se alguem confirmar o onclick="openMenu(N)"
+// certo pra Relatórios, trocar por ele aqui deixa a automacao mais
+// robusta (nao depende do texto do label, que pode mudar/ter espacos
+// diferentes).
+async function expandParentMenuIfNeeded(menuFrame, childSelector, parentText) {
+
+    const childLocator = menuFrame.locator(childSelector);
+
+    const alreadyVisible = await childLocator.isVisible().catch(() => false);
+
+    if (alreadyVisible) {
+        return;
+    }
+
+    await menuFrame.locator('tr').filter({ hasText: parentText }).first().click();
+
+    await childLocator.waitFor({ state: 'visible', timeout: 10000 });
+
+}
+
 // Aguarda o download disparado pelo click e salva em destPath — se vier
 // zipado, extrai o primeiro .xls/.xlsx de dentro; senao salva direto.
 async function captureDownload(page, clickAction, destPath) {
@@ -114,6 +148,12 @@ async function downloadKmMensal(page, plate, startIso, endIso, outputDir) {
 
     const menuFrame = await waitForFrame(page, '/system/layout/menu.seam');
 
+    await expandParentMenuIfNeeded(
+        menuFrame,
+        'tr[id="/system/reports/kmMensalList.seam"]',
+        'Relatórios'
+    );
+
     await menuFrame.locator(
         'tr[id="/system/reports/kmMensalList.seam"]'
     ).click();
@@ -156,6 +196,12 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
     log(`[SINISTRO] Abrindo Excesso de Velocidade (bloco ${blockIndex}: ${blockStartIso} a ${blockEndIso})...`);
 
     const menuFrame = await waitForFrame(page, '/system/layout/menu.seam');
+
+    await expandParentMenuIfNeeded(
+        menuFrame,
+        'tr[id="/system/reports/excessoVelocidadeList.seam"]',
+        'Relatórios'
+    );
 
     await menuFrame.locator(
         'tr[id="/system/reports/excessoVelocidadeList.seam"]'
