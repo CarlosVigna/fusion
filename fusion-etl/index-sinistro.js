@@ -66,6 +66,11 @@ function buildWeeklyBlocks(startIso, endIso) {
 
 }
 
+// Categoria "Relatórios" no menu hierárquico do Multiportal — confirmado
+// contra o portal real (mesmo padrao table[onclick="openMenu(N)"] usado
+// por index.js e index-ultima-posicao.js pras outras categorias).
+const RELATORIOS_MENU_ID = 175;
+
 // O menu do Multiportal e' hierarquico — o item filho (ex: KM Mensal)
 // so fica clicavel depois do item pai ("Relatórios") expandir. So clica
 // no pai se o filho ainda nao estiver visivel: o clique no pai parece
@@ -73,18 +78,7 @@ function buildWeeklyBlocks(startIso, endIso) {
 // download de KM Mensal e o de Excesso de Velocidade, ambos sob
 // "Relatórios") corre o risco de FECHAR o que um passo anterior ja
 // deixou aberto.
-//
-// NAO CONFIRMADO: os outros scripts deste ETL (index.js, index-
-// ultima-posicao.js) expandem o menu pai clicando em
-// table[onclick="openMenu(N)"], com N fixo por categoria (1 =
-// Rastreamentos, 36 = outra categoria) — mais preciso que filtrar por
-// texto, mas nao sei qual N corresponde a "Relatórios" sem inspecionar
-// o DOM do portal de verdade. Usando filtro por texto como fallback
-// generico por enquanto; se alguem confirmar o onclick="openMenu(N)"
-// certo pra Relatórios, trocar por ele aqui deixa a automacao mais
-// robusta (nao depende do texto do label, que pode mudar/ter espacos
-// diferentes).
-async function expandParentMenuIfNeeded(menuFrame, childSelector, parentText) {
+async function expandParentMenuIfNeeded(menuFrame, childSelector) {
 
     const childLocator = menuFrame.locator(childSelector);
 
@@ -94,7 +88,7 @@ async function expandParentMenuIfNeeded(menuFrame, childSelector, parentText) {
         return;
     }
 
-    await menuFrame.locator('tr').filter({ hasText: parentText }).first().click();
+    await menuFrame.locator(`table[onclick="openMenu(${RELATORIOS_MENU_ID})"]`).click();
 
     await childLocator.waitFor({ state: 'visible', timeout: 10000 });
 
@@ -150,8 +144,7 @@ async function downloadKmMensal(page, plate, startIso, endIso, outputDir) {
 
     await expandParentMenuIfNeeded(
         menuFrame,
-        'tr[id="/system/reports/kmMensalList.seam"]',
-        'Relatórios'
+        'tr[id="/system/reports/kmMensalList.seam"]'
     );
 
     await menuFrame.locator(
@@ -199,8 +192,7 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
 
     await expandParentMenuIfNeeded(
         menuFrame,
-        'tr[id="/system/reports/excessoVelocidadeList.seam"]',
-        'Relatórios'
+        'tr[id="/system/reports/excessoVelocidadeList.seam"]'
     );
 
     await menuFrame.locator(
