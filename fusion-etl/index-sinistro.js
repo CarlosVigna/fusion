@@ -284,14 +284,19 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         `excesso_velocidade_${plate}_${blockStartIso}_${blockEndIso}_bloco${blockIndex}.xls`
     );
 
-    // Promise.all garante listener registrado antes do clique
+    // printEXCEL abre popup com /system/excelreport?datalist=... que serve o
+    // XLS. O download event dispara no page (não no popup).
+    // Diagnóstico confirmou: el.click() no exportarExcel INPUT não funciona
+    // (o onclick A4J.AJAX.Submit não dispara em headless); printEXCEL diretamente
+    // via evaluate é a única forma confiável.
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: 60000 }),
         bodyFrame.evaluate(() => {
-            document.querySelector('a.flaticon-excel-file').click();
+            printEXCEL('ExcessoVelocidadeDataList', '');
         }),
     ]);
 
+    // O servidor serve o XLS direto — sem ZIP, mas manter tratamento defensivo
     const suggested = download.suggestedFilename() || '';
     if (suggested.toLowerCase().endsWith('.zip')) {
         const tempZip = destPath + '.zip';

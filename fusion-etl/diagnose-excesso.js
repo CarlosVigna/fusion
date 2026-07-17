@@ -5,7 +5,7 @@ const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal
 const RELATORIOS_MENU_ID = 175;
 const PLATE = 'FXZ9249';
 const DATA_INICIO = '01/07/2026 00:00';
-const DATA_FIM = '15/07/2026 23:59';
+const DATA_FIM = '07/07/2026 23:59'; // limite: 7 dias
 
 function listClickable(frame) {
     return frame.evaluate(() =>
@@ -41,18 +41,27 @@ function listClickable(frame) {
     });
 
     page.on('response', async res => {
-        const ct  = res.headers()['content-type'] || '';
-        const url = res.url();
+        const ct   = res.headers()['content-type'] || '';
+        const url  = res.url();
+        const disp = res.headers()['content-disposition'] || '';
+        // Loga TUDO que vem de excessoVelocidade (para diagnosticar export)
+        if (url.includes('excessoVelocidade') || url.includes('Excesso')) {
+            console.log('[RESPONSE]', res.status(), url);
+            console.log('  content-type:', ct);
+            console.log('  content-disposition:', disp || '(none)');
+        }
+        // Qualquer resposta com conteúdo binário
         if (
             ct.includes('excel')
             || ct.includes('spreadsheet')
             || ct.includes('octet-stream')
             || url.includes('xls')
             || url.includes('download')
+            || disp.includes('attachment')
         ) {
             console.log('[RESPONSE DOWNLOAD]', res.status(), url);
             console.log('  content-type:', ct);
-            console.log('  content-disposition:', res.headers()['content-disposition'] || '(none)');
+            console.log('  content-disposition:', disp || '(none)');
         }
     });
 
@@ -176,41 +185,216 @@ function listClickable(frame) {
     });
     console.log('[INFO] Botão Pesquisar usado:', btnPesquisar ?? 'NENHUM ENCONTRADO');
 
-    // ── 6. Aguardar 5s e listar novamente ────────────────────────────────
-    console.log('\n[STEP 6] Aguardando 5s para grid carregar...');
-    await page.waitForTimeout(5000);
+    // ── 6. Aguardar 8s (mesmo padrão do KM Mensal) e inspecionar grid ────
+    console.log('\n[STEP 6] Aguardando 8s para grid carregar...');
+    await page.waitForTimeout(8000);
+
+    // Contar linhas no grid para confirmar se Pesquisar retornou dados
+    const gridInfo = await bodyFrame.evaluate(() => {
+        // Tenta encontrar tabela de resultados (tbody com tr de dados)
+        const tbodies = [...document.querySelectorAll('tbody')];
+        const rows = tbodies.flatMap(t => [...t.querySelectorAll('tr')]);
+        const firstRow = rows[0] ? rows[0].textContent.trim().slice(0, 120) : '(sem linhas)';
+        return { totalRows: rows.length, firstRow };
+    });
+    console.log(`[STEP 6] Grid: ${gridInfo.totalRows} linhas encontradas`);
+    console.log(`[STEP 6] Primeira linha: ${gridInfo.firstRow}`);
 
     console.log('[STEP 6] Elementos clicáveis APÓS pesquisar:');
     const aposP = await listClickable(bodyFrame);
     aposP.forEach(b => console.log(' ', b.tag, `id="${b.id}"`, `name="${b.name}"`, `visible=${b.visible}`, '|', b.text));
 
-    // ── 7. Tentar clicar no botão Excel ──────────────────────────────────
-    console.log('\n[STEP 7] Tentando clicar no botão Excel...');
-    const btnExcel = await bodyFrame.evaluate(() => {
-        const candidatos = [
-            document.querySelector('[id="ExcessoVelocidadeDataList:paramPesquisa:btnExportXLS"]'),
-            document.querySelector('a.flaticon-excel-file'),
-            // fallback: qualquer link/botão que mencione xls ou excel
-            ...[...document.querySelectorAll('a, button, input')]
-                .filter(el =>
-                    el.id.toLowerCase().includes('xls')
-                    || el.id.toLowerCase().includes('excel')
-                    || el.className.toLowerCase().includes('excel')
-                    || el.textContent.trim().toLowerCase().includes('excel')
-                ),
-        ].filter(Boolean);
+    // ── 6b. Inspecionar DOM: encontrar o toggle do dropdown de export ─────
+    console.log('\n[STEP 6b] Procurando toggle do dropdown de exportar...');
+    const dropdownInfo = await bodyFrame.evaluate(() => {
+        // Elementos com onclick que mencionem export/excel/lote
+        const withOnclick = [...document.querySelectorAll('[onclick]')]
+            .map(el => ({
+                tag: el.tagName, id: el.id, cls: el.className,
+                onclick: el.getAttribute('onclick').slice(0, 100),
+                text: el.textContent.trim().slice(0, 60),
+            }))
+            .filter(e =>
+                e.onclick.toLowerCase().includes('export')
+                || e.onclick.toLowerCase().includes('excel')
+                || e.onclick.toLowerCase().includes('lote')
+                || e.onclick.toLowerCase().includes('dropdown')
+                || e.onclick.toLowerCase().includes('show')
+                || e.onclick.toLowerCase().includes('toggle')
+            );
 
-        if (candidatos.length === 0) return null;
+        // Elementos com class contendo export/excel/lote/dropdown
+        const withClass = [...document.querySelectorAll('[class]')]
+            .map(el => ({ tag: el.tagName, id: el.id, cls: el.className, text: el.textContent.trim().slice(0, 60) }))
+            .filter(e =>
+                e.cls.toLowerCase().includes('export')
+                || e.cls.toLowerCase().includes('excel')
+                || e.cls.toLowerCase().includes('lote')
+                || (e.cls.toLowerCase().includes('dropdown') && !e.cls.includes('menu'))
+            );
 
-        const el = candidatos[0];
-        console.log('Clicando Excel em:', el.tagName, el.id, el.className, el.textContent.trim().slice(0, 40));
-        el.click();
-        return el.id || el.className || el.textContent.trim().slice(0, 40);
+        // href do link Excel (pode ter URL direta)
+        const excelLink = document.querySelector('a.flaticon-excel-file');
+        const excelHref = excelLink ? excelLink.getAttribute('href') : null;
+        const excelOnclick = excelLink ? excelLink.getAttribute('onclick') : null;
+
+        // Toggle Bootstrap (data-toggle ou data-bs-toggle)
+        const toggles = [...document.querySelectorAll('[data-toggle],[data-bs-toggle]')]
+            .map(el => ({
+                tag: el.tagName, id: el.id, cls: el.className.slice(0, 60),
+                text: el.textContent.trim().slice(0, 40),
+                dataToggle: el.getAttribute('data-toggle') || el.getAttribute('data-bs-toggle'),
+                dataTarget: el.getAttribute('data-target') || el.getAttribute('data-bs-target') || '',
+            }))
+            .filter(e => e.dataToggle === 'dropdown' || e.dataToggle === 'collapse');
+
+        return { withOnclick, withClass, excelHref, excelOnclick, toggles };
     });
-    console.log('[INFO] Botão Excel usado:', btnExcel ?? 'NENHUM ENCONTRADO');
 
-    console.log('\n[INFO] Aguardando 15s para observar download e rede...');
-    await page.waitForTimeout(15000);
+    console.log('[STEP 6b] Elementos com onclick export/toggle:', dropdownInfo.withOnclick.length);
+    dropdownInfo.withOnclick.forEach(e => console.log(' ', e.tag, e.id || '(sem id)', e.cls.slice(0, 40), '| onclick:', e.onclick));
+    console.log('[STEP 6b] Elementos com class export/excel/lote:', dropdownInfo.withClass.length);
+    dropdownInfo.withClass.forEach(e => console.log(' ', e.tag, e.id || '(sem id)', e.cls.slice(0, 60), '|', e.text.slice(0, 40)));
+    console.log('[STEP 6b] Excel A href:', dropdownInfo.excelHref);
+    console.log('[STEP 6b] Excel A onclick:', dropdownInfo.excelOnclick);
+    console.log('[STEP 6b] Bootstrap toggles:', dropdownInfo.toggles.length);
+    dropdownInfo.toggles.forEach(e => console.log(' ', e.tag, e.id || '(sem id)', e.cls, '| toggle:', e.dataToggle, '| target:', e.dataTarget, '|', e.text));
+
+    // ── 6c. Inspecionar o tipo real do exportarExcel INPUT e a estrutura do form
+    console.log('\n[STEP 6c] Inspecionando exportarExcel INPUT e form...');
+    const inputInfo = await bodyFrame.evaluate(() => {
+        const el = document.querySelector('[id="ExcessoVelocidadeDataList:paramPesquisa:exportarExcel"]');
+        if (!el) return { found: false };
+        const form = el.closest('form');
+        const allInputs = form
+            ? [...form.querySelectorAll('input')].map(i => ({
+                id: i.id, name: i.name, type: i.type, value: i.value.slice(0, 40)
+              }))
+            : [];
+        return {
+            found: true,
+            type: el.type,
+            value: el.value,
+            formId: form ? form.id : null,
+            formAction: form ? form.action : null,
+            allInputs,
+        };
+    });
+    console.log('[STEP 6c] exportarExcel:', JSON.stringify(inputInfo, null, 2).slice(0, 1500));
+
+    // ── 7. Tentar exportar Excel e capturar corpo da resposta ────────────
+    console.log('\n[STEP 7] Tentando exportar via exportarExcel INPUT...');
+
+    // Captura TODAS as respostas POST e verifica os bytes da resposta
+    let postCount = 0;
+    page.on('response', async (r) => {
+        if (!r.url().includes('excessoVelocidadeList.seam') || r.request().method() !== 'POST') return;
+        postCount++;
+        const reqBody = r.request().postData() || '';
+        const ct = r.headers()['content-type'] || '';
+        const disp = r.headers()['content-disposition'] || '';
+        console.log(`[STEP 7] POST #${postCount} req params (2000):`, reqBody.slice(0, 2000));
+        console.log(`[STEP 7] POST #${postCount} response: ${r.status()} ${ct} | disp: ${disp || '(none)'}`);
+        // Captura os primeiros bytes para detectar XLS (D0CF11E0) vs HTML
+        try {
+            const buf = await r.body();
+            const hex4 = buf.slice(0, 4).toString('hex').toUpperCase();
+            const isXls  = hex4 === 'D0CF11E0';  // OLE2 (xls)
+            const isZip  = buf.slice(0, 2).toString('ascii') === 'PK'; // xlsx
+            const isHtml = buf.slice(0, 5).toString('ascii').toLowerCase().includes('<') ;
+            console.log(`[STEP 7] POST #${postCount} body magic: hex=${hex4} isXLS=${isXls} isXLSX=${isZip} isHTML=${isHtml} size=${buf.length}`);
+            if (isXls || isZip) {
+                const savePath = require('path').join(__dirname, `excesso_diagnose_${postCount}.xls`);
+                require('fs').writeFileSync(savePath, buf);
+                console.log(`[STEP 7] *** XLS salvo em: ${savePath} ***`);
+            }
+        } catch (e) {
+            console.log(`[STEP 7] POST #${postCount} erro ao ler body:`, e.message);
+        }
+    });
+
+    // Hipótese confirmada: servidor envia XLS mas com Content-Type: text/html
+    // (sem Content-Disposition: attachment). Playwright não dispara download
+    // event — o frame tenta "navegar" para o conteúdo binário.
+    // Solução: page.route() intercepta ANTES do frame consumir e salva os bytes.
+
+    const capturePath = require('path').join(__dirname, 'excesso_diagnose_capture.xls');
+    let capturedByRoute = false;
+
+    await page.route('**excessoVelocidadeList.seam**', async (route, request) => {
+        if (request.method() !== 'POST') {
+            await route.continue();
+            return;
+        }
+        const response = await route.fetch();
+        const body = await response.body();
+        const hex4 = body.slice(0, 4).toString('hex').toUpperCase();
+        const isXls  = hex4 === 'D0CF11E0';
+        const isZip  = body.slice(0, 2).toString('ascii') === 'PK';
+        const ct     = response.headers()['content-type'] || '';
+        const disp   = response.headers()['content-disposition'] || '';
+        console.log(`[ROUTE] POST response: ${response.status()} ${ct} | disp:${disp || '(none)'} | hex=${hex4} | size=${body.length} | isXLS=${isXls} isXLSX=${isZip}`);
+
+        // Salva para análise: procura por window.open/location/download em HTML
+        const bodyStr = body.toString('utf8');
+        const downloadMatches = bodyStr.match(/(window\.(open|location)|href=["'][^"']*\.(xls|download|export)[^"']*["']|download\s*=|Content-Disposition|attachment)/gi) || [];
+        if (downloadMatches.length > 0) {
+            console.log(`[ROUTE] *** DOWNLOAD TRIGGERS encontrados:`, downloadMatches.slice(0, 10));
+        }
+
+        if (isXls || isZip) {
+            require('fs').writeFileSync(capturePath, body);
+            capturedByRoute = true;
+            console.log(`[ROUTE] *** XLS interceptado e salvo: ${capturePath} ***`);
+            await route.fulfill({ status: 200, contentType: 'text/html', body: '<html><body>export ok</body></html>' });
+        } else {
+            // Salva as respostas HTML/XML para análise manual
+            const debugPath = require('path').join(__dirname, `excesso_debug_${Date.now()}.html`);
+            require('fs').writeFileSync(debugPath, body);
+            console.log(`[ROUTE] Resposta salva para análise: ${debugPath}`);
+            await route.fulfill({ status: response.status(), headers: response.headers(), body });
+        }
+    });
+
+    // Inspecionar variáveis de export após pesquisar
+    const exportFns = await bodyFrame.evaluate(() => {
+        const info = {};
+        try { info.printEXCEL = typeof printEXCEL !== 'undefined' ? printEXCEL.toString().slice(0, 1000) : 'undefined'; } catch(e) { info.printEXCEL = 'error: ' + e.message; }
+        try { info.printType  = typeof printType  !== 'undefined' ? printType : 'undefined'; } catch(e) { info.printType = 'error'; }
+        try { info.url        = typeof url        !== 'undefined' ? url        : 'undefined'; } catch(e) { info.url = 'error: ' + e.message; }
+        try { info.thisurl    = typeof thisurl    !== 'undefined' ? thisurl    : 'undefined'; } catch(e) { info.thisurl = 'error: ' + e.message; }
+        try { info.printValidateOk = document.getElementById('ExcessoVelocidadeDataList:printValidateOk')?.value; } catch(e) { info.printValidateOk = 'error'; }
+        return info;
+    });
+    console.log('[STEP 7] printType:', exportFns.printType, '| url:', exportFns.url, '| thisurl:', exportFns.thisurl, '| printValidateOk:', exportFns.printValidateOk);
+    console.log('[STEP 7] printEXCEL fn:', exportFns.printEXCEL);
+
+    // Abordagem confirmada: printEXCEL → window.open(popup) → XLS
+    // O download event dispara no page pai (não no popup).
+    console.log('[STEP 7] Chamando printEXCEL diretamente (abordagem confirmada)...');
+    await page.unroute('**excessoVelocidadeList.seam**');
+
+    const [dl] = await Promise.all([
+        page.waitForEvent('download', { timeout: 30000 }),
+        bodyFrame.evaluate(() => {
+            if (typeof printEXCEL === 'function') {
+                printEXCEL('ExcessoVelocidadeDataList', '');
+            } else {
+                console.log('printEXCEL não definida');
+            }
+        }),
+    ]);
+
+    if (dl) {
+        const savePath = require('path').join(__dirname, 'excesso_diagnose_FINAL.xls');
+        await dl.saveAs(savePath);
+        console.log(`[STEP 7] DOWNLOAD CAPTURADO: ${dl.suggestedFilename()} → ${savePath}`);
+    } else {
+        console.log('[STEP 7] Nenhum download em 30s.');
+    }
+
+    console.log('\n[INFO] Aguardando 10s para observar rede restante...');
+    await page.waitForTimeout(10000);
 
     console.log('[INFO] Frames abertos:');
     page.frames().forEach(f => console.log(' ', f.name() || '(sem nome)', '|', f.url()));
