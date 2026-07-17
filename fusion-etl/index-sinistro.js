@@ -254,6 +254,10 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
 
     const bodyFrame = await waitForFrame(page, '/system/reports/excessoVelocidadeList.seam');
 
+    // Diagnóstico mostrou que o JS da página leva ~5s para inicializar os
+    // campos e botões — sem esse wait os locators retornam vazio.
+    await page.waitForTimeout(5000);
+
     await bodyFrame.locator(
         '[name="ExcessoVelocidadeDataList:paramPesquisa:veiculo"]'
     ).fill(plate);
@@ -266,9 +270,10 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         '[name="ExcessoVelocidadeDataList:paramPesquisa:dataFim"]'
     ).fill(`${isoToBr(blockEndIso)} 23:59`);
 
-    // Mesmo padrão de nomeação JSF que KM Mensal
+    // Pesquisar: buttonFindHidden é o INPUT JSF real (btnUpdateCallByJS não
+    // existe neste relatório — confirmado pelo diagnóstico).
     await bodyFrame.evaluate(() => {
-        document.querySelector('[id="ExcessoVelocidadeDataList:btnUpdateCallByJS"]').click();
+        document.querySelector('[id="ExcessoVelocidadeDataList:buttonFindHidden"]').click();
     });
 
     // ~8s para o grid JSF renderizar após pesquisar (confirmado no KM Mensal)

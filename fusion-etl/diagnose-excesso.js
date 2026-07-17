@@ -74,6 +74,8 @@ function listClickable(frame) {
     await waitForFrame(page, '/system/layout/menu.seam');
     const menuFrame = page.frame({ name: 'mymenu' });
 
+    // Aguarda o JS do frame de menu inicializar antes de chamar openMenu
+    await page.waitForTimeout(3000);
     console.log('[INFO] Abrindo menu Relatórios (175)...');
     await menuFrame.evaluate((id) => openMenu(id), RELATORIOS_MENU_ID);
     await page.waitForTimeout(2000);
@@ -92,9 +94,17 @@ function listClickable(frame) {
     console.log('[INFO] Frame body URL:', bodyFrame.url());
 
     // ── 1. Listar botões antes de preencher ───────────────────────────────
-    console.log('\n[STEP 1] Elementos clicáveis ANTES de preencher:');
+    console.log('\n[STEP 1] Elementos clicáveis ANTES de preencher (imediato):');
     const antes = await listClickable(bodyFrame);
     antes.forEach(b => console.log(' ', b.tag, `id="${b.id}"`, `name="${b.name}"`, `visible=${b.visible}`, '|', b.text));
+
+    // Diagnóstico anterior: JS da página leva ~5s para inicializar
+    console.log('\n[INFO] Aguardando 5s para JS da página inicializar...');
+    await page.waitForTimeout(5000);
+
+    console.log('[STEP 1b] Elementos clicáveis APÓS 5s:');
+    const antesB = await listClickable(bodyFrame);
+    antesB.forEach(b => console.log(' ', b.tag, `id="${b.id}"`, `name="${b.name}"`, `visible=${b.visible}`, '|', b.text));
 
     // ── 2-3. Preencher formulário ─────────────────────────────────────────
     console.log('\n[STEP 2-3] Preenchendo formulário...');
@@ -148,6 +158,8 @@ function listClickable(frame) {
     console.log('\n[STEP 5] Tentando clicar em Pesquisar...');
     const btnPesquisar = await bodyFrame.evaluate(() => {
         const candidatos = [
+            // buttonFindHidden: INPUT JSF real confirmado pelo diagnóstico anterior
+            document.querySelector('[id="ExcessoVelocidadeDataList:buttonFindHidden"]'),
             document.querySelector('[id="ExcessoVelocidadeDataList:btnUpdateCallByJS"]'),
             document.querySelector('[id="ExcessoVelocidadeDataList:paramPesquisa:btnPesquisa"]'),
             // fallback: qualquer input/button cujo texto contenha "pesquisar"
