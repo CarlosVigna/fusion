@@ -1,0 +1,967 @@
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+      
+
+      
+<head>
+	<title>Usebens</title>
+	<meta http-equiv="Pragma" content="no-cache" />
+	<meta http-equiv="Expires" content="-1" />
+
+	<link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.Finalorg/richfaces/renderkit/html/css/basic_classes.xcss" rel="stylesheet" type="text/css" /><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.Finalorg/richfaces/renderkit/html/css/extended_classes.xcss" media="rich-extended-skinning" rel="stylesheet" type="text/css" /><script src="https://cache.1gps.com.br/cached_a4j/g/3_3_3.Finalorg.ajax4jsf.javascript.AjaxScript?v=1" type="text/javascript"></script><script src="https://cache.1gps.com.br/cached_a4j/g/3_3_3.Finalorg/ajax4jsf/javascript/scripts/form.js?v=1" type="text/javascript"></script><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.FinalMETA-INF/skins/glassX.xcss" rel="stylesheet" type="text/css" /><link class="component" href="https://cache.1gps.com.br/cached_a4j/s/3_3_3.FinalMETA-INF/skins/glassXExt.xcss" media="rich-extended-skinning" rel="stylesheet" type="text/css" /><script type="text/javascript">window.RICH_FACES_EXTENDED_SKINNING_ON=true;</script><script src="https://cache.1gps.com.br/cached_a4j/g/3_3_3.Finalorg/richfaces/renderkit/html/scripts/skinning.js?v=1" type="text/javascript"></script><script>
+		//<![CDATA[
+		var page_name = "ExcessoVelocidadeDataList";var template_id = 0;
+		var thisurl = "";
+  		var thisurl_image = "https://cache.1gps.com.br";
+		var loadFunc = null;
+		var languageTitlesMap = null;	
+
+		//try{top.frames[0].updateHelpPage('ExcessoVelocidadeDataList')}catch(e){;}
+		//]]>
+	</script>	
+	<script src="/system/jshelper"></script>
+	<link rel="stylesheet" href="/resources/css/rich_tabPanel.css" />
+	<link rel="stylesheet" href="/resources/css/rich_suggestionbox.css" />
+<script src="/system/jsservletLanguage?ts=1784266788191"></script>
+		<script src="https://cache.1gps.com.br/templates/endless151/js/jquery-1.10.2.min.js"></script>
+		<link href="https://cache.1gps.com.br/templates/endless151/bootstrap/css/bootstrap.rich.map.css" rel="stylesheet" />
+		<script src="https://cache.1gps.com.br/templates/endless151/bootstrap/js/bootstrap.js"></script>
+		<link href="https://cache.1gps.com.br/templates/endless151/css/font-awesome.min.css" rel="stylesheet" />
+		<link rel="stylesheet" href="https://cache.1gps.com.br/system/stylesheet/general/jquery.datetimepicker.css" />	
+	   	<script src="https://cache.1gps.com.br/system/js/picker/jquery.datetimepicker.js"></script>	  	
+		<script>
+		function modalOpen(modalName)  {
+			$("#"+modalName).modal({show : true});
+		}
+		function modalClose(modalName)  {
+			$('#'+modalName.replace("#", "")).modal('hide');
+		}
+		</script>
+		<link rel="stylesheet" href="https://cache.1gps.com.br/system/stylesheet/general/jquery.autocomplete.css" />	
+		<link rel="stylesheet" href="https://cache.1gps.com.br/system/stylesheet/general/autoCompleteReport.css" />	
+	   	<script type="text/javascript" src="https://cache.1gps.com.br/system/js/jquery.autocomplete.min.js"></script>
+		<script src="https://cache.1gps.com.br/system/js/charts/highcharts.js"></script>
+			<script src="https://cache.1gps.com.br/system/js/charts/data.js"></script>
+			<script src="https://cache.1gps.com.br/system/js/charts/drilldown.js"></script>
+			<script src="https://cache.1gps.com.br/system/js/charts/exporting.js"></script>
+		<link href="https://cache.1gps.com.br/templates/endless151/css/font-awesome.min.css" rel="stylesheet" />
+		<link rel="stylesheet" type="text/css" href="/css/flaticon.css" />
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<script type="text/javascript" src="/system/js/validations_v3.js"></script>
+		
+		<link rel="stylesheet" type="text/css" href="/css/flaticon.css" />
+		<link rel="stylesheet" type="text/css" href="/css/styleReport.css" />
+		
+		<script src="https://cache.1gps.com.br/system/js/charts/series-label.js"></script>
+		<script src="https://cache.1gps.com.br/system/js/charts/export-data.js"></script>
+		<script src="https://cache.1gps.com.br/system/js/charts/highcharts.js"></script>
+		<script src="https://cache.1gps.com.br/system/js/charts/data.js"></script>
+		<script src="https://cache.1gps.com.br/system/js/charts/exporting.js"></script>
+				
+		<style>
+			.col-device{
+				width: 100%;	
+				text-align: center;
+			}
+						.col-1{
+				width: 115px;	
+				text-align: center;
+			}  
+							.col-2{
+				width: 115px;	
+				text-align: center;
+			}  
+								.col-3{
+				width: 50px;	
+				text-align: center;
+			}  
+								.col-4{
+				width: 50px;	
+				text-align: center;
+			} 
+					.col-5{
+				width: 100px;	
+				text-align: center;
+			} 			
+								.col-6{
+				width: 50px;	
+				text-align: center;
+			} 			
+							.col-7{
+				width: 300px;	
+				text-align: center;
+			} 			
+								.col-9{
+				width: 400px;	
+				text-align: center;
+			} 		
+			.col-8{
+				width: 180px;	
+				text-align: center;
+			} 		
+			
+			.input-group .form-control:not(:first-child):not(:last-child) {
+					border-radius: 0px 5px 5px 0px;
+				}
+			
+			.dropdown-menu>ul>li, dropdown-menu>ul>li:hover {
+			    padding: 2px 8px 2px 8px;
+			     width: 100px;
+			}
+			.btn-primary {
+			    color: #fff;
+			    background-color: #428bca;
+			    border-color: #357ebd; 
+			    text-decoration: none;
+			    width: 80px;
+			    
+			}
+			
+			.btn-primary:hover {
+			    color: #fff;
+			    background-color: #3071a9;
+			    border-color: #285e8e;    
+			}
+
+			.dropdown-block {
+				border: 1px solid #cccccc;
+				width: 130px;
+				border-radius: 0px 5px 5px 5px;
+				padding-left: 5px !important;
+				box-shadow: 8px 8px 8px -1px rgba(0,0,0,0.19);
+			}
+			.menu.desktop a:nth-child(1){
+				order: 2;
+			}.menu.desktop a:nth-child(2){
+				order: 1;
+			}.menu.desktop a:nth-child(3){
+				order: 4;
+			}.menu.desktop a:nth-child(4){
+				order: 3;
+			}.menu.desktop a:nth-child(5){
+				order: 5;
+			}.menu.desktop a:nth-child(6){
+				order: 6;
+			}
+			</style>
+								
+			<script>//<![CDATA[
+				
+				$(document).ready(function() {
+					pageDefault();
+				});
+				
+				function doFind(){
+					startLoading();
+					return true;
+				}
+			
+				function clearToFind(){
+					startLoading();
+					_clearToFind();
+				}
+
+				function getWidth(){
+					return (document.body.clientWidth - 12);
+				}
+
+				function getHeight(){
+					return (document.body.clientHeight - 81);
+				}
+				
+			//]]></script>
+	<script>//<![CDATA[
+		function loadPage(){
+			resizeDivMain(81, true);
+			
+			if ( loadFunc != null )
+				loadFunc();
+		}
+
+		window.onresize=function () {resizeDivMain(81, true);changeResizeRows(document.body.clientHeight - 81)}
+	//]]></script>
+	<script>
+		//<![CDATA[
+		function printBT(){
+			var obj = document.getElementById("ExcessoVelocidadeDataList:printValidateOk");
+			if ( obj != null && obj.value != 0){
+					switch( printType ){
+						case 1:
+							printHTML("ExcessoVelocidadeDataList", "");
+							break;
+						case 2:
+							printEXCEL("ExcessoVelocidadeDataList", "");
+							break;
+						case 3:
+							printPDF("ExcessoVelocidadeDataList", "");
+							break;
+					}
+			}else{
+				alert("Nenhum registro encontrado");
+			}				
+		}
+		//]]>
+	</script>
+	<style>
+		/* para que o tamanho da caixa do auto complete se ajuste ao conteudo procurado */
+		.autocomplete-suggestions{width: auto !important; font-size:11px !important;}
+		.input-group-addon{ background-color: #ffffff; }
+		.item{
+			text-decoration: none;
+			color: #fff;
+		}
+		.item:hover{
+			text-decoration: none;
+			color: #000;
+		}
+	</style>
+</head>
+
+<body onload="loadPage();"><form id="ExcessoVelocidadeDataList" name="ExcessoVelocidadeDataList" method="post" action="/system/reports/excessoVelocidadeList.seam"><span id="ExcessoVelocidadeDataList:stat:status"><span id="ExcessoVelocidadeDataList:stat:status.start" style="display: none"></span><script type="text/javascript">
+window.document.getElementById('ExcessoVelocidadeDataList:stat:status.start').onstart=function(){startLoading();;};
+</script><span id="ExcessoVelocidadeDataList:stat:status.stop"></span><script type="text/javascript">
+window.document.getElementById('ExcessoVelocidadeDataList:stat:status.stop').onstop=function(){stopLoading();;};
+</script></span><script id="ExcessoVelocidadeDataList:j_id16" type="text/javascript">//<![CDATA[
+		changeResizeRows=function(param1){A4J.AJAX.Submit('ExcessoVelocidadeDataList',null,{'similarityGroupingId':'ExcessoVelocidadeDataList:j_id16','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:j_id16':'ExcessoVelocidadeDataList:j_id16','param1':param1} } )};
+		//]]></script>
+	<table cellpadding="0" cellspacing="0" border="0" width="100%" class="tableTop">
+		<tr>
+			<td><div style="width: 4px">&nbsp;</div></td>
+			<td width="100%"><span id="ExcessoVelocidadeDataList:table_list_command">
+				<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%">
+					<tr>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_top_left.png" /></td>
+						<td width="100%" class="top_middle">
+							<table cellpadding="0" cellspacing="0" border="0">
+								<tr>
+									<td align="center" class="pl2"><img id="menu_img" src="https://cache.1gps.com.br/system/img/0/arrow.png" onclick="checkMenu()" /></td>
+									<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+									<td><span class="titlelist pl10"><b>Excesso de velocidade</b></span></td>
+											<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+											<td align="center" class="pl10">	
+												<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="cleanList('ExcessoVelocidadeDataList', 9);clearToFind()" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+													<tr>
+														<td><img src="https://cache.1gps.com.br/system/img/icons/repeat.gif" /></td>	
+														<td>Limpar</td>
+													</tr>
+												</table>	
+											</td>
+
+			<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+			<td align="center" class="pl10">
+
+				<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="modalOpen('modalTemplate')" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+					<tr>
+						<td><img style="width: 16px; height: 16px" src="/system/img/icons/report.gif" /></td>
+						<td><nobr>Par&acirc;metros</nobr></td>
+					</tr>
+				</table></td>
+
+			<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+			<td align="center" class="pl10">
+
+				<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:gerarGrafico').click();" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+					<tr>
+						<td><img style="width: 16px; height: 16px" src="/system/img/icons/report.gif" /></td>
+						<td><nobr>Gr&aacute;ficos</nobr></td>
+					</tr>
+				</table></td>
+
+			<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+			<td align="center" class="pl10">
+
+				<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="openMap()" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+					<tr>
+						<td><img style="width: 16px; height: 16px" src="/system/img/icons/map.gif" /></td>
+						<td><nobr>Mapa</nobr></td>
+					</tr>
+				</table></td>
+
+			<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+			<td align="center" class="pl10">
+
+				<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:exportarExcel').click();" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+					<tr>
+						<td><img style="width: 16px; height: 16px" src="/system/img/icons/excel.gif" /></td>
+						<td><nobr>Excel</nobr></td>
+					</tr>
+				</table></td>
+
+			<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+			<td align="center" class="pl10">
+
+				<table cellpadding="2" cellspacing="2" border="0" class="toplist_link_off" onclick="document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:exportarPDF').click();" onmouseover="linkOver(this)" onmouseout="linkOut(this)">
+					<tr>
+						<td><img style="width: 16px; height: 16px" src="/system/img/icons/acrobat.gif" /></td>
+						<td><nobr>Pdf</nobr></td>
+					</tr>
+				</table></td>
+											<td align="center" class="pl10"><img src="https://cache.1gps.com.br/system/img/0/list_separator.png" /></td>
+								</tr>	
+							</table>
+						</td>
+						<td align="center" class="top_middle"><img id="top_img" src="https://cache.1gps.com.br/system/img/0/arrow_u.png" onclick="checkTop()" /></td>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_top_right.png" /></td>
+					</tr>	
+				</table>
+				<script>checkImagesControl();</script></span>
+			</td>
+		</tr>
+		<tr>
+			<td><div style="width: 4px">&nbsp;</div></td>
+			<td width="100%" class="td_middle">					
+					<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%">	
+						<tr>
+							<td width="100%">
+								<div id="divmenu" class="divmenu" style="height: 300px;"><span id="ExcessoVelocidadeDataList:table_list"><script id="ExcessoVelocidadeDataList:j_id41" type="text/javascript">//<![CDATA[
+		_clearToFind=function(){A4J.AJAX.Submit('ExcessoVelocidadeDataList',null,{'similarityGroupingId':'ExcessoVelocidadeDataList:j_id41','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:j_id41':'ExcessoVelocidadeDataList:j_id41'} } )};
+		//]]></script><script id="ExcessoVelocidadeDataList:j_id42" type="text/javascript">//<![CDATA[
+		checkFind=function(){A4J.AJAX.Submit('ExcessoVelocidadeDataList',null,{'similarityGroupingId':'ExcessoVelocidadeDataList:j_id42','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:j_id42':'ExcessoVelocidadeDataList:j_id42'} } )};
+		//]]></script><script id="ExcessoVelocidadeDataList:j_id43" type="text/javascript">//<![CDATA[
+		openGrafico=function(){A4J.AJAX.Submit('ExcessoVelocidadeDataList',null,{'similarityGroupingId':'ExcessoVelocidadeDataList:j_id43','containerId':'ExcessoVelocidadeDataList:stat','oncomplete':function(request,event,data){drawVisualization()},'parameters':{'ExcessoVelocidadeDataList:j_id43':'ExcessoVelocidadeDataList:j_id43'} } )};
+		//]]></script><script id="ExcessoVelocidadeDataList:j_id44" type="text/javascript">//<![CDATA[
+		openMap=function(){A4J.AJAX.Submit('ExcessoVelocidadeDataList',null,{'similarityGroupingId':'ExcessoVelocidadeDataList:j_id44','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:j_id44':'ExcessoVelocidadeDataList:j_id44'} } )};
+		//]]></script>	
+									<table class="table_list" border="0" cellpadding="0" cellspacing="0" width="100%">
+										<tr class="tableHeader"> 
+												<td class="table-header-col col-1"><div class="col-1">Data Evento</div></td> 
+												<td class="table-header-col col-2"><div class="col-2">Data Posi&ccedil;&atilde;o</div></td> 
+												<td class="table-header-col col-3"><div class="col-3">S/A</div></td> 
+												<td class="table-header-col col-4"><div class="col-4">Vel.</div></td> 
+												<td class="table-header-col col-5"><div class="col-5">V&aacute;lido</div></td> 
+												<td class="table-header-col col-6"><div class="col-6">Online</div></td> 
+												<td class="table-header-col col-7"><div class="col-7">Eventos</div></td> 
+												<td class="table-header-col col-8"><div class="col-8">Motorista</div></td> 
+												<td class="table-header-col col-9"><div class="col-9">Endere&ccedil;o</div></td> 
+										</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr> 
+											    	<tr> 
+													        <td class="table-col"><div class="col-1">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-2">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-3">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-4">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-5">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-6">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-7">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-8">&nbsp;</div></td> 
+													        <td class="table-col"><div class="col-9">&nbsp;</div></td>
+													</tr>
+									</table></span>
+								</div>		
+							</td>
+						</tr>	
+					</table>
+			</td>
+		</tr>
+		<tr>
+			<td><div style="width: 4px">&nbsp;</div></td>
+			<td width="100%">
+				<table cellpadding="0" cellspacing="0" border="0" align="center" width="100%">
+					<tr>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_bt_left.png" /></td>
+						<td width="100%" class="bt_middle"><span id="ExcessoVelocidadeDataList:table_command" style="width: 100%">
+								<table cellpadding="0" cellspacing="0" border="0" width="100%">
+								<tr>
+									<td class="pl2"><input id="ExcessoVelocidadeDataList:printValidateOk" type="hidden" name="ExcessoVelocidadeDataList:printValidateOk" value="0" /><div style="width: 40px"><nobr><span id="statusImgBar" class="invisible"><img src="https://cache.1gps.com.br/img/ajax_process.gif" /></span></nobr></div></td>
+									<td class="pl20 infomessage"><div style="width: 700px">&nbsp;<span id="ExcessoVelocidadeDataList:msgInfo">O relat&oacute;rio &eacute; limitado em 7 dias</span></div></td> 
+									<td width="100%">&nbsp;</td>   							
+								</tr>
+							</table></span>
+						</td>
+						<td><img src="https://cache.1gps.com.br/system/img/0/form_bt_right.png" /></td>
+					</tr>	
+				</table>
+			</td>
+		</tr>
+	</table><div id="ExcessoVelocidadeDataList:paramPesquisa">
+ 
+  
+	<div class="modal fade" id="modalTemplate" style="">
+		<div class="modal-dialog modal-lg" style="">
+			<div class="modal-content" id="modalAgendaEstilo" style="">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-hidden="true">X</button>
+					<span style="font-weight: bolder" class="">Par&acirc;metros de pesquisa:</span>
+				</div> 
+				<div class="modal-body" style="padding: 5px !important"><span id="ExcessoVelocidadeDataList:paramPesquisa:messages_modal"></span>
+					<div class="row">						
+						<div class="col-md-12">
+							<div class="form-group"><span id="ExcessoVelocidadeDataList:paramPesquisa:modalParams">
+			
+			<div class="panel-body modal-mobile "><span id="ExcessoVelocidadeDataList:paramPesquisa:msgModal">
+						<div class="row messageModal" style="padding-left: 10px; padding-right: 10px;">
+							<div class="alert alert-warning" role="alert">
+							  <button type="button" onclick="$('.messageModal').slideUp();" class="close"><span aria-hidden="true">x</span></button>
+							  
+							  <i class="fa  fa-2x"></i><span id="ExcessoVelocidadeDataList:paramPesquisa:msg"> O relat&oacute;rio &eacute; limitado em 7 dias</span>
+							</div>
+						</div></span>
+		      	<div class="row">
+					<div class="col-xs-6 col-md-4"><label>
+Pesquisa por:</label>
+						<div class="input-group">
+							<span class="input-group-addon"><i class="fa fa-search r-icon sprite-search-p"></i></span><select name="ExcessoVelocidadeDataList:paramPesquisa:j_id244" class="form-control input-sm" size="1">	<option value="1">Data Posi&ccedil;&atilde;o</option>
+	<option value="3" selected="selected">Data Evento</option>
+</select>  
+		      			</div>
+		      		</div>
+					  <div class="col-xs-6 col-md-4"><label>
+Data Inicial:</label>
+						<div class="input-group">
+							<span class="input-group-addon"><i class="fa fa-calendar-o r-icon sprite-calendar-p"></i></span><input id="ExcessoVelocidadeDataList:paramPesquisa:dataInicio" type="text" name="ExcessoVelocidadeDataList:paramPesquisa:dataInicio" value="01/07/2026 00:00" class="form-control input-sm" />
+		      			</div>
+		      		</div>
+					  <div class="col-xs-6 col-md-4"><label>
+Data Final:</label>
+						<div class="input-group">
+							<span class="input-group-addon"><i class="fa fa-calendar-o r-icon sprite-calendar-p"></i></span><input id="ExcessoVelocidadeDataList:paramPesquisa:dataFim" type="text" name="ExcessoVelocidadeDataList:paramPesquisa:dataFim" value="15/07/2026 23:59" class="form-control input-sm" />
+		      			</div>
+		      		</div>
+		      		
+		      	</div>
+		      	
+		      	<div class="row" style="margin-top: 10px;">
+					<div class="col-xs-6 col-md-4"><label>
+Pesquisa por:</label>
+						<div class="input-group">
+							<span class="input-group-addon"><i class="fa fa-search r-icon sprite-search-p"></i></span><select name="ExcessoVelocidadeDataList:paramPesquisa:j_id256" class="form-control input-sm" size="1" onchange="A4J.AJAX.Submit('ExcessoVelocidadeDataList',event,{'similarityGroupingId':'ExcessoVelocidadeDataList:paramPesquisa:j_id260','containerId':'ExcessoVelocidadeDataList:stat','oncomplete':function(request,event,data){pageDefault();},'parameters':{'ExcessoVelocidadeDataList:paramPesquisa:j_id260':'ExcessoVelocidadeDataList:paramPesquisa:j_id260'} } )">	<option value="1" selected="selected">Ve&iacute;culo</option>
+	<option value="2">Grupo Ve&iacute;culos</option>
+	<option value="3">Propriet&aacute;rio</option>
+</select>
+						</div>     
+			      	</div><div id="ExcessoVelocidadeDataList:paramPesquisa:busca"><div class="col-md-4"><label>
+Ve&iacute;culo:</label>
+			      			<div class="input-group">
+			      				<span class="input-group-addon"><i class="fa fa-car"></i></span><input id="ExcessoVelocidadeDataList:paramPesquisa:veiculo" type="text" name="ExcessoVelocidadeDataList:paramPesquisa:veiculo" value="FXZ9249" class="form-control input-sm" /><input id="ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden" type="hidden" name="ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden" value="0" />
+			      			</div></div><div class="col-md-4"><label>
+Filtrar Motorista:</label>
+			      			<div class="input-group">
+			      				<span class="input-group-addon"><i class="fa fa-male"></i></span><input id="ExcessoVelocidadeDataList:paramPesquisa:motorista" type="text" name="ExcessoVelocidadeDataList:paramPesquisa:motorista" value="" class="form-control input-sm" /><input id="ExcessoVelocidadeDataList:paramPesquisa:motoristaHidden" type="hidden" name="ExcessoVelocidadeDataList:paramPesquisa:motoristaHidden" value="0" />
+			      			</div></div></div>
+		      	</div>
+		      	
+		      	<div class="row" style="margin-top: 10px;">
+					<div class="col-xs-6 col-md-4"><label>
+Tipo Via:</label>
+						<div class="input-group">
+							<span class="input-group-addon"><i class="fa fa-road r-icon sprite-rota-p"></i></span><select name="ExcessoVelocidadeDataList:paramPesquisa:j_id281" class="form-control input-sm" size="1">	<option value="0" selected="selected">Todas as vias</option>
+	<option value="1">Rua</option>
+	<option value="2">Avenida</option>
+	<option value="3">Rodovia</option>
+</select>
+		      			</div>
+		      		</div>
+		      		<div class="col-md-4"><label>
+Velocidade Acima: </label>
+		      			<div class="input-group">
+		      				<span class="input-group-addon"><i class="fa fa-tachometer" style="font-size: 16px;"></i></span><input id="ExcessoVelocidadeDataList:paramPesquisa:velocidadeExcedida" type="text" name="ExcessoVelocidadeDataList:paramPesquisa:velocidadeExcedida" value="0" class="form-control input-sm" maxlength="3" onkeypress="if( (event.which &lt; 48 || event.which &gt; 57) ) return false;" />
+		      			</div>
+		      		</div>
+		      		
+		      		<div class="col-md-4"><label>
+Layout:</label>
+		      			<div class="input-group">
+		      				<span class="input-group-addon"><i class="fa fa-list-alt"></i></span><select id="ExcessoVelocidadeDataList:paramPesquisa:customReportLayoutId" name="ExcessoVelocidadeDataList:paramPesquisa:customReportLayoutId" class="form-control input-sm" size="1">	<option value="0" selected="selected">Selecione...</option>
+</select>
+		      			</div>
+		      		</div>
+		      	</div>
+		      	<div class="row" style="margin-top: 20px;">
+		      		<div class="col-xs-2 col-md-1">
+						<a class="btn btn-default flaticon-excel-file excel" onclick="document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:exportarExcel').click();" data-toggle="tooltip" data-placement="top" title="Exportar em Excel" href="#"></a><input id="ExcessoVelocidadeDataList:paramPesquisa:exportarExcel" type="submit" name="ExcessoVelocidadeDataList:paramPesquisa:exportarExcel" value="" onclick="A4J.AJAX.Submit('ExcessoVelocidadeDataList',event,{'similarityGroupingId':'ExcessoVelocidadeDataList:paramPesquisa:j_id295','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:paramPesquisa:j_id295':'ExcessoVelocidadeDataList:paramPesquisa:j_id295'} ,'status':'ExcessoVelocidadeDataList:stat:status'} )" style="display:none" />
+					</div>
+		      		<div class="col-xs-2 col-md-1">
+						<a class="btn btn-default flaticon-pdf pdf" onclick="document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:exportarPDF').click();" data-toggle="tooltip" data-placement="top" title="Exportar em PDF" href="#"></a><input id="ExcessoVelocidadeDataList:paramPesquisa:exportarPDF" type="submit" name="ExcessoVelocidadeDataList:paramPesquisa:exportarPDF" value="" onclick="A4J.AJAX.Submit('ExcessoVelocidadeDataList',event,{'similarityGroupingId':'ExcessoVelocidadeDataList:paramPesquisa:j_id297','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:paramPesquisa:j_id297':'ExcessoVelocidadeDataList:paramPesquisa:j_id297'} ,'status':'ExcessoVelocidadeDataList:stat:status'} )" style="display:none" />
+					</div>
+					<div class="col-xs-2 col-md-1">
+						<a class="btn btn-default flaticon-globe planet" data-toggle="tooltip" data-placement="top" title="Abrir no Mapa" onclick="openMap()" href="#"></a>
+					</div>
+					<div class="col-xs-2 col-md-1">
+						<a class="btn btn-default flaticon-ascendant-bars-graphic graphic" data-toggle="tooltip" data-placement="top" title="Gerar Gr&aacute;fico" href="#" onclick="document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:gerarGrafico').click();"></a>
+<script type="text/javascript" language="Javascript">function dpf(f) {var adp = f.adp;if (adp != null) {for (var i = 0;i < adp.length;i++) {f.removeChild(adp[i]);}}};function apf(f, pvp) {var adp = new Array();f.adp = adp;var i = 0;for (k in pvp) {var p = document.createElement("input");p.type = "hidden";p.name = k;p.value = pvp[k];f.appendChild(p);adp[i++] = p;}};function jsfcljs(f, pvp, t) {apf(f, pvp);var ft = f.target;if (t) {f.target = t;}f.submit();f.target = ft;dpf(f);};</script>
+<a id="ExcessoVelocidadeDataList:paramPesquisa:gerarGrafico" href="#" onclick="var a=function(){doFind();};var b=function(){if(typeof jsfcljs == 'function'){jsfcljs(document.getElementById('ExcessoVelocidadeDataList'),{'ExcessoVelocidadeDataList:paramPesquisa:gerarGrafico':'ExcessoVelocidadeDataList:paramPesquisa:gerarGrafico'},'');}return false};return (a()==false) ? false : b();"></a>
+					</div>
+				
+	
+					<div class="col-xs-2 col-md-1 ui dropdown">
+						<div class="row">	
+							<div class="col-lg-12">
+								<div class="button-group">
+									<button type="button" class="btn btn-default btn-storage flaticon-database data-storage" data-toggle="dropdown">
+										<span class="caret"></span>
+  										<i class="dropdown icon"></i>
+									</button>
+									<ul class="dropdown-exportar-lote dropdown-menu d-none p-0 m-0 dropdown-block">
+										<li class="item checkbox"><a href="#" class="small" data-value="option1" tabIndex="-1"> <label for="ExcessoVelocidadeDataList:paramPesquisa:somenteExcel1"><input id="ExcessoVelocidadeDataList:paramPesquisa:somenteExcel1" type="checkbox" name="ExcessoVelocidadeDataList:paramPesquisa:somenteExcel1" /> Excel</label>
+										</a></li>
+										<li class="item checkbox"><a href="#" class="small" data-value="option2" tabIndex="-1"><label for="ExcessoVelocidadeDataList:paramPesquisa:somentePdf2"><input id="ExcessoVelocidadeDataList:paramPesquisa:somentePdf2" type="checkbox" name="ExcessoVelocidadeDataList:paramPesquisa:somentePdf2" onchange="A4J.AJAX.Submit('ExcessoVelocidadeDataList',event,{'similarityGroupingId':'ExcessoVelocidadeDataList:paramPesquisa:j_id301','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:paramPesquisa:j_id301':'ExcessoVelocidadeDataList:paramPesquisa:j_id301'} } )" />PDF</label>
+										</a></li>
+										<li class="item checkbox"><a href="#" class="small" data-value="option3" tabIndex="-1"><label for="ExcessoVelocidadeDataList:paramPesquisa:somenteCsv3"><input id="ExcessoVelocidadeDataList:paramPesquisa:somenteCsv3" type="checkbox" name="ExcessoVelocidadeDataList:paramPesquisa:somenteCsv3" onchange="A4J.AJAX.Submit('ExcessoVelocidadeDataList',event,{'similarityGroupingId':'ExcessoVelocidadeDataList:paramPesquisa:j_id303','containerId':'ExcessoVelocidadeDataList:stat','parameters':{'ExcessoVelocidadeDataList:paramPesquisa:j_id303':'ExcessoVelocidadeDataList:paramPesquisa:j_id303'} } )" />CSV</label>
+										</a></li>
+										<li class="pl-0" style="padding:5px; list-style-type:none;"><a class="btn btn-primary " href="#" id="ExcessoVelocidadeDataList:paramPesquisa:exportarImpressao2" name="ExcessoVelocidadeDataList:paramPesquisa:exportarImpressao2" onclick="A4J.AJAX.Submit('ExcessoVelocidadeDataList',event,{'similarityGroupingId':'ExcessoVelocidadeDataList:paramPesquisa:exportarImpressao2','containerId':'ExcessoVelocidadeDataList:stat','oncomplete':function(request,event,data){fechaMenuStorage()},'parameters':{'ExcessoVelocidadeDataList:paramPesquisa:exportarImpressao2':'ExcessoVelocidadeDataList:paramPesquisa:exportarImpressao2'} } );return false;" title="Relat&oacute;rio em lote">
+												 Gerar</a>
+										</li>
+									</ul>
+								</div>
+							</div>
+						</div>
+					</div>
+		      	</div>
+		      </div></span>
+							</div>
+						</div>						
+					</div>
+				</div>
+				<div class="modal-footer">
+
+				<div class="row">
+						<div class="col-xs-6 col-md-2 col-md-offset-8">
+	   						<a onclick="modalClose('modalTemplate')" id="btnCancelModal" class="btn btn-default btn-sm aNotLink"> Fechar</a>
+	   					</div>
+ 					<div class="col-xs-6 col-md-2"><a href="#" style="text-decoration: none;          margin-bottom: 1rem;" onclick="var a=function(){doFind();};var b=function(){if(typeof jsfcljs == 'function'){jsfcljs(document.getElementById('ExcessoVelocidadeDataList'),{'ExcessoVelocidadeDataList:paramPesquisa:j_id310':'ExcessoVelocidadeDataList:paramPesquisa:j_id310'},'');}return false};return (a()==false) ? false : b();" class="btn btn-primary btn-block btn-sm aNotLink">Pesquisar</a>
+ 					</div>
+				</div>
+				
+				</div>
+			</div>
+		</div>
+	</div></div><div id="ExcessoVelocidadeDataList:modalHelp">
+ 
+  
+	<div class="modal fade" id="modalHelp" style="">
+		<div class="modal-dialog " style="">
+			<div class="modal-content" id="modalAgendaEstilo" style="">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-hidden="true">X</button>
+					<span style="font-weight: bolder" class="modal-title-class">Sobre este relat&oacute;rio</span>
+				</div> 
+				<div class="modal-body" style="padding: 5px !important"><span id="ExcessoVelocidadeDataList:modalHelp:messages_modal"></span>
+					<div class="row">						
+						<div class="col-md-12">
+							<div class="form-group"><span id="ExcessoVelocidadeDataList:modalHelp:modalParams">
+			
+			<span class="line"></span>
+	
+			<div class="panel panel-default" style=" margin-top: 10px; overflow: auto; height: 130px;">
+				<div class="panel-body">
+					<table class="table table-hover table-striped" style="border-collapse: collapse; font-size: 11px ">
+						<thead>
+							<tr>
+								<th>Campos</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td><strong>Velocidade Acima</strong></td>
+								<td>Para cada posi&ccedil;&atilde;o ser&aacute; contabilizado um minuto em viola&ccedil;&atilde;o</td>
+							</tr>
+						</tbody>			
+					</table>
+				</div>
+			</div></span>
+							</div>
+						</div>						
+					</div>
+				</div>
+				<div class="modal-footer">
+
+				<div class="row">
+						<div class="col-xs-6 col-md-2 col-md-offset-8">
+	   						<a onclick="modalClose('modalHelp')" id="btnCancelModal" class="btn btn-default btn-sm aNotLink"> Cancelar</a>
+	   					</div>
+				</div>
+				
+				</div>
+			</div>
+		</div>
+	</div></div><span id="ExcessoVelocidadeDataList:javascript">
+
+			<script type="text/javascript">//<![CDATA[
+				
+			var options = [];
+
+				var veiculo;
+				var motorista;
+				var proprietario;
+				var grupoVeiculo;
+				var dataInicio;
+				var dataFim;
+			
+				$(document).ready(function() {
+					
+					veiculo = $("#ExcessoVelocidadeDataList\\:paramPesquisa\\:veiculo");
+	
+					modalOpen('modalTemplate');
+					pageDefault();
+					
+					resumoRankingCharts();
+				});
+			
+				function pageDefault() {
+
+					try{
+					$('[data-toggle="tooltip"]').tooltip();
+					}catch(e){}
+					veiculo = $("#ExcessoVelocidadeDataList\\:paramPesquisa\\:veiculo");
+					motorista = $("#ExcessoVelocidadeDataList\\:paramPesquisa\\:motorista");
+					proprietario = $("#ExcessoVelocidadeDataList\\:paramPesquisa\\:proprietario");
+					grupoVeiculo = $("#ExcessoVelocidadeDataList\\:paramPesquisa\\:grupoVeiculo");
+					dataInicio = $("#ExcessoVelocidadeDataList\\:paramPesquisa\\:dataInicio");
+					dataFim = $("#ExcessoVelocidadeDataList\\:paramPesquisa\\:dataFim");
+					
+					//veiculo.val('');
+					
+					$(veiculo).autocomplete({
+						serviceUrl: '/system/autocompleteServlet?suggestion=findByPlateSuggestionWithId',
+			            minChars: 2,
+			            deferRequestBy: 500,
+			            paramName: 'searchString',
+			            onSelect: function (suggestion) {
+							$("#ExcessoVelocidadeDataList\\:paramPesquisa\\:placaVeiculoHidden").val(suggestion.data);		            	
+			            }
+					});
+					
+					$(motorista).autocomplete({
+						serviceUrl: '/system/autocompleteServlet?suggestion=findByNameMotorista',
+			            minChars: 4,
+			            deferRequestBy: 500,
+			            paramName: 'searchString',
+			            onSelect: function (suggestion) {
+							$("#ExcessoVelocidadeDataList\\:paramPesquisa\\:motoristaHidden").val(suggestion.data);		            	
+			            }
+					});
+					
+					$(proprietario).autocomplete({
+						serviceUrl: '/system/autocompleteServlet?suggestion=findByProprietarioSeggestionWithId',
+			            minChars: 4,
+			            deferRequestBy: 500,
+			            paramName: 'searchString',
+			            onSelect: function (suggestion) {
+			            	$("#ExcessoVelocidadeDataList\\:paramPesquisa\\:proprietarioHidden").val(suggestion.data);
+			            }
+					});
+					
+					$(grupoVeiculo).autocomplete({
+						serviceUrl: '/system/autocompleteServlet?suggestion=findByGroupVehicleWithId',
+			            minChars: 2,
+			            deferRequestBy: 500,
+			            paramName: 'searchString',
+			            onSelect: function (suggestion) {
+			            	$("#ExcessoVelocidadeDataList\\:paramPesquisa\\:grupoVeiculoHidden").val(suggestion.data);
+			            }
+					});
+					
+					$(dataInicio).datetimepicker({
+						lang: jsLanguageCalendar,
+						format:'d/m/Y H:i',
+						mask:'39/19/9999 29:59'
+					});
+					
+					$(dataFim).datetimepicker({
+						lang: jsLanguageCalendar,
+						format:'d/m/Y H:i',
+						mask:'39/19/9999 29:59'
+					});
+				}
+
+				const topBtns = document.querySelectorAll(".menu.desktop a");
+				topBtns.forEach(btn => {
+					if(btn.innerText === "Pesquisar"){
+						btn.remove();
+					}
+				})
+				
+				//Função que monta o Highchart
+				function resumoRankingCharts() {
+					try{
+						
+						Highcharts.setOptions({
+				    		time: {
+				    	        timezone: 'America/Sao_Paulo'
+				    	        ,timezoneOffset: 3 * 60
+				    	    },
+				    	    lang: {
+				                loading: 'Aguarde...',
+				                months: ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'],
+				                weekdays: ['Domingo', 'Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado'],
+				                shortMonths: ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+				                exportButtonTitle: "Exportar",
+				                printButtonTitle: "Imprimir",
+				                rangeSelectorFrom: "De",
+				                rangeSelectorTo: "Até",
+				                rangeSelectorZoom: "Periodo",
+				                downloadPNG: 'Download imagem PNG',
+				                downloadJPEG: 'Download imagem JPEG',
+				                downloadPDF: 'Download documento PDF',
+				                downloadSVG: 'Download imagem SVG'
+				                // resetZoom: "Reset",
+				                // resetZoomTitle: "Reset,
+				                // thousandsSep: ".",
+				                // decimalPoint: ','
+				                }
+				    	});
+						Highcharts.chart('container', {
+							chart: {
+								 type: 'spline'
+				            },
+				            title: {
+				                text: 'Excesso de Velocidade',
+				                align: 'left'
+				            },
+						    subtitle: {
+						        text: 'Veículo: ' + "FXZ9249"
+						    },
+				            credits: {
+				                enabled: false
+				            },
+				            tooltip: {
+				            	headerFormat: '',
+				                pointFormat: '{series.name}: <b>{point.value}</b>'
+				            },
+						    xAxis: {
+						    	type: 'datetime',
+						        labels: {
+						            overflow: 'justify'
+						        },title: {
+						            text: 'Data'
+								},
+								dateTimeLabelFormats: {
+									day: '%A, %B %e, %H:%M',
+									// minute: '%A, %b %e, %H:%M'
+								}
+					        },
+					        yAxis: {
+					        	title: {
+						            text: 'Velocidade'
+						        },
+						        minorGridLineWidth: 0,
+						        gridLineWidth: 0,
+						        alternateGridColor: null
+					        },
+					        tooltip: {
+								valueSuffix: ' Km/H',
+								dateTimeLabelFormats:{
+									day: '%A, %e %B %Y, %H:%M'
+								}
+								// formatter: function(){
+								// 	console.log(Highcharts.dateFormat('%d %M %Y %H:%M:%S',this.point.x));
+								// }
+						    },
+							plotOptions: {
+								 spline: {
+							            lineWidth: 4,
+							            states: {
+							                hover: {
+							                    lineWidth: 5
+							                }
+							            },
+							            marker: {
+							                enabled: true
+							            }
+							        },
+							        series: {
+										cursor: 'pointer',
+										
+							            point: {
+							                events: {
+							                    click: function (event) {
+							                        //alert('Category: ' + this.category + ', value: ' + this.y);
+							                    	//filtro(containerid, titulo, this.category, this.y);
+							                    	console.log(" --- 1: " + this.category 
+							                    			+ " - " + this.y
+							                    			+ " - " + this.options.name
+							                    			+ " - " + this.name
+							                    			+ " - " + this.x
+							                    			+ " - " + event.name
+							                    			+ " - " + event.point.name);
+							                    	filtro(this.category);
+							                    }
+							                }
+							            }
+							        }
+				            },
+						    series:{}
+						    ,
+						    navigation: {
+						        menuItemStyle: {
+						            fontSize: '10px'
+						        }
+						    }
+						  });
+						}catch(e){}
+					}
+				resumoRankingCharts();
+			//]]></script></span>
+	
+    	
+    <div id="loading" class="invisible" style="position: absolute; top: 0px; left: 0px; z-index: 9990000; width: 100%; height: 100%;"><table cellpadding="0" cellspacing="0" border="0" style="width: 100%; height: 100%" align="center"><tr><td align="center"><div><img src="https://cache.1gps.com.br/system/img/spinner.gif" /></div></td></tr></table></div><input type="hidden" autocomplete="off" name="ExcessoVelocidadeDataList" value="ExcessoVelocidadeDataList" /><input type="hidden" autocomplete="off" name="autoScroll" value="" /><input type="hidden" autocomplete="off" name="ExcessoVelocidadeDataList:_link_hidden_" value="" /><input type="hidden" autocomplete="off" name="ExcessoVelocidadeDataList:j_idcl" value="" /><script type="text/javascript">function clear_ExcessoVelocidadeDataList() {
+_clearJSFFormParameters('ExcessoVelocidadeDataList','',['ExcessoVelocidadeDataList:_link_hidden_','ExcessoVelocidadeDataList:j_idcl']);
+}
+function clearFormHiddenParams_ExcessoVelocidadeDataList(){clear_ExcessoVelocidadeDataList();}
+function clearFormHiddenParams_ExcessoVelocidadeDataList(){clear_ExcessoVelocidadeDataList();}
+clear_ExcessoVelocidadeDataList();</script><input type="hidden" name="javax.faces.ViewState" id="javax.faces.ViewState" value="j_id7" /></form>
+<div id="panelHint" class="invisible"></div>	
+<span id="ruler"></span>	
+<script> 
+addHint('Retornar o registro para outra tela'); 
+addHint('Editar Registro'); 
+addHint('Deletar o registro');
+</script>
+		<script src="https://cache.1gps.com.br/system/master/js/dropdown-exportar-em-lote.js"></script>
+</body>
+
+</html>
