@@ -18,28 +18,28 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 // Parser do export "KM Mensal" do Multiportal.
-// Layout real (confirmado com arquivo real):
-//   Linhas 1-3 (índices 0-2): ignorar
-//   Linha 4 (índice 3): cabeçalho — col A="Placa", col B="Dispositivo",
-//                        col C="01/06/2026", col D="02/06/2026", ..., última="Total"
-//   Linha 5+ (índice 4+): dados — col A=placa, cols C+ = "3,215 KM 0 metros" ou número
+// Layout real confirmado:
+//   Linhas 1-4 (índices 0-3): lixo/ignorar
+//   Linha 5 (índice 4): cabeçalho — col A="Placa", col B="Dispositivo",
+//                        col C+ = "01/07","02/07"..., última col = "Total"
+//   Linha 6+ (índice 5+): dados por veículo
+// KM por dia: decimal (ex: 70.533 = 70,533 km). Valores 0 ou 1 são ruído.
 @Slf4j
 @Service
 public class SinistroKmParserService {
 
-    // Extrai o primeiro número (inteiro ou decimal com vírgula/ponto) de strings
-    // como "3,215 KM 0 metros" → grupo 1 = "3,215" → parseDouble → 3.215
+    // Extrai primeiro número de strings como "3,215 KM 0 metros"
     private static final Pattern FIRST_NUMBER = Pattern.compile("([\\d]+(?:[.,][\\d]+)?)");
 
-    public List<KmDayEntry> parse(InputStream inputStream) throws IOException {
+    public List<KmDayEntry> parse(InputStream inputStream, String targetPlate) throws IOException {
 
         try (Workbook workbook = WorkbookFactory.create(inputStream)) {
 
             Sheet sheet = workbook.getSheetAt(0);
 
-            // Header row: primeira linha onde col A normalizada == "placa"
+            // Header row: col A normalizada == "placa" (esperado no índice 4)
             int headerRowNum = -1;
-            for (int i = 0; i <= Math.min(sheet.getLastRowNum(), 10); i++) {
+            for (int i = 0; i <= Math.min(sheet.getLastRowNum(), 15); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
                 if ("placa".equals(SinistroXlsUtils.normalize(SinistroXlsUtils.getCellValue(row, 0)))) {
@@ -49,15 +49,14 @@ public class SinistroKmParserService {
             }
 
             if (headerRowNum == -1) {
-                log.warn("[SINISTRO] Cabeçalho KM Mensal não encontrado (nenhuma linha com col A='Placa' nas primeiras 10 linhas)");
+                log.warn("[SINISTRO] Cabeçalho KM Mensal não encontrado (col A='Placa' não encontrada nas primeiras 15 linhas)");
                 return List.of();
             }
 
             Row headerRow = sheet.getRow(headerRowNum);
 
-            // Mapear colunas de data: col >= 2 (C) cujo header seja uma data válida.
-            // Parar ao encontrar "Total" (última coluna de resumo).
-            // Usar LinkedHashMap para preservar ordem cronológica.
+            // Mapear colunas de data: col >= 2 (C) cujo header parse como LocalDate.
+            // Parar ao encontrar "Total". LinkedHashMap preserva ordem cronológica.
             Map<Integer, LocalDate> dateCols = new LinkedHashMap<>();
             for (int col = 2; col < headerRow.getLastCellNum(); col++) {
                 String header = SinistroXlsUtils.getCellValue(headerRow, col);
@@ -83,8 +82,15 @@ public class SinistroKmParserService {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
 
-                String plate = SinistroXlsUtils.getCellValue(row, 0);
-                if (plate == null || plate.isBlank()) continue;
+                String rowPlate = SinistroXlsUtils.getCellValue(row, 0);
+                if (rowPlate == null || rowPlate.isBlank()) continue;
+
+                // Filtrar pela placa da análise (ignora traços/espaços/case)
+                if (targetPlate != null && !targetPlate.isBlank()) {
+                    String normRow    = rowPlate.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+                    String normTarget = targetPlate.replaceAll("[^A-Za-z0-9]", "").toUpperCase();
+                    if (!normRow.equals(normTarget)) continue;
+                }
 
                 for (Map.Entry<Integer, LocalDate> colEntry : dateCols.entrySet()) {
                     String raw = SinistroXlsUtils.getCellValue(row, colEntry.getKey());
@@ -96,7 +102,7 @@ public class SinistroKmParserService {
 
             }
 
-            log.info("[SINISTRO] KM Mensal: {} entradas parseadas", entries.size());
+            log.info("[SINISTRO] KM Mensal: {} entradas parseadas para placa={}", entries.size(), targetPlate);
             return entries;
 
         }
@@ -107,11 +113,11 @@ public class SinistroKmParserService {
 
         if (value == null || value.isBlank()) return null;
 
-        // Célula numérica vira "3.215" via String.valueOf — tenta direto primeiro
+        // Células numéricas chegam como "70.533" via String.valueOf — parse direto
         Double direct = SinistroXlsUtils.parseDouble(value);
         if (direct != null) return direct;
 
-        // String como "3,215 KM 0 metros" — extrai o primeiro número
+        // Fallback: string "3,215 KM 0 metros" — extrai o primeiro número
         Matcher m = FIRST_NUMBER.matcher(value);
         if (m.find()) {
             return SinistroXlsUtils.parseDouble(m.group(1));

@@ -9,13 +9,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.regex.Pattern;
 
-// Utilitarios compartilhados pelos parsers de KM Mensal e Excesso de
-// Velocidade. O layout exato dessas duas planilhas do Multiportal nao
-// foi confirmado com um arquivo real — os parsers detectam colunas por
-// palavra-chave no cabecalho (normalizado, sem acento) em vez de indice
-// fixo, exatamente para tolerar variacoes de layout. Se os indicadores
-// saírem vazios/errados em produção, o primeiro lugar a olhar é
-// mapColumns() nos dois parsers — não a lógica de indicadores.
 final class SinistroXlsUtils {
 
     private static final Pattern DIACRITICS = Pattern.compile("\\p{M}");
@@ -68,21 +61,26 @@ final class SinistroXlsUtils {
 
     }
 
+    // Tenta parse direto primeiro (cobre células numéricas do POI que chegam como
+    // "70.533" — o ponto é decimal, não separador de milhar). Só faz a limpeza
+    // de formato brasileiro ("1.234,56") se o parse direto falhar.
     static Double parseDouble(String value) {
 
         if (value == null || value.isBlank()) return null;
 
+        String trimmed = value.trim();
+
         try {
-            return Double.parseDouble(
-                    value.replace(".", "").replace(",", ".").trim()
-            );
-        } catch (NumberFormatException e) {
-            try {
-                return Double.parseDouble(value.trim());
-            } catch (NumberFormatException e2) {
-                return null;
-            }
+            return Double.parseDouble(trimmed);
+        } catch (NumberFormatException ignored) {
         }
+
+        try {
+            return Double.parseDouble(trimmed.replace(".", "").replace(",", "."));
+        } catch (NumberFormatException ignored) {
+        }
+
+        return null;
 
     }
 
@@ -105,15 +103,20 @@ final class SinistroXlsUtils {
             try {
                 return LocalDateTime.parse(trimmed, format);
             } catch (Exception ignored) {
-                // tenta o proximo formato / cai pro parse so-de-data abaixo
             }
 
             try {
                 return LocalDate.parse(trimmed, format).atStartOfDay();
             } catch (Exception ignored) {
-                // tenta o proximo formato
             }
 
+        }
+
+        // Formato "dd/MM" sem ano — usa o ano corrente (cabeçalhos de KM Mensal)
+        try {
+            LocalDate d = LocalDate.parse(trimmed, DateTimeFormatter.ofPattern("dd/MM"));
+            return d.withYear(LocalDate.now().getYear()).atStartOfDay();
+        } catch (Exception ignored) {
         }
 
         return null;

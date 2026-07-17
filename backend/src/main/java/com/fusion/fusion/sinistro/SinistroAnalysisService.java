@@ -112,7 +112,7 @@ public class SinistroAnalysisService {
 
             if (kmMensalFile != null && !kmMensalFile.isEmpty()) {
 
-                kmData = kmParserService.parse(kmMensalFile.getInputStream());
+                kmData = kmParserService.parse(kmMensalFile.getInputStream(), analysis.getPlate());
 
                 saveOriginalFile(analysisDir, kmMensalFile);
 

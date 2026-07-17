@@ -16,7 +16,14 @@ public class SinistroIndicatorService {
 
         double totalKm = kmData.stream().mapToDouble(KmDayEntry::km).sum();
 
-        Double avgDailyKm = days > 0 ? totalKm / days : null;
+        // Valores 0 e 1 são ruído de leitura do portal — excluir da média
+        List<KmDayEntry> validDays = kmData.stream()
+                .filter(e -> e.km() != null && e.km() > 1.0)
+                .toList();
+
+        Double avgDailyKm = !validDays.isEmpty()
+                ? validDays.stream().mapToDouble(KmDayEntry::km).sum() / validDays.size()
+                : (days > 0 ? totalKm / days : null);
 
         KmDayEntry maxDay = kmData.stream()
                 .max(Comparator.comparingDouble(KmDayEntry::km))
