@@ -185,34 +185,45 @@ async function downloadKmMensal(page, plate, startIso, endIso, outputDir) {
         '[name="KmMensalDataList:paramPesquisa:datafinal"]'
     ).fill(`${isoToBr(endIso)} 23:59`);
 
-    // O botão Excel só fica ativo depois que a pesquisa carrega o grid —
-    // clicar em Pesquisar primeiro garante isso.
+    // btnUpdateCallByJS é o botão "Pesquisar" confirmado pelo diagnóstico
     await bodyFrame.evaluate(() => {
-        const btn = document.querySelector(
-            '[id="KmMensalDataList:paramPesquisa:btnPesquisa"]'
-        );
-        if (btn) btn.click();
+        document.querySelector('[id="KmMensalDataList:btnUpdateCallByJS"]').click();
     });
 
-    await page.waitForTimeout(2000);
+    // Diagnóstico confirmou ~8s para o grid JSF renderizar após pesquisar
+    await page.waitForTimeout(8000);
 
     const destPath = path.join(
         outputDir,
         `km_mensal_${plate}_${startIso}_${endIso}.xls`
     );
 
-    // Usar evaluate no botão Excel — site JSF onde click() do Playwright
-    // pode não disparar o evento correto e causar timeout no download.
-    await captureDownload(
-        page,
-        () => bodyFrame.evaluate(() => {
-            const btn = document.querySelector(
+    // Promise.all garante que o listener está registrado antes do clique;
+    // timeout de 60s porque o JSF pode levar vários segundos para responder.
+    const [download] = await Promise.all([
+        page.waitForEvent('download', { timeout: 60000 }),
+        bodyFrame.evaluate(() => {
+            document.querySelector(
                 '[id="KmMensalDataList:paramPesquisa:btnExportXLS"]'
-            );
-            if (btn) btn.click();
+            ).click();
         }),
-        destPath
-    );
+    ]);
+
+    // Mesmo tratamento de ZIP que captureDownload
+    const suggested = download.suggestedFilename() || '';
+    if (suggested.toLowerCase().endsWith('.zip')) {
+        const tempZip = destPath + '.zip';
+        await download.saveAs(tempZip);
+        const zip = new AdmZip(tempZip);
+        const entry = zip.getEntries().find(e => /\.xlsx?$/i.test(e.entryName));
+        if (!entry) {
+            throw new Error(`Nenhum XLS encontrado dentro do ZIP baixado (${suggested})`);
+        }
+        fs.writeFileSync(destPath, zip.readFile(entry));
+        fs.unlinkSync(tempZip);
+    } else {
+        await download.saveAs(destPath);
+    }
 
     log(`[SINISTRO] KM Mensal salvo: ${destPath}`);
 
