@@ -276,28 +276,29 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         '[name="ExcessoVelocidadeDataList:paramPesquisa:veiculo"]'
     );
     await veiculoLocator.fill(plate);
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
 
-    // O campo usa autocomplete JSF — Enter dispara a seleção e popula
-    // placaVeiculoHidden com o ID interno do veículo.
-    await veiculoLocator.press('Enter');
-    await page.waitForTimeout(1000);
+    // Aguardar sugestão do autocomplete RichFaces e clicar nela para que
+    // placaVeiculoHidden seja preenchido com o ID interno do veículo.
+    const suggestion = bodyFrame.locator(
+        '.rich-suggestion-item, .ui-autocomplete-item, [class*="suggestion"]'
+    ).first();
+    try {
+        await suggestion.waitFor({ state: 'visible', timeout: 5000 });
+        await suggestion.click();
+        log('[SINISTRO] Autocomplete: sugestão clicada');
+    } catch {
+        // Sugestão não apareceu — tenta Tab para disparar onblur/onchange
+        await veiculoLocator.press('Tab');
+        await page.waitForTimeout(1000);
+        log('[SINISTRO] Autocomplete: sem sugestão, Tab pressionado');
+    }
 
-    // Verificar se o autocomplete reconheceu a placa
     const hiddenValue = await bodyFrame.evaluate(() => {
         const el = document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden');
         return el ? el.value : 'not found';
     });
     log(`[SINISTRO] placaVeiculoHidden=${hiddenValue}`);
-
-    // Se o autocomplete não preencheu (valor "0" ou vazio), forçar direto
-    if (!hiddenValue || hiddenValue === '0' || hiddenValue === 'not found') {
-        log('[SINISTRO] Autocomplete não reconheceu placa — preenchendo hidden diretamente');
-        await bodyFrame.evaluate((p) => {
-            const el = document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden');
-            if (el) el.value = p;
-        }, plate);
-    }
 
     await bodyFrame.locator(
         '[name="ExcessoVelocidadeDataList:paramPesquisa:dataInicio"]'
@@ -307,10 +308,16 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         '[name="ExcessoVelocidadeDataList:paramPesquisa:dataFim"]'
     ).fill(`${isoToBr(blockEndIso)} 23:59`);
 
-    // Pesquisar: buttonFindHidden é o INPUT JSF real (btnUpdateCallByJS não
-    // existe neste relatório — confirmado pelo diagnóstico).
+    // Pesquisar: buttonFindHidden é o INPUT JSF real; fallback para link "Pesquisar"
     await bodyFrame.evaluate(() => {
-        document.querySelector('[id="ExcessoVelocidadeDataList:buttonFindHidden"]').click();
+        const btn = document.getElementById('ExcessoVelocidadeDataList:buttonFindHidden');
+        if (btn) {
+            btn.click();
+        } else {
+            for (const a of document.querySelectorAll('a')) {
+                if (a.textContent.trim() === 'Pesquisar') { a.click(); break; }
+            }
+        }
     });
 
     // ~8s para o grid JSF renderizar após pesquisar (confirmado no KM Mensal)
