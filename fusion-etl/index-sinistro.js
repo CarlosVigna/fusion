@@ -185,16 +185,32 @@ async function downloadKmMensal(page, plate, startIso, endIso, outputDir) {
         '[name="KmMensalDataList:paramPesquisa:datafinal"]'
     ).fill(`${isoToBr(endIso)} 23:59`);
 
+    // O botão Excel só fica ativo depois que a pesquisa carrega o grid —
+    // clicar em Pesquisar primeiro garante isso.
+    await bodyFrame.evaluate(() => {
+        const btn = document.querySelector(
+            '[id="KmMensalDataList:paramPesquisa:btnPesquisa"]'
+        );
+        if (btn) btn.click();
+    });
+
+    await page.waitForTimeout(2000);
+
     const destPath = path.join(
         outputDir,
         `km_mensal_${plate}_${startIso}_${endIso}.xls`
     );
 
+    // Usar evaluate no botão Excel — site JSF onde click() do Playwright
+    // pode não disparar o evento correto e causar timeout no download.
     await captureDownload(
         page,
-        () => bodyFrame.locator(
-            '[id="KmMensalDataList:paramPesquisa:btnExportXLS"]'
-        ).click(),
+        () => bodyFrame.evaluate(() => {
+            const btn = document.querySelector(
+                '[id="KmMensalDataList:paramPesquisa:btnExportXLS"]'
+            );
+            if (btn) btn.click();
+        }),
         destPath
     );
 
