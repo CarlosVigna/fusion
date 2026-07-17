@@ -292,7 +292,7 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: 60000 }),
         bodyFrame.evaluate(() => {
-            printEXCEL('ExcessoVelocidadeDataList', '');
+            printEXCEL('ExcessoVelocidadeDataList', 'list.report.excel');
         }),
     ]);
 
