@@ -239,6 +239,20 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
     await waitForFrame(page, '/system/layout/menu.seam');
     const menuFrame = page.frame({ name: 'mymenu' });
 
+    // Após o download via popup (printEXCEL → window.open), o bodyFrame fica
+    // em estado stale: waitForFrame retorna o frame antigo sem recarregar.
+    // Para blocos > 1, forçar uma navegação antecipada + espera antes do
+    // fluxo normal para garantir que o frame recarregue do zero.
+    if (blockIndex > 1) {
+        await menuFrame.evaluate(() => {
+            doSubmit(
+                document.querySelector('tr[id="/system/reports/excessoVelocidadeList.seam"]'),
+                '/system/reports/excessoVelocidadeList.seam'
+            );
+        });
+        await page.waitForTimeout(3000);
+    }
+
     await expandParentMenuIfNeeded(
         menuFrame,
         'tr[id="/system/reports/excessoVelocidadeList.seam"]'
