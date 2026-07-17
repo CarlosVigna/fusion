@@ -266,16 +266,41 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         '[name="ExcessoVelocidadeDataList:paramPesquisa:dataFim"]'
     ).fill(`${isoToBr(blockEndIso)} 23:59`);
 
+    // Mesmo padrão de nomeação JSF que KM Mensal
+    await bodyFrame.evaluate(() => {
+        document.querySelector('[id="ExcessoVelocidadeDataList:btnUpdateCallByJS"]').click();
+    });
+
+    // ~8s para o grid JSF renderizar após pesquisar (confirmado no KM Mensal)
+    await page.waitForTimeout(8000);
+
     const destPath = path.join(
         outputDir,
         `excesso_velocidade_${plate}_${blockStartIso}_${blockEndIso}_bloco${blockIndex}.xls`
     );
 
-    await captureDownload(
-        page,
-        () => bodyFrame.locator('a.flaticon-excel-file').click(),
-        destPath
-    );
+    // Promise.all garante listener registrado antes do clique
+    const [download] = await Promise.all([
+        page.waitForEvent('download', { timeout: 60000 }),
+        bodyFrame.evaluate(() => {
+            document.querySelector('a.flaticon-excel-file').click();
+        }),
+    ]);
+
+    const suggested = download.suggestedFilename() || '';
+    if (suggested.toLowerCase().endsWith('.zip')) {
+        const tempZip = destPath + '.zip';
+        await download.saveAs(tempZip);
+        const zip = new AdmZip(tempZip);
+        const entry = zip.getEntries().find(e => /\.xlsx?$/i.test(e.entryName));
+        if (!entry) {
+            throw new Error(`Nenhum XLS encontrado dentro do ZIP baixado (${suggested})`);
+        }
+        fs.writeFileSync(destPath, zip.readFile(entry));
+        fs.unlinkSync(tempZip);
+    } else {
+        await download.saveAs(destPath);
+    }
 
     log(`[SINISTRO] Excesso de Velocidade bloco ${blockIndex} salvo: ${destPath}`);
 
