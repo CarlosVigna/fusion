@@ -59,7 +59,7 @@ const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal
     const menuFrame = page.frame({ name: 'mymenu' });
 
     console.log('[INFO] Abrindo menu Relatórios (175)...');
-    await menuFrame.evaluate('openMenu(175)');
+    await menuFrame.evaluate(() => openMenu(175));
     await page.waitForTimeout(2000);
 
     console.log('[INFO] Navegando para KM Mensal via doSubmit...');

@@ -94,7 +94,7 @@ async function expandParentMenuIfNeeded(menuFrame, childSelector) {
     // Chamar openMenu() via JS — o elemento tem class="menu_off" que o
     // torna oculto via CSS, então click() normal falha. evaluate() ignora
     // visibilidade completamente.
-    await menuFrame.evaluate(`openMenu(${RELATORIOS_MENU_ID})`);
+    await menuFrame.evaluate((id) => openMenu(id), RELATORIOS_MENU_ID);
 
     // Aguardar até 10s para o filho ficar visível; se não acontecer,
     // tentar clicar nele também via JS como último recurso.
