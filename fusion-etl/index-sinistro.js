@@ -91,10 +91,10 @@ async function expandParentMenuIfNeeded(menuFrame, childSelector) {
     // Aguardar o frame mymenu carregar completamente antes de interagir
     await menuFrame.page().waitForTimeout(3000);
 
-    // Garantir que o elemento está visível antes de clicar
-    const menuItem = menuFrame.locator(`table[onclick="openMenu(${RELATORIOS_MENU_ID})"]`);
-    await menuItem.waitFor({ state: 'visible', timeout: 30000 });
-    await menuItem.click();
+    // Chamar openMenu() via JS — o elemento tem class="menu_off" que o
+    // torna oculto via CSS, então click() normal falha mesmo com force:true
+    // em alguns ambientes. evaluate() ignora visibilidade completamente.
+    await menuFrame.evaluate(`openMenu(${RELATORIOS_MENU_ID})`);
 
     await childLocator.waitFor({ state: 'visible', timeout: 10000 });
 
