@@ -80,11 +80,11 @@ const RELATORIOS_MENU_ID = 175;
 // deixou aberto.
 async function expandParentMenuIfNeeded(menuFrame, childSelector) {
 
-    const childLocator = menuFrame.locator(childSelector);
+    const child = menuFrame.locator(childSelector);
 
-    const alreadyVisible = await childLocator.isVisible().catch(() => false);
+    const isVisible = await child.isVisible().catch(() => false);
 
-    if (alreadyVisible) {
+    if (isVisible) {
         return;
     }
 
@@ -92,11 +92,18 @@ async function expandParentMenuIfNeeded(menuFrame, childSelector) {
     await menuFrame.page().waitForTimeout(3000);
 
     // Chamar openMenu() via JS — o elemento tem class="menu_off" que o
-    // torna oculto via CSS, então click() normal falha mesmo com force:true
-    // em alguns ambientes. evaluate() ignora visibilidade completamente.
+    // torna oculto via CSS, então click() normal falha. evaluate() ignora
+    // visibilidade completamente.
     await menuFrame.evaluate(`openMenu(${RELATORIOS_MENU_ID})`);
 
-    await childLocator.waitFor({ state: 'visible', timeout: 10000 });
+    // Aguardar até 10s para o filho ficar visível; se não acontecer,
+    // tentar clicar nele também via JS como último recurso.
+    await child.waitFor({ state: 'visible', timeout: 10000 }).catch(async () => {
+        await menuFrame.evaluate((sel) => {
+            const tr = document.querySelector(sel);
+            if (tr) tr.click();
+        }, childSelector);
+    });
 
 }
 
@@ -155,9 +162,14 @@ async function downloadKmMensal(page, plate, startIso, endIso, outputDir) {
         'tr[id="/system/reports/kmMensalList.seam"]'
     );
 
-    await menuFrame.locator(
-        'tr[id="/system/reports/kmMensalList.seam"]'
-    ).click();
+    // Navegar via doSubmit — os itens filhos podem continuar hidden no CSS
+    // após openMenu(), então click() no locator ainda falha.
+    await menuFrame.evaluate(() => {
+        doSubmit(
+            document.querySelector('tr[id="/system/reports/kmMensalList.seam"]'),
+            '/system/reports/kmMensalList.seam'
+        );
+    });
 
     const bodyFrame = await waitForFrame(page, '/system/reports/kmMensalList.seam');
 
@@ -205,9 +217,13 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         'tr[id="/system/reports/excessoVelocidadeList.seam"]'
     );
 
-    await menuFrame.locator(
-        'tr[id="/system/reports/excessoVelocidadeList.seam"]'
-    ).click();
+    // Navegar via doSubmit pelo mesmo motivo que kmMensalList acima.
+    await menuFrame.evaluate(() => {
+        doSubmit(
+            document.querySelector('tr[id="/system/reports/excessoVelocidadeList.seam"]'),
+            '/system/reports/excessoVelocidadeList.seam'
+        );
+    });
 
     const bodyFrame = await waitForFrame(page, '/system/reports/excessoVelocidadeList.seam');
 
