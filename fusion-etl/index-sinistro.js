@@ -298,16 +298,20 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         `excesso_velocidade_${plate}_${blockStartIso}_${blockEndIso}_bloco${blockIndex}.xls`
     );
 
-    // printEXCEL abre popup com /system/excelreport?datalist=... que serve o
-    // XLS. O download event dispara no page (não no popup).
-    // Diagnóstico confirmou: el.click() no exportarExcel INPUT não funciona
-    // (o onclick A4J.AJAX.Submit não dispara em headless); printEXCEL diretamente
-    // via evaluate é a única forma confiável.
-    const [download] = await Promise.all([
-        page.waitForEvent('download', { timeout: 60000 }),
+    // printEXCEL chama window.open(url, "printEXCEL", ...) — em headless o
+    // popup precisa ser capturado via waitForEvent('popup') no page pai;
+    // o download do XLS dispara DENTRO do popup (não no page pai).
+    // Usar page.waitForEvent('download') falha no bloco 2+ porque o popup
+    // "printEXCEL" já existe do bloco anterior e o listener não é registrado.
+    const [popup] = await Promise.all([
+        page.waitForEvent('popup', { timeout: 60000 }),
         bodyFrame.evaluate(() => {
             printEXCEL('ExcessoVelocidadeDataList', 'list.report.excel');
         }),
+    ]);
+
+    const [download] = await Promise.all([
+        popup.waitForEvent('download', { timeout: 60000 }),
     ]);
 
     // O servidor serve o XLS direto — sem ZIP, mas manter tratamento defensivo
@@ -325,6 +329,8 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
     } else {
         await download.saveAs(destPath);
     }
+
+    await popup.close();
 
     log(`[SINISTRO] Excesso de Velocidade bloco ${blockIndex} salvo: ${destPath}`);
 
