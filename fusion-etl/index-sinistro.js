@@ -272,9 +272,32 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
     // campos e botões — sem esse wait os locators retornam vazio.
     await page.waitForTimeout(5000);
 
-    await bodyFrame.locator(
+    const veiculoLocator = bodyFrame.locator(
         '[name="ExcessoVelocidadeDataList:paramPesquisa:veiculo"]'
-    ).fill(plate);
+    );
+    await veiculoLocator.fill(plate);
+    await page.waitForTimeout(1000);
+
+    // O campo usa autocomplete JSF — Enter dispara a seleção e popula
+    // placaVeiculoHidden com o ID interno do veículo.
+    await veiculoLocator.press('Enter');
+    await page.waitForTimeout(1000);
+
+    // Verificar se o autocomplete reconheceu a placa
+    const hiddenValue = await bodyFrame.evaluate(() => {
+        const el = document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden');
+        return el ? el.value : 'not found';
+    });
+    log(`[SINISTRO] placaVeiculoHidden=${hiddenValue}`);
+
+    // Se o autocomplete não preencheu (valor "0" ou vazio), forçar direto
+    if (!hiddenValue || hiddenValue === '0' || hiddenValue === 'not found') {
+        log('[SINISTRO] Autocomplete não reconheceu placa — preenchendo hidden diretamente');
+        await bodyFrame.evaluate((p) => {
+            const el = document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden');
+            if (el) el.value = p;
+        }, plate);
+    }
 
     await bodyFrame.locator(
         '[name="ExcessoVelocidadeDataList:paramPesquisa:dataInicio"]'
