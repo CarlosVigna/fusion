@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
@@ -101,7 +102,10 @@ public class LinkageImportService {
                         getCellValue(row.getCell(7));
 
                 if (!"Aberto".equalsIgnoreCase(status)) {
-                    continue; // ignora vínculo encerrado
+                    // Vínculo encerrado: desativar linkage ativo e, se o
+                    // veículo não tiver mais dispositivo vinculado, soft-deletar.
+                    deactivateVehicleIfOrphaned(plate);
+                    continue;
                 }
 
                 Vehicle vehicle =
@@ -241,6 +245,37 @@ public class LinkageImportService {
                 active,
                 linkedVehicles
         );
+
+    }
+
+    // Chamado quando a planilha de vínculo traz status != "Aberto" para uma
+    // placa. Desativa o device_linkage ativo (se existir) e, em seguida,
+    // soft-deleta o veículo caso não reste nenhum dispositivo ativo vinculado.
+    private void deactivateVehicleIfOrphaned(String plate) {
+
+        vehicleRepository.findByPlate(plate).ifPresent(vehicle -> {
+
+            repository.findByVehicleAndActiveTrue(vehicle).ifPresent(linkage -> {
+                linkage.setActive(false);
+                if (linkage.getEndAt() == null) {
+                    linkage.setEndAt(LocalDateTime.now(ZoneOffset.UTC));
+                }
+                repository.save(linkage);
+            });
+
+            // Após desativar, confirmar que não existe mais linkage ativo
+            // (guarda-chuva para o caso improvável de múltiplos linkages).
+            boolean stillHasActive = repository
+                    .findByVehicleAndActiveTrue(vehicle)
+                    .isPresent();
+
+            if (!stillHasActive && Boolean.TRUE.equals(vehicle.getActive())) {
+                vehicle.setActive(false);
+                vehicle.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
+                vehicleRepository.save(vehicle);
+            }
+
+        });
 
     }
 
