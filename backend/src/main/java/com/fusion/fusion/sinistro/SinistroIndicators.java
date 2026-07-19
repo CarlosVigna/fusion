@@ -5,23 +5,41 @@ import java.util.List;
 
 public record SinistroIndicators(
 
+        // Tipo e contexto do sinistro
+        SinistroType sinistroType,
+        String sinistroWeekday,
+        String horarioClassification,
+
+        // KM do período completo
         Double totalKm,
-
+        Double avgDailyKm,
         LocalDate maxKmDate,
-
         Double maxKmValue,
 
-        Double avgDailyKm,
+        // KM no dia do sinistro vs média
+        Double kmOnSinistroDate,
+        Double kmSinistroRatio,         // kmOnSinistroDate / avgDailyKm
 
-        int speedingOccurrences,
+        // Padrão nos 7 dias anteriores ao sinistro
+        Double avgKmLast7Days,
+        Double avgKmLast7DaysRatio,     // vs avgDailyKm geral
 
+        // Velocidade
+        int speedingOccurrences,        // total no período
+        int speedingLast7Days,          // nos 7 dias anteriores ao sinistro
         Double maxSpeed,
 
+        // Indícios identificados com classificação
+        List<Indicio> indicios,
+
+        // Legado — manter para não quebrar JSON já armazenado
         List<SuspiciousDay> suspiciousDays
 
 ) {
 
-    public record SuspiciousDay(LocalDate date, Double km) {
-    }
+    // classificacao: "NORMAL" | "ATENCAO" | "SUSPEITO"
+    public record Indicio(String descricao, String classificacao) {}
+
+    public record SuspiciousDay(LocalDate date, Double km) {}
 
 }

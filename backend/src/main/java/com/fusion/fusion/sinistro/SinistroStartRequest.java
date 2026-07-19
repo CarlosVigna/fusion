@@ -14,7 +14,15 @@ public record SinistroStartRequest(
         LocalDate startDate,
 
         @NotNull
-        LocalDate endDate
+        LocalDate endDate,
+
+        @NotNull
+        LocalDate sinistroDate,
+
+        String sinistroTime,
+
+        @NotNull
+        SinistroType sinistroType
 
 ) {
 }

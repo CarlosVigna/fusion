@@ -16,6 +16,10 @@ public record SinistroHistoryResponse(
 
         LocalDate endDate,
 
+        LocalDate sinistroDate,
+
+        SinistroType sinistroType,
+
         SinistroStatus status,
 
         LocalDateTime createdAt
@@ -30,6 +34,8 @@ public record SinistroHistoryResponse(
                 analysis.getInsuredName(),
                 analysis.getStartDate(),
                 analysis.getEndDate(),
+                analysis.getSinistroDate(),
+                analysis.getSinistroType(),
                 analysis.getStatus(),
                 analysis.getCreatedAt()
         );

@@ -32,6 +32,13 @@ public class SinistroAnalysis {
     @Column(nullable = false)
     private LocalDate endDate;
 
+    private LocalDate sinistroDate;
+
+    private String sinistroTime;
+
+    @Enumerated(EnumType.STRING)
+    private SinistroType sinistroType;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private SinistroStatus status = SinistroStatus.PENDING;

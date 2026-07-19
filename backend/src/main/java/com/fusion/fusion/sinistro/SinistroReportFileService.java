@@ -1,8 +1,13 @@
 package com.fusion.fusion.sinistro;
 
 import com.lowagie.text.Document;
+import com.lowagie.text.Font;
+import com.lowagie.text.FontFactory;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.pdf.PdfWriter;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -13,92 +18,130 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-// Geracao dos arquivos de download do modulo de Sinistro. Formatacao
-// deliberadamente simples (sem cores/bordas) — o foco desta primeira
-// versao e' os dados estarem corretos, nao o design do documento.
 @Service
 public class SinistroReportFileService {
 
-    public byte[] buildExcelReport(SinistroStatusResponse status) throws IOException {
+    public byte[] buildExcelReport(SinistroStatusResponse s) throws IOException {
 
-        try (Workbook workbook = new XSSFWorkbook();
+        try (Workbook wb = new XSSFWorkbook();
              ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-            Sheet sheet = workbook.createSheet("Análise de Sinistro");
+            Sheet sheet = wb.createSheet("Análise de Sinistro");
 
-            int rowNum = 0;
+            int r = 0;
 
-            rowNum = addRow(sheet, rowNum, "Placa", status.plate());
-            rowNum = addRow(sheet, rowNum, "Segurado", status.insuredName());
-            rowNum = addRow(sheet, rowNum, "Período", status.startDate() + " a " + status.endDate());
-            rowNum = addRow(sheet, rowNum, "Status", status.status().name());
+            // ── Cabeçalho ────────────────────────────────────────────────
+            r = addRow(sheet, r, "ANÁLISE DE SINISTRO — RELATÓRIO DE INDÍCIOS", null);
+            r = addRow(sheet, r, "Gerado em",
+                    LocalDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) + " UTC");
+            r++;
 
-            rowNum++;
+            r = addRow(sheet, r, "Placa", s.plate());
+            r = addRow(sheet, r, "Segurado", s.insuredName());
+            r = addRow(sheet, r, "Tipo de sinistro",
+                    s.sinistroType() == SinistroType.COLISAO ? "COLISÃO" : "ROUBO/FURTO");
+            r = addRow(sheet, r, "Data do sinistro", s.sinistroDate() != null ? s.sinistroDate().toString() : "—");
+            r = addRow(sheet, r, "Hora declarada", s.sinistroTime() != null ? s.sinistroTime() : "—");
+            r = addRow(sheet, r, "Período analisado", s.startDate() + " a " + s.endDate());
+            r++;
 
-            SinistroIndicators indicators = status.indicators();
+            SinistroIndicators ind = s.indicators();
 
-            if (indicators != null) {
+            if (ind != null) {
 
-                rowNum = addRow(sheet, rowNum, "KM total", indicators.totalKm());
-                rowNum = addRow(sheet, rowNum, "Média diária de KM", indicators.avgDailyKm());
-                rowNum = addRow(sheet, rowNum, "Dia com maior KM", indicators.maxKmDate());
-                rowNum = addRow(sheet, rowNum, "Maior KM em um dia", indicators.maxKmValue());
-                rowNum = addRow(sheet, rowNum, "Ocorrências de excesso de velocidade", indicators.speedingOccurrences());
-                rowNum = addRow(sheet, rowNum, "Velocidade máxima registrada", indicators.maxSpeed());
+                // ── KM ───────────────────────────────────────────────────
+                r = addRow(sheet, r, "── KM DO PERÍODO ──", null);
+                r = addRow(sheet, r, "KM total no período", ind.totalKm());
+                r = addRow(sheet, r, "Média diária de KM", ind.avgDailyKm());
+                r = addRow(sheet, r, "Dia com maior KM", ind.maxKmDate() != null ? ind.maxKmDate().toString() : null);
+                r = addRow(sheet, r, "KM máximo em um dia", ind.maxKmValue());
+                r = addRow(sheet, r, "KM no dia do sinistro", ind.kmOnSinistroDate());
+                r = addRow(sheet, r, "Razão KM sinistro/média",
+                        ind.kmSinistroRatio() != null ? String.format("%.0f%%", ind.kmSinistroRatio() * 100) : null);
+                r = addRow(sheet, r, "KM médio — 7 dias anteriores", ind.avgKmLast7Days());
+                r++;
 
-                rowNum++;
+                // ── Velocidade ───────────────────────────────────────────
+                r = addRow(sheet, r, "── VELOCIDADE ──", null);
+                r = addRow(sheet, r, "Ocorrências no período", ind.speedingOccurrences());
+                r = addRow(sheet, r, "Ocorrências — 7 dias anteriores", ind.speedingLast7Days());
+                r = addRow(sheet, r, "Velocidade máxima registrada (km/h)", ind.maxSpeed());
+                r++;
 
-                Row header = sheet.createRow(rowNum++);
-                header.createCell(0).setCellValue("Dias suspeitos (KM > 2x a média)");
-                header.createCell(1).setCellValue("KM");
+                // ── Indícios ─────────────────────────────────────────────
+                r = addRow(sheet, r, "── INDÍCIOS IDENTIFICADOS ──", null);
+                Row headerRow = sheet.createRow(r++);
+                headerRow.createCell(0).setCellValue("Classificação");
+                headerRow.createCell(1).setCellValue("Descrição");
 
-                for (SinistroIndicators.SuspiciousDay day : indicators.suspiciousDays()) {
-                    Row row = sheet.createRow(rowNum++);
-                    row.createCell(0).setCellValue(day.date().toString());
-                    row.createCell(1).setCellValue(day.km());
+                if (ind.indicios() != null) {
+                    for (var indicio : ind.indicios()) {
+                        Row row = sheet.createRow(r++);
+                        row.createCell(0).setCellValue(
+                                switch (indicio.classificacao()) {
+                                    case "SUSPEITO" -> "🔴 SUSPEITO";
+                                    case "ATENCAO"  -> "⚠️ ATENÇÃO";
+                                    default          -> "✅ NORMAL";
+                                });
+                        row.createCell(1).setCellValue(indicio.descricao());
+                    }
                 }
 
+                r++;
+                r = addRow(sheet, r, "── METODOLOGIA ──", null);
+                r = addRow(sheet, r, "Fonte dos dados", "Multiportal (KM Mensal + Excesso de Velocidade)");
+                r = addRow(sheet, r, "Nota",
+                        "Esta análise é um auxílio à decisão e não substitui a avaliação do analista.");
+
             }
 
-            for (int i = 0; i <= 1; i++) {
-                sheet.setColumnWidth(i, 30 * 256);
-            }
+            sheet.setColumnWidth(0, 40 * 256);
+            sheet.setColumnWidth(1, 60 * 256);
 
-            workbook.write(out);
-
+            wb.write(out);
             return out.toByteArray();
 
         }
 
     }
 
-    public byte[] buildPdfReport(SinistroStatusResponse status) throws IOException {
+    public byte[] buildPdfReport(SinistroStatusResponse s) throws IOException {
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 
-            Document document = new Document();
+            Document doc = new Document();
 
             try {
+                PdfWriter.getInstance(doc, out);
+                doc.open();
 
-                PdfWriter.getInstance(document, out);
+                Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14);
+                Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10);
+                Font bodyFont = FontFactory.getFont(FontFactory.HELVETICA, 9);
 
-                document.open();
+                doc.add(new Paragraph("ANÁLISE DE SINISTRO — RELATÓRIO DE INDÍCIOS", titleFont));
+                doc.add(new Paragraph(" "));
 
-                String report = status.report() != null
-                        ? status.report()
+                String report = s.report() != null
+                        ? s.report()
                         : "Relatório ainda não disponível para esta análise.";
 
                 for (String line : report.split("\n")) {
-                    document.add(new Paragraph(line));
+                    Font f = line.startsWith("─") || line.startsWith("ANÁLISE") || line.endsWith("──")
+                            ? headerFont : bodyFont;
+                    doc.add(new Paragraph(line.isBlank() ? " " : line, f));
                 }
 
             } catch (com.lowagie.text.DocumentException e) {
                 throw new IOException("Falha ao gerar PDF", e);
             } finally {
-                document.close();
+                doc.close();
             }
 
             return out.toByteArray();
@@ -107,41 +150,32 @@ public class SinistroReportFileService {
 
     }
 
-    public byte[] buildPack(Path analysisDir, SinistroStatusResponse status) throws IOException {
+    public byte[] buildPack(Path analysisDir, SinistroStatusResponse s) throws IOException {
 
         try (ByteArrayOutputStream out = new ByteArrayOutputStream();
              ZipOutputStream zip = new ZipOutputStream(out)) {
 
             if (Files.isDirectory(analysisDir)) {
-
                 try (var files = Files.list(analysisDir)) {
-
                     for (Path file : files.toList()) {
-
                         if (Files.isRegularFile(file)) {
-
                             zip.putNextEntry(new ZipEntry(file.getFileName().toString()));
                             zip.write(Files.readAllBytes(file));
                             zip.closeEntry();
-
                         }
-
                     }
-
                 }
-
             }
 
             zip.putNextEntry(new ZipEntry("relatorio.xlsx"));
-            zip.write(buildExcelReport(status));
+            zip.write(buildExcelReport(s));
             zip.closeEntry();
 
             zip.putNextEntry(new ZipEntry("relatorio.pdf"));
-            zip.write(buildPdfReport(status));
+            zip.write(buildPdfReport(s));
             zip.closeEntry();
 
             zip.finish();
-
             return out.toByteArray();
 
         }
@@ -149,11 +183,8 @@ public class SinistroReportFileService {
     }
 
     private int addRow(Sheet sheet, int rowNum, String label, Object value) {
-
         Row row = sheet.createRow(rowNum);
-
         row.createCell(0).setCellValue(label);
-
         if (value instanceof Double d) {
             row.createCell(1).setCellValue(d);
         } else if (value instanceof Integer i) {
@@ -161,9 +192,7 @@ public class SinistroReportFileService {
         } else if (value != null) {
             row.createCell(1).setCellValue(value.toString());
         }
-
         return rowNum + 1;
-
     }
 
 }

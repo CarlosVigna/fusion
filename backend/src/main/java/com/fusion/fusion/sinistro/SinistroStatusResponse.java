@@ -17,6 +17,12 @@ public record SinistroStatusResponse(
 
         LocalDate endDate,
 
+        LocalDate sinistroDate,
+
+        String sinistroTime,
+
+        SinistroType sinistroType,
+
         SinistroStatus status,
 
         List<KmDayEntry> kmData,

@@ -49,6 +49,9 @@ public class SinistroAnalysisService {
                 .insuredName(insuredName)
                 .startDate(request.startDate())
                 .endDate(request.endDate())
+                .sinistroDate(request.sinistroDate())
+                .sinistroTime(request.sinistroTime())
+                .sinistroType(request.sinistroType())
                 .status(SinistroStatus.PENDING)
                 .createdBy(createdBy)
                 .build();
@@ -134,7 +137,12 @@ public class SinistroAnalysisService {
 
             }
 
-            SinistroIndicators indicators = indicatorService.compute(kmData, speedData);
+            SinistroIndicators indicators = indicatorService.compute(
+                    kmData, speedData,
+                    analysis.getSinistroType(),
+                    analysis.getSinistroDate(),
+                    analysis.getSinistroTime()
+            );
 
             String report = indicatorService.buildReport(
                     analysis.getPlate(),
@@ -176,6 +184,9 @@ public class SinistroAnalysisService {
                 analysis.getInsuredName(),
                 analysis.getStartDate(),
                 analysis.getEndDate(),
+                analysis.getSinistroDate(),
+                analysis.getSinistroTime(),
+                analysis.getSinistroType(),
                 analysis.getStatus(),
                 readJson(analysis.getKmData(), new TypeReference<List<KmDayEntry>>() {
                 }),

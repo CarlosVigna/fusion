@@ -2,8 +2,15 @@ import { apiClient } from "./api/apiClient";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
-export async function startAnalysis({ plate, startDate, endDate }) {
-  return apiClient.post("/sinistro/start", { plate, startDate, endDate });
+export async function startAnalysis({ plate, startDate, endDate, sinistroDate, sinistroTime, sinistroType }) {
+  return apiClient.post("/sinistro/start", {
+    plate,
+    startDate,
+    endDate,
+    sinistroDate,
+    sinistroTime,
+    sinistroType,
+  });
 }
 
 export async function getAnalysisStatus(id) {
