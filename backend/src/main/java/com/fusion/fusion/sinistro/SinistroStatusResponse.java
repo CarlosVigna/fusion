@@ -29,6 +29,8 @@ public record SinistroStatusResponse(
 
         List<SpeedEventEntry> speedData,
 
+        List<IgnicaoDayEntry> ignicaoData,
+
         SinistroIndicators indicators,
 
         String report,

@@ -31,6 +31,7 @@ public class SinistroAnalysisService {
     private final VehicleRepository vehicleRepository;
     private final SinistroKmParserService kmParserService;
     private final SinistroSpeedParserService speedParserService;
+    private final SinistroIgnicaoParserService ignicaoParserService;
     private final SinistroIndicatorService indicatorService;
     private final ImportStorageProperties storageProperties;
     private final ObjectMapper objectMapper;
@@ -138,14 +139,15 @@ public class SinistroAnalysisService {
 
             }
 
-            // Salva o arquivo de Tempo de Ignição para o pack — parser será
-            // implementado em etapa futura; por ora apenas persiste o XLS.
+            List<IgnicaoDayEntry> ignicaoData = List.of();
+
             if (ignicaoFile != null && !ignicaoFile.isEmpty()) {
+                ignicaoData = ignicaoParserService.parse(ignicaoFile.getInputStream());
                 saveOriginalFile(analysisDir, ignicaoFile);
             }
 
             SinistroIndicators indicators = indicatorService.compute(
-                    kmData, speedData,
+                    kmData, speedData, ignicaoData,
                     analysis.getSinistroType(),
                     analysis.getSinistroDate(),
                     analysis.getSinistroTime()
@@ -161,6 +163,7 @@ public class SinistroAnalysisService {
 
             analysis.setKmData(writeJson(kmData));
             analysis.setSpeedData(writeJson(speedData));
+            analysis.setIgnicaoData(writeJson(ignicaoData));
             analysis.setIndicators(writeJson(indicators));
             analysis.setReport(report);
             analysis.setStatus(SinistroStatus.DONE);
@@ -195,12 +198,10 @@ public class SinistroAnalysisService {
                 analysis.getSinistroTime(),
                 analysis.getSinistroType(),
                 analysis.getStatus(),
-                readJson(analysis.getKmData(), new TypeReference<List<KmDayEntry>>() {
-                }),
-                readJson(analysis.getSpeedData(), new TypeReference<List<SpeedEventEntry>>() {
-                }),
-                readJson(analysis.getIndicators(), new TypeReference<SinistroIndicators>() {
-                }),
+                readJson(analysis.getKmData(), new TypeReference<List<KmDayEntry>>() {}),
+                readJson(analysis.getSpeedData(), new TypeReference<List<SpeedEventEntry>>() {}),
+                readJson(analysis.getIgnicaoData(), new TypeReference<List<IgnicaoDayEntry>>() {}),
+                readJson(analysis.getIndicators(), new TypeReference<SinistroIndicators>() {}),
                 analysis.getReport(),
                 analysis.getErrorMessage(),
                 analysis.getCreatedAt()

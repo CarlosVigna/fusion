@@ -50,6 +50,9 @@ public class SinistroAnalysis {
     private String speedData;
 
     @Column(columnDefinition = "TEXT")
+    private String ignicaoData;
+
+    @Column(columnDefinition = "TEXT")
     private String indicators;
 
     @Column(columnDefinition = "TEXT")

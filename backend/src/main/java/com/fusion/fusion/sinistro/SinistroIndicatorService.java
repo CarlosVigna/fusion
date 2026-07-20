@@ -18,6 +18,7 @@ public class SinistroIndicatorService {
     public SinistroIndicators compute(
             List<KmDayEntry> kmData,
             List<SpeedEventEntry> speedData,
+            List<IgnicaoDayEntry> ignicaoData,
             SinistroType sinistroType,
             LocalDate sinistroDate,
             String sinistroTime
@@ -94,6 +95,28 @@ public class SinistroIndicatorService {
         String sinistroWeekday = sinistroDate != null ? weekdayName(sinistroDate.getDayOfWeek()) : null;
         String horarioClassification = sinistroTime != null ? classifyHorario(sinistroTime) : null;
 
+        // ── Ignição ───────────────────────────────────────────────────────
+        List<IgnicaoDayEntry> ignicao = ignicaoData != null ? ignicaoData : List.of();
+
+        List<IgnicaoDayEntry> ignicaoDaysWithUse = ignicao.stream()
+                .filter(e -> e.minutosLigada() != null && e.minutosLigada() > 0)
+                .toList();
+
+        Double totalHorasLigada = ignicaoDaysWithUse.isEmpty() ? null
+                : ignicaoDaysWithUse.stream().mapToInt(IgnicaoDayEntry::minutosLigada).sum() / 60.0;
+
+        Double avgHorasLigadaDia = ignicaoDaysWithUse.isEmpty() ? null
+                : ignicaoDaysWithUse.stream().mapToInt(IgnicaoDayEntry::minutosLigada).average().orElse(0) / 60.0;
+
+        Double horasLigadaSinistro = null;
+        if (sinistroDate != null && !ignicao.isEmpty()) {
+            horasLigadaSinistro = ignicao.stream()
+                    .filter(e -> sinistroDate.equals(e.date()) && e.minutosLigada() != null)
+                    .map(e -> e.minutosLigada() / 60.0)
+                    .findFirst()
+                    .orElse(null);
+        }
+
         // ── Legado: dias suspeitos ────────────────────────────────────────
         double avgForSuspicious = avgDailyKm != null ? avgDailyKm : 0;
         List<SinistroIndicators.SuspiciousDay> suspiciousDays = kmData.stream()
@@ -114,6 +137,8 @@ public class SinistroIndicatorService {
                     speedingLast7Days, avgKmLast7Days, avgKmLast7DaysRatio);
         }
 
+        addIndiciosIgnicao(indicios, horasLigadaSinistro, avgHorasLigadaDia, sinistroType);
+
         return new SinistroIndicators(
                 sinistroType,
                 sinistroWeekday,
@@ -129,6 +154,9 @@ public class SinistroIndicatorService {
                 speedingOccurrences,
                 speedingLast7Days,
                 maxSpeed,
+                totalHorasLigada,
+                avgHorasLigadaDia,
+                horasLigadaSinistro,
                 indicios,
                 suspiciousDays
         );
@@ -246,6 +274,60 @@ public class SinistroIndicatorService {
             indicios.add(indicio(speedingLast7Days + " ocorrência(s) de excesso de velocidade nos 7 dias anteriores", "ATENCAO"));
         } else {
             indicios.add(indicio(speedingLast7Days + " ocorrências de excesso de velocidade nos 7 dias anteriores ao roubo", "SUSPEITO"));
+        }
+
+    }
+
+    // ── Indícios Ignição ─────────────────────────────────────────────────
+
+    private void addIndiciosIgnicao(
+            List<SinistroIndicators.Indicio> indicios,
+            Double horasLigadaSinistro,
+            Double avgHorasLigadaDia,
+            SinistroType sinistroType
+    ) {
+
+        if (horasLigadaSinistro == null || avgHorasLigadaDia == null || avgHorasLigadaDia == 0) return;
+
+        double ratio = horasLigadaSinistro / avgHorasLigadaDia;
+        String hSin  = fmt1(horasLigadaSinistro) + "h";
+        String hAvg  = fmt1(avgHorasLigadaDia) + "h";
+
+        if (sinistroType == SinistroType.COLISAO) {
+            // COLISÃO: veículo ligado muito tempo → mais exposição → risco maior
+            if (ratio > 2.0) {
+                indicios.add(indicio(
+                        "Veículo ficou ligado " + hSin + " no dia do sinistro — " + pct(ratio) + " da média diária (" + hAvg + ") — uso atípico",
+                        "SUSPEITO"));
+            } else if (ratio > 1.4) {
+                indicios.add(indicio(
+                        "Veículo ligado " + hSin + " no dia do sinistro (" + pct(ratio) + " da média " + hAvg + ")",
+                        "ATENCAO"));
+            } else if (horasLigadaSinistro < 0.5) {
+                indicios.add(indicio(
+                        "Veículo ficou ligado apenas " + hSin + " no dia do sinistro — verificar se horário declarado é compatível",
+                        "ATENCAO"));
+            } else {
+                indicios.add(indicio(
+                        "Tempo de ignição no dia do sinistro dentro do padrão (" + hSin + " vs média " + hAvg + ")",
+                        "NORMAL"));
+            }
+        } else {
+            // ROUBO: veículo nunca ligado no dia → consistente com roubo parado /
+            // ligado muito tempo → pode ter sido movimentado antes do roubo
+            if (horasLigadaSinistro == 0) {
+                indicios.add(indicio(
+                        "Veículo sem registro de ignição no dia do roubo — consistente com roubo sem uso",
+                        "NORMAL"));
+            } else if (ratio > 1.5) {
+                indicios.add(indicio(
+                        "Veículo ligado " + hSin + " no dia do roubo (" + pct(ratio) + " da média " + hAvg + ") — movimentação intensa antes do sinistro",
+                        "ATENCAO"));
+            } else {
+                indicios.add(indicio(
+                        "Tempo de ignição no dia do roubo dentro do padrão (" + hSin + " vs média " + hAvg + ")",
+                        "NORMAL"));
+            }
         }
 
     }

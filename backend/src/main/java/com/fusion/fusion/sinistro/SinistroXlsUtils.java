@@ -112,11 +112,16 @@ final class SinistroXlsUtils {
 
         }
 
-        // Formato "dd/MM" sem ano — usa o ano corrente (cabeçalhos de KM Mensal)
-        try {
-            LocalDate d = LocalDate.parse(trimmed, DateTimeFormatter.ofPattern("dd/MM"));
-            return d.withYear(LocalDate.now().getYear()).atStartOfDay();
-        } catch (Exception ignored) {
+        // Formato "dd/MM" sem ano (cabeçalhos do KM Mensal): LocalDate.parse falha
+        // porque a API exige um campo Year — faz split manual em vez disso.
+        if (trimmed.matches("\\d{1,2}/\\d{1,2}")) {
+            try {
+                String[] parts = trimmed.split("/");
+                int day   = Integer.parseInt(parts[0]);
+                int month = Integer.parseInt(parts[1]);
+                return LocalDate.of(LocalDate.now().getYear(), month, day).atStartOfDay();
+            } catch (Exception ignored) {
+            }
         }
 
         return null;

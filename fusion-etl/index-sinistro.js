@@ -275,11 +275,16 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
     const veiculoLocator = bodyFrame.locator(
         '[name="ExcessoVelocidadeDataList:paramPesquisa:veiculo"]'
     );
-    await veiculoLocator.fill(plate);
+
+    // pressSequentially dispara eventos keydown/keyup reais — necessário para
+    // que o RichFaces autocomplete capture a digitação e abra o dropdown.
+    // fill() seta o valor via JS sem disparar eventos de teclado e por isso
+    // o dropdown nunca aparecia e placaVeiculoHidden ficava com "0".
+    await veiculoLocator.clear();
+    await veiculoLocator.pressSequentially(plate, { delay: 80 });
     await page.waitForTimeout(2000);
 
-    // Aguardar sugestão do autocomplete RichFaces e clicar nela para que
-    // placaVeiculoHidden seja preenchido com o ID interno do veículo.
+    // Aguardar dropdown do autocomplete e clicar na primeira sugestão
     const suggestion = bodyFrame.locator(
         '.rich-suggestion-item, .ui-autocomplete-item, [class*="suggestion"]'
     ).first();
@@ -288,10 +293,10 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         await suggestion.click();
         log('[SINISTRO] Autocomplete: sugestão clicada');
     } catch {
-        // Sugestão não apareceu — tenta Tab para disparar onblur/onchange
+        // Dropdown não apareceu — fallback Tab (dispara onblur/onchange)
         await veiculoLocator.press('Tab');
         await page.waitForTimeout(1000);
-        log('[SINISTRO] Autocomplete: sem sugestão, Tab pressionado');
+        log('[SINISTRO] Autocomplete: sem sugestão, Tab pressionado como fallback');
     }
 
     const hiddenValue = await bodyFrame.evaluate(() => {
@@ -299,6 +304,9 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         return el ? el.value : 'not found';
     });
     log(`[SINISTRO] placaVeiculoHidden=${hiddenValue}`);
+    if (hiddenValue === '0' || hiddenValue === 'not found') {
+        log('[SINISTRO] AVISO: placaVeiculoHidden não foi preenchido — buttonFindHidden fará busca por texto');
+    }
 
     await bodyFrame.locator(
         '[name="ExcessoVelocidadeDataList:paramPesquisa:dataInicio"]'
@@ -395,11 +403,13 @@ async function downloadTempoIgnicao(page, plate, startIso, endIso, outputDir) {
     // Mesmo diagnóstico do Excesso de Velocidade: JS da página leva ~5s
     await page.waitForTimeout(5000);
 
-    // Campo de placa usa autocomplete RichFaces — mesmo padrão do Excesso
+    // Campo de placa usa autocomplete RichFaces — mesmo padrão do Excesso.
+    // pressSequentially dispara keydown/keyup reais para abrir o dropdown.
     const placaLocator = bodyFrame.locator(
         '[name="AcumuladosIgnicaoDataList:paramPesquisa:placaSearch"]'
     );
-    await placaLocator.fill(plate);
+    await placaLocator.clear();
+    await placaLocator.pressSequentially(plate, { delay: 80 });
     await page.waitForTimeout(2000);
 
     const suggestion = bodyFrame.locator(
@@ -412,7 +422,7 @@ async function downloadTempoIgnicao(page, plate, startIso, endIso, outputDir) {
     } catch {
         await placaLocator.press('Tab');
         await page.waitForTimeout(1000);
-        log('[SINISTRO] Ignição autocomplete: sem sugestão, Tab pressionado');
+        log('[SINISTRO] Ignição autocomplete: sem sugestão, Tab pressionado como fallback');
     }
 
     // Log do hidden para diagnóstico — o nome exato será confirmado no primeiro run
