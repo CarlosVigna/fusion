@@ -15,6 +15,7 @@ async function uploadSinistroResult({
     sinistroId,
     kmMensalFile,
     speedFiles = [],
+    ignicaoFile,
     status = 'SUCCESS',
     error,
 }) {
@@ -44,6 +45,10 @@ async function uploadSinistroResult({
         if (fs.existsSync(speedFile)) {
             form.append('speedFiles', fs.createReadStream(speedFile), path.basename(speedFile));
         }
+    }
+
+    if (ignicaoFile && fs.existsSync(ignicaoFile)) {
+        form.append('ignicaoFile', fs.createReadStream(ignicaoFile), path.basename(ignicaoFile));
     }
 
     try {

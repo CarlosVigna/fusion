@@ -371,6 +371,125 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
 
 }
 
+async function downloadTempoIgnicao(page, plate, startIso, endIso, outputDir) {
+
+    log(`[SINISTRO] Abrindo Tempo de Ignição (${startIso} a ${endIso})...`);
+
+    await waitForFrame(page, '/system/layout/menu.seam');
+    const menuFrame = page.frame({ name: 'mymenu' });
+
+    await expandParentMenuIfNeeded(
+        menuFrame,
+        'tr[id="/system/reports/acumuladosReportIgnicao.seam"]'
+    );
+
+    await menuFrame.evaluate(() => {
+        doSubmit(
+            document.querySelector('tr[id="/system/reports/acumuladosReportIgnicao.seam"]'),
+            '/system/reports/acumuladosReportIgnicao.seam'
+        );
+    });
+
+    const bodyFrame = await waitForFrame(page, '/system/reports/acumuladosReportIgnicao.seam');
+
+    // Mesmo diagnóstico do Excesso de Velocidade: JS da página leva ~5s
+    await page.waitForTimeout(5000);
+
+    // Campo de placa usa autocomplete RichFaces — mesmo padrão do Excesso
+    const placaLocator = bodyFrame.locator(
+        '[name="AcumuladosIgnicaoDataList:paramPesquisa:placaSearch"]'
+    );
+    await placaLocator.fill(plate);
+    await page.waitForTimeout(2000);
+
+    const suggestion = bodyFrame.locator(
+        '.rich-suggestion-item, .ui-autocomplete-item, [class*="suggestion"]'
+    ).first();
+    try {
+        await suggestion.waitFor({ state: 'visible', timeout: 5000 });
+        await suggestion.click();
+        log('[SINISTRO] Ignição autocomplete: sugestão clicada');
+    } catch {
+        await placaLocator.press('Tab');
+        await page.waitForTimeout(1000);
+        log('[SINISTRO] Ignição autocomplete: sem sugestão, Tab pressionado');
+    }
+
+    // Log do hidden para diagnóstico — o nome exato será confirmado no primeiro run
+    const hiddenValue = await bodyFrame.evaluate(() => {
+        const candidates = [
+            document.getElementById('AcumuladosIgnicaoDataList:paramPesquisa:placaHidden'),
+            document.getElementById('AcumuladosIgnicaoDataList:paramPesquisa:veiculoHidden'),
+            document.getElementById('AcumuladosIgnicaoDataList:paramPesquisa:placaVeiculoHidden'),
+        ];
+        const el = candidates.find(Boolean);
+        return el ? `${el.id}=${el.value}` : 'hidden não encontrado';
+    });
+    log(`[SINISTRO] Ignição placaHidden: ${hiddenValue}`);
+
+    await bodyFrame.locator(
+        '[name="AcumuladosIgnicaoDataList:paramPesquisa:dataInicio"]'
+    ).fill(`${isoToBr(startIso)} 00:00`);
+
+    await bodyFrame.locator(
+        '[name="AcumuladosIgnicaoDataList:paramPesquisa:dataFim"]'
+    ).fill(`${isoToBr(endIso)} 23:59`);
+
+    // Pesquisar via btnUpdateCallByJS (conforme spec do usuário); fallback igual ao Excesso
+    await bodyFrame.evaluate(() => {
+        const btn = document.getElementById('AcumuladosIgnicaoDataList:btnUpdateCallByJS')
+            || document.getElementById('AcumuladosIgnicaoDataList:buttonFindHidden');
+        if (btn) {
+            btn.click();
+        } else {
+            for (const a of document.querySelectorAll('a')) {
+                if (a.textContent.trim() === 'Pesquisar') { a.click(); break; }
+            }
+        }
+    });
+
+    await page.waitForTimeout(8000);
+
+    const destPath = path.join(
+        outputDir,
+        `tempo_ignicao_${plate}_${startIso}_${endIso}.xls`
+    );
+
+    // Ignição é sempre o último download — popup "printEXCEL" pode estar
+    // aberto do Excesso de Velocidade; fecha antes para criar popup fresco.
+    await page.evaluate(() => {
+        try {
+            const popup = window.open('', 'printEXCEL');
+            if (popup) popup.close();
+        } catch (e) {}
+    });
+
+    const [download] = await Promise.all([
+        page.waitForEvent('download', { timeout: 60000 }),
+        bodyFrame.evaluate(() => {
+            printEXCEL('AcumuladosIgnicaoDataList', 'list.report.excel');
+        }),
+    ]);
+
+    const suggested = download.suggestedFilename() || '';
+    if (suggested.toLowerCase().endsWith('.zip')) {
+        const tempZip = destPath + '.zip';
+        await download.saveAs(tempZip);
+        const zip = new AdmZip(tempZip);
+        const entry = zip.getEntries().find(e => /\.xlsx?$/i.test(e.entryName));
+        if (!entry) throw new Error(`Nenhum XLS encontrado dentro do ZIP (${suggested})`);
+        fs.writeFileSync(destPath, zip.readFile(entry));
+        fs.unlinkSync(tempZip);
+    } else {
+        await download.saveAs(destPath);
+    }
+
+    log(`[SINISTRO] Tempo de Ignição salvo: ${destPath}`);
+
+    return destPath;
+
+}
+
 async function run(job) {
 
     const { id, plate, startDate, endDate } = job;
@@ -387,7 +506,8 @@ async function run(job) {
 
     const page = await context.newPage();
 
-    let kmMensalFile = null;
+    let kmMensalFile    = null;
+    let ignicaoFile     = null;
 
     const speedFiles = [];
 
@@ -416,12 +536,15 @@ async function run(job) {
 
         }
 
+        ignicaoFile = await downloadTempoIgnicao(page, plate, startDate, endDate, outputDir);
+
         await browser.close();
 
         await uploadSinistroResult({
             sinistroId: id,
             kmMensalFile,
             speedFiles,
+            ignicaoFile,
             status: 'SUCCESS',
         });
 
@@ -437,6 +560,7 @@ async function run(job) {
             sinistroId: id,
             kmMensalFile,
             speedFiles,
+            ignicaoFile,
             status: 'ERROR',
             error: error.message,
         }).catch(() => {});

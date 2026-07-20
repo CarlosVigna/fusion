@@ -60,6 +60,7 @@ public class SinistroController {
             @RequestParam("sinistroId") UUID sinistroId,
             @RequestParam(value = "kmMensalFile", required = false) MultipartFile kmMensalFile,
             @RequestParam(value = "speedFiles", required = false) List<MultipartFile> speedFiles,
+            @RequestParam(value = "ignicaoFile", required = false) MultipartFile ignicaoFile,
             @RequestParam(value = "status", defaultValue = "SUCCESS") String status,
             @RequestParam(value = "error", required = false) String error,
             @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
@@ -76,7 +77,7 @@ public class SinistroController {
 
         try {
 
-            service.receiveUpload(sinistroId, kmMensalFile, speedFiles, status, error);
+            service.receiveUpload(sinistroId, kmMensalFile, speedFiles, ignicaoFile, status, error);
 
             return ResponseEntity.ok(Map.of("status", "OK"));
 

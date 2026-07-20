@@ -90,6 +90,7 @@ public class SinistroAnalysisService {
             UUID id,
             MultipartFile kmMensalFile,
             List<MultipartFile> speedFiles,
+            MultipartFile ignicaoFile,
             String status,
             String errorMessage
     ) {
@@ -135,6 +136,12 @@ public class SinistroAnalysisService {
 
                 }
 
+            }
+
+            // Salva o arquivo de Tempo de Ignição para o pack — parser será
+            // implementado em etapa futura; por ora apenas persiste o XLS.
+            if (ignicaoFile != null && !ignicaoFile.isEmpty()) {
+                saveOriginalFile(analysisDir, ignicaoFile);
             }
 
             SinistroIndicators indicators = indicatorService.compute(
