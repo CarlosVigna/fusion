@@ -276,36 +276,93 @@ async function downloadExcessoVelocidadeBlock(page, plate, blockStartIso, blockE
         '[name="ExcessoVelocidadeDataList:paramPesquisa:veiculo"]'
     );
 
-    // pressSequentially dispara eventos keydown/keyup reais — necessário para
-    // que o RichFaces autocomplete capture a digitação e abra o dropdown.
-    // fill() seta o valor via JS sem disparar eventos de teclado e por isso
-    // o dropdown nunca aparecia e placaVeiculoHidden ficava com "0".
-    await veiculoLocator.clear();
-    await veiculoLocator.pressSequentially(plate, { delay: 80 });
-    await page.waitForTimeout(2000);
+    // Interceptar resposta Ajax do autocomplete para capturar o ID interno
+    // do veículo — mais confiável do que depender do clique no dropdown.
+    let capturedVehicleId = null;
+    const autocompleteHandler = async (response) => {
+        const url = response.url();
+        if (!url.includes('ExcessoVelocidade') && !url.includes('excessoVelocidade')) return;
+        const ct = response.headers()['content-type'] || '';
+        if (!ct.includes('json') && !ct.includes('xml') && !ct.includes('html')) return;
+        try {
+            const text = await response.text();
+            // RichFaces retorna JSON como [{id:"123",value:"ABC1D23"}, ...]
+            // ou XML <suggestions><suggestion id="123">...</suggestion></suggestions>
+            const idMatch = text.match(/"id"\s*:\s*"(\d+)"/);
+            if (idMatch) {
+                capturedVehicleId = idMatch[1];
+                log(`[SINISTRO] Autocomplete Ajax: vehicleId capturado=${capturedVehicleId}`);
+            }
+        } catch { /* silencioso */ }
+    };
+    page.on('response', autocompleteHandler);
 
-    // Aguardar dropdown do autocomplete e clicar na primeira sugestão
-    const suggestion = bodyFrame.locator(
-        '.rich-suggestion-item, .ui-autocomplete-item, [class*="suggestion"]'
-    ).first();
+    // Click para focar o campo antes de digitar (alguns RichFaces exigem)
+    await veiculoLocator.click();
+    await page.waitForTimeout(300);
+    await veiculoLocator.clear();
+
+    // pressSequentially dispara keydown/keyup reais — fill() usa JS e não
+    // dispara eventos de teclado, por isso o dropdown nunca abria.
+    await veiculoLocator.pressSequentially(plate, { delay: 100 });
+
+    // 3s para a requisição Ajax do autocomplete retornar e o dropdown renderizar
+    await page.waitForTimeout(3000);
+    page.off('response', autocompleteHandler);
+
+    log(`[SINISTRO] Autocomplete Ajax vehicleId=${capturedVehicleId ?? 'não capturado'}`);
+
+    // Seletores CSS do dropdown — cobre RichFaces 3.x, 4.x e jQuery UI
+    const dropdownSel = [
+        '.rich-suggestion-item',
+        '.rf-au-itm',
+        '.ui-autocomplete-item',
+        '.ui-menu-item',
+        '[class*="suggestion"]',
+        'li[class*="item"]',
+        'td[class*="item"]',
+    ].join(', ');
+
+    const suggestion = bodyFrame.locator(dropdownSel).first();
+    let autocompleteOk = false;
+
     try {
-        await suggestion.waitFor({ state: 'visible', timeout: 5000 });
+        await suggestion.waitFor({ state: 'visible', timeout: 3000 });
         await suggestion.click();
-        log('[SINISTRO] Autocomplete: sugestão clicada');
+        autocompleteOk = true;
+        log('[SINISTRO] Autocomplete: sugestão do dropdown clicada');
     } catch {
-        // Dropdown não apareceu — fallback Tab (dispara onblur/onchange)
+        log('[SINISTRO] Autocomplete: dropdown não apareceu');
+
+        // Dump do HTML da área do form para diagnóstico (primeiros 4 000 chars)
+        const formHtml = await bodyFrame.evaluate(() => {
+            const form = document.querySelector('form') || document.body;
+            return form.innerHTML.slice(0, 4000);
+        });
+        log('[SINISTRO] HTML do form (4000 chars):\n' + formHtml);
+
+        // Fallback Tab — dispara onblur/onchange no campo
         await veiculoLocator.press('Tab');
         await page.waitForTimeout(1000);
-        log('[SINISTRO] Autocomplete: sem sugestão, Tab pressionado como fallback');
+        log('[SINISTRO] Autocomplete: Tab pressionado como fallback');
+    }
+
+    // Se o Ajax capturou o ID, setar diretamente no campo hidden
+    if (capturedVehicleId && capturedVehicleId !== '0') {
+        await bodyFrame.evaluate((id) => {
+            const el = document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden');
+            if (el) el.value = id;
+        }, capturedVehicleId);
+        log(`[SINISTRO] placaVeiculoHidden setado via Ajax: ${capturedVehicleId}`);
     }
 
     const hiddenValue = await bodyFrame.evaluate(() => {
         const el = document.getElementById('ExcessoVelocidadeDataList:paramPesquisa:placaVeiculoHidden');
         return el ? el.value : 'not found';
     });
-    log(`[SINISTRO] placaVeiculoHidden=${hiddenValue}`);
+    log(`[SINISTRO] placaVeiculoHidden final=${hiddenValue} (autocompleteOk=${autocompleteOk})`);
     if (hiddenValue === '0' || hiddenValue === 'not found') {
-        log('[SINISTRO] AVISO: placaVeiculoHidden não foi preenchido — buttonFindHidden fará busca por texto');
+        log('[SINISTRO] AVISO: placaVeiculoHidden ainda "0" — a pesquisa pode retornar todas as posições em vez de só excessos');
     }
 
     await bodyFrame.locator(
