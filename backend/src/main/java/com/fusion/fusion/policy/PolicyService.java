@@ -16,6 +16,7 @@ import org.springframework.web.client.RestTemplate;
 
 import org.springframework.scheduling.annotation.Async;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -153,26 +154,42 @@ public class PolicyService {
 
     public PolicyBadgeCountsResponse getBadgeCounts() {
 
-        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
-        LocalDate limit = today.plusDays(30);
-        long expired = 0;
-        long expiring = 0;
+        List<Policy> allPolicies = policyRepository.findAll();
 
-        for (Policy p : policyRepository.findAll()) {
+        Set<String> activePlates = allPolicies.stream()
+                .filter(p -> {
+                    PolicyStatus s = PolicyResponse.computeStatus(p);
+                    return s == PolicyStatus.ACTIVE || s == PolicyStatus.FUTURE || s == PolicyStatus.EXPIRING;
+                })
+                .map(Policy::getPlate)
+                .filter(Objects::nonNull)
+                .map(String::toUpperCase)
+                .collect(Collectors.toSet());
 
-            PolicyStatus s = PolicyResponse.computeStatus(p);
+        Set<String> allPolicyPlates = allPolicies.stream()
+                .map(Policy::getPlate)
+                .filter(Objects::nonNull)
+                .map(String::toUpperCase)
+                .collect(Collectors.toSet());
 
-            if (s == PolicyStatus.EXPIRED) {
-                expired++;
-            } else if ((s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
-                    && p.getEndDate() != null
-                    && !p.getEndDate().isAfter(limit)) {
-                expiring++;
-            }
+        long terminated = allPolicies.stream()
+                .filter(p -> {
+                    if (p.getPlate() == null) return false;
+                    PolicyStatus s = PolicyResponse.computeStatus(p);
+                    return (s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED)
+                            && !activePlates.contains(p.getPlate().toUpperCase());
+                })
+                .map(p -> p.getPlate().toUpperCase())
+                .distinct()
+                .count();
 
-        }
+        long noPolicy = vehicleRepository.findAll().stream()
+                .filter(v -> v.getDeletedAt() == null
+                        && v.getPlate() != null
+                        && !allPolicyPlates.contains(v.getPlate().toUpperCase()))
+                .count();
 
-        return new PolicyBadgeCountsResponse(expired, expiring);
+        return new PolicyBadgeCountsResponse(noPolicy, terminated);
 
     }
 
@@ -458,6 +475,7 @@ public class PolicyService {
     public List<PolicyAlertResponse> getAlerts() {
 
         LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+        LocalDate fimSemana = today.with(DayOfWeek.SUNDAY);
         LocalDate limit = today.plusDays(30);
 
         return policyRepository.findAll().stream()
@@ -477,7 +495,16 @@ public class PolicyService {
                     Integer days = p.getEndDate() != null
                             ? (int) (p.getEndDate().toEpochDay() - today.toEpochDay())
                             : null;
-                    String alertType = s == PolicyStatus.EXPIRED ? "EXPIRED" : "EXPIRING";
+                    String alertType;
+                    if (s == PolicyStatus.EXPIRED) {
+                        alertType = "EXPIRED";
+                    } else if (p.getEndDate().isEqual(today)) {
+                        alertType = "EXPIRING_TODAY";
+                    } else if (!p.getEndDate().isAfter(fimSemana)) {
+                        alertType = "EXPIRING_THIS_WEEK";
+                    } else {
+                        alertType = "EXPIRING";
+                    }
                     return new PolicyAlertResponse(
                             p.getId(), p.getPlate(), p.getInsuredName(),
                             p.getPolicyNumber(), p.getEndDate(), alertType, days

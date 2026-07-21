@@ -275,14 +275,18 @@ export default function Home() {
                       className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
                         alert.alertType === "EXPIRED"
                           ? "bg-red-500/15 text-red-400"
-                          : "bg-yellow-500/15 text-yellow-400"
+                          : alert.alertType === "EXPIRING_TODAY"
+                            ? "bg-orange-500/15 text-orange-400"
+                            : "bg-yellow-500/15 text-yellow-400"
                       }`}
                     >
                       {alert.alertType === "EXPIRED"
                         ? "Vencida"
-                        : alert.daysRemaining === 0
+                        : alert.alertType === "EXPIRING_TODAY"
                           ? "Vence hoje"
-                          : `${alert.daysRemaining}d`}
+                          : alert.alertType === "EXPIRING_THIS_WEEK"
+                            ? "Esta semana"
+                            : `${alert.daysRemaining}d`}
                     </span>
                   </div>
                   {alert.insuredName && (

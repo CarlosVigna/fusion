@@ -330,14 +330,20 @@ export default function Header() {
                           <div className="flex items-center gap-2">
                             <span
                               className={`text-xs font-semibold ${
-                                pa.alertType === "EXPIRED" ? "text-red-400" : "text-yellow-400"
+                                pa.alertType === "EXPIRED"
+                                  ? "text-red-400"
+                                  : pa.alertType === "EXPIRING_TODAY"
+                                    ? "text-orange-400"
+                                    : "text-yellow-400"
                               }`}
                             >
                               {pa.alertType === "EXPIRED"
                                 ? "Vencida"
-                                : pa.daysRemaining === 0
+                                : pa.alertType === "EXPIRING_TODAY"
                                   ? "Hoje"
-                                  : `${pa.daysRemaining}d`}
+                                  : pa.alertType === "EXPIRING_THIS_WEEK"
+                                    ? "Esta semana"
+                                    : `${pa.daysRemaining}d`}
                             </span>
                             <button
                               onClick={() => handleDismissPolicy(pa.id)}

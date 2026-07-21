@@ -1,7 +1,7 @@
 package com.fusion.fusion.policy;
 
 public record PolicyBadgeCountsResponse(
-        long expired,
-        long expiring
+        long noPolicy,
+        long terminated
 ) {
 }
