@@ -25,7 +25,7 @@ export async function getExpiredPolicies() {
 }
 
 export async function getPolicyBadgeCounts() {
-  return apiClient.get("/policies/badge-counts");
+  return apiClient.get("/policies/badge-counts").then(r => r.data);
 }
 
 export async function createPolicy(data) {
@@ -45,7 +45,7 @@ export async function getInactivePolicies() {
 }
 
 export async function getPolicyAlerts() {
-  return apiClient.get("/policies/alerts");
+  return apiClient.get("/policies/alerts").then(r => r.data);
 }
 
 export async function cancelPolicy(id) {
