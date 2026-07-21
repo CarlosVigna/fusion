@@ -96,6 +96,14 @@ public class SecurityConfig {
                                 "/vehicles/**"
                         ).hasRole("ADMIN")
 
+                        .requestMatchers(
+                                "/policies/**"
+                        ).hasRole("ADMIN")
+
+                        .requestMatchers(
+                                "/etl/**"
+                        ).hasRole("ADMIN")
+
                         .anyRequest().authenticated()
                 )
 

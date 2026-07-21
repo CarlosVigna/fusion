@@ -14,13 +14,17 @@ import {
     Radio,
     ScrollText,
     Search,
+    Settings,
     Shield,
+    Users,
     Wrench,
 } from "lucide-react";
 
 import { useEffect, useRef, useState } from "react";
 
 import { NavLink, useLocation } from "react-router-dom";
+
+import { useAuthStore } from "../../store/authStore";
 
 import { getSignalControl } from "../../services/signalControlService";
 
@@ -38,19 +42,16 @@ const GROUPS = [
         label: "Monitoramento",
         icon: MonitorCheck,
         items: [
-            { label: "Grid",                icon: LayoutGrid,     path: "/grid" },
-            { label: "Central Operacional", icon: Shield,         path: "/dashboard" },
-            { label: "Controle de Sinais",  icon: Radio,          path: "/signal-control", badgeKey: "signalControl" },
-            { label: "Cartas de Suspensão", icon: Mail,           path: "/letters" },
-            { label: "Manutenções",         icon: Wrench,         path: "/maintenance" },
-            { label: "Veículos",            icon: Car,            path: "/vehicles" },
-            { label: "Relatórios",          icon: FileSpreadsheet,path: "/reports" },
-            { label: "Análise de Sinistro", icon: Search,         path: "/sinistro" },
-            { label: "Monitor ETL",         icon: Activity,       path: "/etl" },
+            { label: "Grid",                icon: LayoutGrid,      path: "/grid" },
+            { label: "Central Operacional", icon: Shield,          path: "/dashboard" },
+            { label: "Controle de Sinais",  icon: Radio,           path: "/signal-control", badgeKey: "signalControl" },
+            { label: "Cartas de Suspensão", icon: Mail,            path: "/letters" },
+            { label: "Manutenções",         icon: Wrench,          path: "/maintenance" },
+            { label: "Relatórios",          icon: FileSpreadsheet, path: "/reports" },
         ],
     },
     {
-        key: "installations",
+        key: "portal",
         label: "Portal Use",
         icon: Building2,
         items: [
@@ -58,13 +59,33 @@ const GROUPS = [
                 label: "Apólices",
                 icon: ScrollText,
                 path: "/policies",
+                adminOnly: true,
                 badges: [
                     { key: "policiesExpired",  color: "bg-red-500" },
                     { key: "policiesExpiring", color: "bg-yellow-500 text-black" },
                 ],
             },
-            { label: "Instalações", icon: ClipboardList, path: "/installations", badgeKey: "installations" },
-            { label: "Relatórios",  icon: FileText,      path: "/installations/reports" },
+            { label: "Instalações",                icon: ClipboardList, path: "/installations", badgeKey: "installations" },
+            { label: "Relatórios de Instalações",  icon: FileText,      path: "/installations/reports" },
+        ],
+    },
+    {
+        key: "sinistro",
+        label: "Sinistro",
+        icon: Search,
+        items: [
+            { label: "Análise de Sinistro", icon: Search, path: "/sinistro" },
+        ],
+    },
+    {
+        key: "admin",
+        label: "Administração",
+        icon: Settings,
+        adminOnly: true,
+        items: [
+            { label: "Veículos",    icon: Car,      path: "/vehicles" },
+            { label: "Monitor ETL", icon: Activity, path: "/etl" },
+            { label: "Usuários",    icon: Users,    path: "/users" },
         ],
     },
 ];
@@ -78,7 +99,7 @@ function loadGroupState() {
         const saved = localStorage.getItem(GROUPS_STORAGE_KEY);
         if (saved) return JSON.parse(saved);
     } catch {}
-    return { monitoring: true, installations: true };
+    return { monitoring: false, portal: false, sinistro: false, admin: true };
 }
 
 // Auto-recolhe apenas no Grid (tabela densa); Home e demais ficam abertos.
@@ -87,6 +108,8 @@ const GRID_PATHS = ["/grid"];
 export default function Sidebar() {
 
     const location = useLocation();
+    const { user } = useAuthStore();
+    const isAdmin = user?.role === "ADMIN";
 
     const isGridPage = GRID_PATHS.includes(location.pathname);
 
@@ -161,6 +184,7 @@ export default function Sidebar() {
     useEffect(() => {
 
         async function loadPolicyCounts() {
+            if (!isAdmin) return;
             try {
                 const data = await getPolicyBadgeCounts();
                 setPoliciesExpiredCount(data.expired ?? 0);
@@ -174,7 +198,7 @@ export default function Sidebar() {
         const interval = setInterval(loadPolicyCounts, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
 
-    }, []);
+    }, [isAdmin]);
 
     const badgeCounts = {
         signalControl: signalControlCount,
@@ -182,6 +206,16 @@ export default function Sidebar() {
         policiesExpired: policiesExpiredCount,
         policiesExpiring: policiesExpiringCount,
     };
+
+    // Filtra grupos e itens conforme o perfil do usuário
+    const visibleGroups = GROUPS
+        .map(group => ({
+            ...group,
+            items: group.adminOnly && !isAdmin
+                ? []
+                : group.items.filter(item => !item.adminOnly || isAdmin),
+        }))
+        .filter(group => group.items.length > 0);
 
     return (
         <aside
@@ -227,7 +261,7 @@ export default function Sidebar() {
             {/* Grupos de navegação */}
             <nav className="flex flex-1 flex-col gap-5 overflow-y-auto p-4">
 
-                {GROUPS.map((group) => {
+                {visibleGroups.map((group) => {
 
                     const GroupIcon = group.icon;
 
