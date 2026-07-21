@@ -222,7 +222,7 @@ export default function Sidebar() {
             onMouseEnter={() => setHovering(true)}
             onMouseLeave={() => setHovering(false)}
             className={`
-                relative flex flex-col
+                relative flex h-full flex-col
                 border-r border-zinc-800
                 bg-zinc-950
                 transition-all duration-200
