@@ -156,6 +156,11 @@ export default function Users() {
   useEffect(() => { load(); }, []);
 
   function onSaved(saved) {
+    if (!saved || !saved.id) {
+      load();
+      setModal(null);
+      return;
+    }
     setUsers(prev => {
       const idx = prev.findIndex(u => u.id === saved.id);
       if (idx >= 0) {
@@ -233,7 +238,7 @@ export default function Users() {
                 </td>
               </tr>
             )}
-            {(users || []).map(u => (
+            {(users || []).filter(u => u && u.id).map(u => (
               <tr key={u.id} className={`transition hover:bg-zinc-900/50 ${!u.active ? "opacity-50" : ""}`}>
                 <td className="px-5 py-3 font-medium text-white">{u.name}</td>
                 <td className="px-5 py-3 text-zinc-400">{u.email}</td>
