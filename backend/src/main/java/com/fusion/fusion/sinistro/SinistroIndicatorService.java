@@ -173,35 +173,36 @@ public class SinistroIndicatorService {
             Double maxSpeed
     ) {
 
-        // 1. KM no dia do sinistro
+        // 1. KM no dia da colisão
         if (kmSinistroRatio != null) {
-            String km1 = fmt1(kmOnSinistroDate);
-            String avg1 = fmt1(avgDailyKm);
+            String km1 = fmt1(kmOnSinistroDate) + " km";
+            String avg1 = fmt1(avgDailyKm) + " km/dia";
             if (kmSinistroRatio <= 1.5) {
                 indicios.add(indicio(
-                        "KM no dia do sinistro dentro do padrão (" + km1 + " km vs média " + avg1 + " km/dia)",
+                        "KM no dia da colisão dentro do padrão histórico (" + km1 + " vs média " + avg1 + ")",
                         "NORMAL"));
             } else if (kmSinistroRatio <= 2.0) {
                 indicios.add(indicio(
-                        "KM no dia do sinistro acima do normal — " + km1 + " km, " + pct(kmSinistroRatio) + " da média",
+                        "Veículo rodou mais que o normal no dia da colisão (" + km1 + " vs média " + avg1 + ")",
                         "ATENCAO"));
             } else {
                 indicios.add(indicio(
-                        "KM no dia do sinistro muito acima do normal — " + km1 + " km, " + pct(kmSinistroRatio) + " da média",
+                        "Veículo rodou mais que o normal no dia da colisão (" + km1 + " vs média " + avg1 + ")",
                         "SUSPEITO"));
             }
         } else if (kmOnSinistroDate == null) {
-            indicios.add(indicio("KM do dia do sinistro não encontrado na planilha", "ATENCAO"));
+            indicios.add(indicio("KM do dia da colisão não encontrado na planilha KM Mensal", "ATENCAO"));
         }
 
-        // 2. Horário
-        if (horarioClassification != null) {
+        // 2. Horário declarado
+        if (horarioClassification != null && sinistroTime != null) {
+            String h = sinistroTime;
             if ("Madrugada".equals(horarioClassification)) {
-                indicios.add(indicio("Sinistro declarado na madrugada (" + sinistroTime + ") — horário de maior risco", "SUSPEITO"));
+                indicios.add(indicio("Sinistro declarado em horário de madrugada (" + h + "h)", "SUSPEITO"));
             } else if ("Noturno".equals(horarioClassification)) {
-                indicios.add(indicio("Sinistro declarado em horário noturno (" + sinistroTime + ")", "ATENCAO"));
+                indicios.add(indicio("Sinistro declarado em horário noturno (" + h + "h)", "ATENCAO"));
             } else {
-                indicios.add(indicio("Horário do sinistro em período comercial (" + sinistroTime + ")", "NORMAL"));
+                indicios.add(indicio("Sinistro declarado em horário comercial (" + h + "h)", "NORMAL"));
             }
         }
 
@@ -209,25 +210,36 @@ public class SinistroIndicatorService {
         if (sinistroDate != null) {
             DayOfWeek dow = sinistroDate.getDayOfWeek();
             if (dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY) {
-                indicios.add(indicio("Sinistro ocorreu em fim de semana — verificar se padrão de uso é consistente", "ATENCAO"));
+                indicios.add(indicio(
+                        "Sinistro declarado em fim de semana (" + weekdayName(dow) + ")",
+                        "ATENCAO"));
             }
         }
 
-        // 4. Excesso de velocidade nos 7 dias anteriores
+        // 4. Excesso de velocidade nos 7 dias anteriores à colisão
         if (speedingLast7Days == 0) {
-            indicios.add(indicio("Sem ocorrências de excesso de velocidade nos 7 dias anteriores ao sinistro", "NORMAL"));
+            indicios.add(indicio(
+                    "Nenhuma ocorrência de excesso de velocidade nos 7 dias anteriores à colisão",
+                    "NORMAL"));
         } else if (speedingLast7Days <= 3) {
-            indicios.add(indicio(speedingLast7Days + " ocorrência(s) de excesso de velocidade nos 7 dias anteriores", "ATENCAO"));
+            indicios.add(indicio(
+                    "Registradas " + speedingLast7Days + " ocorrência(s) de excesso de velocidade nos 7 dias anteriores à colisão",
+                    "ATENCAO"));
         } else {
-            indicios.add(indicio(speedingLast7Days + " ocorrências de excesso de velocidade nos 7 dias anteriores — padrão de condução agressivo", "SUSPEITO"));
+            indicios.add(indicio(
+                    "Registradas " + speedingLast7Days + " ocorrências de excesso de velocidade nos 7 dias anteriores à colisão",
+                    "SUSPEITO"));
         }
 
+        // 5. Velocidade máxima
         if (maxSpeed != null && maxSpeed > 0) {
-            indicios.add(indicio("Velocidade máxima registrada no período: " + fmt0(maxSpeed) + " km/h", maxSpeed >= 140 ? "SUSPEITO" : maxSpeed >= 110 ? "ATENCAO" : "NORMAL"));
+            indicios.add(indicio(
+                    "Velocidade máxima registrada no período: " + fmt0(maxSpeed) + " km/h",
+                    maxSpeed >= 140 ? "SUSPEITO" : maxSpeed >= 110 ? "ATENCAO" : "NORMAL"));
         }
 
-        // 5. Mudança de padrão nos 7 dias anteriores
-        addPatternIndicio(indicios, avgKmLast7DaysRatio, "antes do sinistro");
+        // 6. Padrão 7 dias anteriores
+        addPatternIndicio(indicios, avgKmLast7Days, avgDailyKm, avgKmLast7DaysRatio);
 
     }
 
@@ -239,41 +251,47 @@ public class SinistroIndicatorService {
             int speedingLast7Days, Double avgKmLast7Days, Double avgKmLast7DaysRatio
     ) {
 
-        // 1. KM no dia do roubo
+        // 1. KM no dia declarado do sinistro
         if (kmSinistroRatio != null) {
-            String km1 = fmt1(kmOnSinistroDate);
-            String avg1 = fmt1(avgDailyKm);
+            String km1 = fmt1(kmOnSinistroDate) + " km";
+            String avg1 = fmt1(avgDailyKm) + " km/dia";
             if (kmSinistroRatio >= 2.0) {
                 indicios.add(indicio(
-                        "Veículo rodou muito mais que o normal no dia do roubo (" + km1 + " km vs média " + avg1 + " km/dia) — possível deslocamento para local combinado",
+                        "Veículo rodou mais que o normal no dia declarado do sinistro (" + km1 + " vs média " + avg1 + ")",
                         "SUSPEITO"));
             } else if (kmSinistroRatio <= 0.3) {
                 indicios.add(indicio(
-                        "Veículo rodou muito menos que o normal no dia do roubo (" + km1 + " km vs média " + avg1 + " km/dia) — saiu pouco, sinistro em local incomum",
-                        "ATENCAO"));
+                        "Veículo rodou menos que o normal no dia declarado do sinistro (" + km1 + " vs média " + avg1 + ")",
+                        "SUSPEITO"));
             } else if (kmSinistroRatio <= 0.7) {
                 indicios.add(indicio(
-                        "KM abaixo do normal no dia do roubo (" + km1 + " km vs média " + avg1 + " km/dia)",
+                        "Veículo rodou menos que o normal no dia declarado do sinistro (" + km1 + " vs média " + avg1 + ")",
                         "ATENCAO"));
             } else {
                 indicios.add(indicio(
-                        "KM no dia do roubo dentro do padrão (" + km1 + " km vs média " + avg1 + " km/dia)",
+                        "KM no dia do sinistro dentro do padrão histórico (" + km1 + " vs média " + avg1 + ")",
                         "NORMAL"));
             }
         } else if (kmOnSinistroDate == null) {
-            indicios.add(indicio("KM do dia do roubo não encontrado na planilha", "ATENCAO"));
+            indicios.add(indicio("KM do dia do sinistro não encontrado na planilha KM Mensal", "ATENCAO"));
         }
 
         // 2. Padrão 7 dias anteriores
-        addPatternIndicio(indicios, avgKmLast7DaysRatio, "antes do roubo");
+        addPatternIndicio(indicios, avgKmLast7Days, avgDailyKm, avgKmLast7DaysRatio);
 
-        // 3. Excesso de velocidade
+        // 3. Excesso de velocidade nos 7 dias anteriores ao sinistro
         if (speedingLast7Days == 0) {
-            indicios.add(indicio("Sem ocorrências de excesso de velocidade nos 7 dias anteriores ao roubo", "NORMAL"));
+            indicios.add(indicio(
+                    "Nenhuma ocorrência de excesso de velocidade nos 7 dias anteriores ao sinistro",
+                    "NORMAL"));
         } else if (speedingLast7Days <= 2) {
-            indicios.add(indicio(speedingLast7Days + " ocorrência(s) de excesso de velocidade nos 7 dias anteriores", "ATENCAO"));
+            indicios.add(indicio(
+                    "Registradas " + speedingLast7Days + " ocorrência(s) de excesso de velocidade nos 7 dias anteriores ao sinistro",
+                    "ATENCAO"));
         } else {
-            indicios.add(indicio(speedingLast7Days + " ocorrências de excesso de velocidade nos 7 dias anteriores ao roubo", "SUSPEITO"));
+            indicios.add(indicio(
+                    "Registradas " + speedingLast7Days + " ocorrências de excesso de velocidade nos 7 dias anteriores ao sinistro",
+                    "SUSPEITO"));
         }
 
     }
@@ -290,42 +308,35 @@ public class SinistroIndicatorService {
         if (horasLigadaSinistro == null || avgHorasLigadaDia == null || avgHorasLigadaDia == 0) return;
 
         double ratio = horasLigadaSinistro / avgHorasLigadaDia;
-        String hSin  = fmt1(horasLigadaSinistro) + "h";
-        String hAvg  = fmt1(avgHorasLigadaDia) + "h";
+        String hSin = fmt1(horasLigadaSinistro) + "h";
+        String hAvg = fmt1(avgHorasLigadaDia) + "h";
 
         if (sinistroType == SinistroType.COLISAO) {
-            // COLISÃO: veículo ligado muito tempo → mais exposição → risco maior
             if (ratio > 2.0) {
                 indicios.add(indicio(
-                        "Veículo ficou ligado " + hSin + " no dia do sinistro — " + pct(ratio) + " da média diária (" + hAvg + ") — uso atípico",
+                        "Veículo ficou " + hSin + " ligado no dia da colisão (média do período: " + hAvg + ")",
                         "SUSPEITO"));
             } else if (ratio > 1.4) {
                 indicios.add(indicio(
-                        "Veículo ligado " + hSin + " no dia do sinistro (" + pct(ratio) + " da média " + hAvg + ")",
-                        "ATENCAO"));
-            } else if (horasLigadaSinistro < 0.5) {
-                indicios.add(indicio(
-                        "Veículo ficou ligado apenas " + hSin + " no dia do sinistro — verificar se horário declarado é compatível",
+                        "Veículo ficou " + hSin + " ligado no dia da colisão (média do período: " + hAvg + ")",
                         "ATENCAO"));
             } else {
                 indicios.add(indicio(
-                        "Tempo de ignição no dia do sinistro dentro do padrão (" + hSin + " vs média " + hAvg + ")",
+                        "Tempo de ignição no dia da colisão dentro do padrão (" + hSin + " vs média " + hAvg + ")",
                         "NORMAL"));
             }
         } else {
-            // ROUBO: veículo nunca ligado no dia → consistente com roubo parado /
-            // ligado muito tempo → pode ter sido movimentado antes do roubo
-            if (horasLigadaSinistro == 0) {
+            if (horasLigadaSinistro < 0.1) {
                 indicios.add(indicio(
-                        "Veículo sem registro de ignição no dia do roubo — consistente com roubo sem uso",
+                        "Nenhum registro de ignição no dia declarado do sinistro",
                         "NORMAL"));
             } else if (ratio > 1.5) {
                 indicios.add(indicio(
-                        "Veículo ligado " + hSin + " no dia do roubo (" + pct(ratio) + " da média " + hAvg + ") — movimentação intensa antes do sinistro",
+                        "Veículo ficou " + hSin + " ligado no dia declarado do sinistro (média do período: " + hAvg + ")",
                         "ATENCAO"));
             } else {
                 indicios.add(indicio(
-                        "Tempo de ignição no dia do roubo dentro do padrão (" + hSin + " vs média " + hAvg + ")",
+                        "Veículo ficou " + hSin + " ligado no dia declarado do sinistro (média do período: " + hAvg + ")",
                         "NORMAL"));
             }
         }
@@ -334,15 +345,26 @@ public class SinistroIndicatorService {
 
     // ── Helpers ──────────────────────────────────────────────────────────
 
-    private void addPatternIndicio(List<SinistroIndicators.Indicio> indicios, Double ratio, String context) {
-        if (ratio == null) return;
+    private void addPatternIndicio(
+            List<SinistroIndicators.Indicio> indicios,
+            Double avgKmLast7Days, Double avgDailyKm, Double ratio
+    ) {
+        if (ratio == null || avgKmLast7Days == null || avgDailyKm == null) return;
+        String x = fmt1(avgKmLast7Days) + " km/dia";
+        String y = fmt1(avgDailyKm) + " km/dia";
         double deviation = Math.abs(ratio - 1.0);
         if (deviation < 0.30) {
-            indicios.add(indicio("Padrão de uso nos 7 dias " + context + " consistente com o período geral", "NORMAL"));
+            indicios.add(indicio(
+                    "KM médio nos 7 dias anteriores (" + x + ") dentro da média geral do período (" + y + ")",
+                    "NORMAL"));
         } else if (deviation < 0.60) {
-            indicios.add(indicio("Mudança de padrão de uso nos 7 dias " + context + " (" + pct(ratio) + " da média geral)", "ATENCAO"));
+            indicios.add(indicio(
+                    "KM médio nos 7 dias anteriores (" + x + ") difere da média geral do período (" + y + ")",
+                    "ATENCAO"));
         } else {
-            indicios.add(indicio("Mudança brusca de padrão nos 7 dias " + context + " (" + pct(ratio) + " da média geral) — comportamento anômalo", "SUSPEITO"));
+            indicios.add(indicio(
+                    "KM médio nos 7 dias anteriores (" + x + ") difere da média geral do período (" + y + ")",
+                    "SUSPEITO"));
         }
     }
 
@@ -472,11 +494,38 @@ public class SinistroIndicatorService {
         }
 
         sb.append("\n").append(sep).append("\n");
+        sb.append("IGNIÇÃO\n");
+        sb.append(sep).append("\n");
+        if (ind.totalHorasLigada() != null) {
+            sb.append(String.format("Total ligada no período:  %.1f h%n", ind.totalHorasLigada()));
+            sb.append(String.format("Média por dia com uso:    %.1f h/dia%n", ind.avgHorasLigadaDia()));
+        }
+        if (ind.horasLigadaSinistro() != null) {
+            sb.append(String.format("Ligada no dia do sinistro: %.1f h%n", ind.horasLigadaSinistro()));
+        }
+        if (ind.totalHorasLigada() == null && ind.horasLigadaSinistro() == null) {
+            sb.append("Dados de ignição não disponíveis.\n");
+        }
+
+        sb.append("\n").append(sep).append("\n");
         sb.append("METODOLOGIA\n");
         sb.append(sep).append("\n");
-        sb.append("Esta análise compara o comportamento do veículo no dia e nos 7 dias\n");
-        sb.append("anteriores ao sinistro com a média do período analisado, identificando\n");
-        sb.append("desvios estatísticos que podem indicar irregularidade.\n");
+        boolean isColisao = ind.sinistroType() == SinistroType.COLISAO;
+        if (isColisao) {
+            sb.append("O que foi verificado         Fonte                          Como interpretamos\n");
+            sb.append("─────────────────────────────────────────────────────────────────────────────\n");
+            sb.append(String.format("%-28s %-30s %s%n", "KM no dia da colisão", "Planilha KM Mensal", "vs. média diária do período"));
+            sb.append(String.format("%-28s %-30s %s%n", "Tempo de ignição", "Planilha Tempo de Ignição", "Horas ligado no dia da colisão"));
+            sb.append(String.format("%-28s %-30s %s%n", "Excesso de velocidade", "Planilha Excesso Velocidade", "Ocorrências nos 7 dias anteriores"));
+            sb.append(String.format("%-28s %-30s %s%n", "Horário declarado", "Informado pelo analista", "Comercial / Noturno / Madrugada"));
+        } else {
+            sb.append("O que foi verificado         Fonte                          Como interpretamos\n");
+            sb.append("─────────────────────────────────────────────────────────────────────────────\n");
+            sb.append(String.format("%-28s %-30s %s%n", "KM no dia do roubo", "Planilha KM Mensal", "vs. média diária do período"));
+            sb.append(String.format("%-28s %-30s %s%n", "Padrão 7 dias antes", "Planilha KM Mensal", "Média dos 7 dias vs. média geral"));
+            sb.append(String.format("%-28s %-30s %s%n", "Excesso de velocidade", "Planilha Excesso Velocidade", "Ocorrências nos 7 dias anteriores"));
+            sb.append(String.format("%-28s %-30s %s%n", "Ignição no dia", "Planilha Tempo de Ignição", "Horas ligado no dia declarado"));
+        }
         sb.append("\n");
         sb.append("Análise gerada pelo Fusion em ")
                 .append(LocalDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")))

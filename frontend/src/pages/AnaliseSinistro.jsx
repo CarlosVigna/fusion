@@ -108,6 +108,46 @@ function StageProgress({ status }) {
   );
 }
 
+const METODOLOGIA_COLISAO = [
+  ["KM no dia da colisão",  "Planilha KM Mensal",             "vs. média diária do período"],
+  ["Tempo de ignição",      "Planilha Tempo de Ignição",      "Horas ligado no dia da colisão"],
+  ["Excesso de velocidade", "Planilha Excesso de Velocidade", "Ocorrências nos 7 dias anteriores"],
+  ["Horário declarado",     "Informado pelo analista",        "Comercial / Noturno / Madrugada"],
+];
+
+const METODOLOGIA_ROUBO = [
+  ["KM no dia do roubo",    "Planilha KM Mensal",             "vs. média diária do período"],
+  ["Padrão 7 dias antes",   "Planilha KM Mensal",             "Média dos 7 dias vs. média geral"],
+  ["Excesso de velocidade", "Planilha Excesso de Velocidade", "Ocorrências nos 7 dias anteriores"],
+  ["Ignição no dia",        "Planilha Tempo de Ignição",      "Horas ligado no dia declarado"],
+];
+
+function MethodologyTable({ isColisao }) {
+  const rows = isColisao ? METODOLOGIA_COLISAO : METODOLOGIA_ROUBO;
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-500">O que foi verificado</th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-500">Fonte dos dados</th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-zinc-500">Como interpretamos</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([what, source, how], i) => (
+            <tr key={i} className={i % 2 === 0 ? "bg-zinc-800/30" : ""}>
+              <td className="px-3 py-2 font-medium text-zinc-200">{what}</td>
+              <td className="px-3 py-2 text-zinc-400">{source}</td>
+              <td className="px-3 py-2 text-zinc-400">{how}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function AnalysisResult({ status }) {
   if (status.status === "ERROR") {
     return (
@@ -228,6 +268,11 @@ function AnalysisResult({ status }) {
               </div>
             </Section>
           )}
+
+          {/* Metodologia */}
+          <Section title="Metodologia de análise" icon="🔬">
+            <MethodologyTable isColisao={isColisao} />
+          </Section>
         </>
       )}
 
