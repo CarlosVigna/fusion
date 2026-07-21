@@ -144,7 +144,8 @@ export default function Users() {
 
   async function load() {
     try {
-      setUsers(await getUsers());
+      const data = await getUsers();
+      setUsers(Array.isArray(data) ? data : []);
     } catch {
       toast.error("Erro ao carregar usuários");
     } finally {
@@ -225,14 +226,14 @@ export default function Users() {
                 </td>
               </tr>
             )}
-            {!loading && users.length === 0 && (
+            {!loading && (users || []).length === 0 && (
               <tr>
                 <td colSpan={5} className="px-5 py-8 text-center text-zinc-500">
                   Nenhum usuário cadastrado
                 </td>
               </tr>
             )}
-            {users.map(u => (
+            {(users || []).map(u => (
               <tr key={u.id} className={`transition hover:bg-zinc-900/50 ${!u.active ? "opacity-50" : ""}`}>
                 <td className="px-5 py-3 font-medium text-white">{u.name}</td>
                 <td className="px-5 py-3 text-zinc-400">{u.email}</td>
