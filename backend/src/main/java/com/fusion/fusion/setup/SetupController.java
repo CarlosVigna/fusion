@@ -29,8 +29,10 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -59,42 +61,70 @@ public class SetupController {
             "PELOTAS1030", "RIOPRETO0101"
     );
 
-    private static final List<String> PLATES = List.of(
-            "ADD7D00", "AYX1G79", "BBJ9286", "BBW9E09", "BDH8E98", "CUJ2I68", "DUM8500",
-            "EIH2C89", "ETY9707", "EWN5793", "EWW2446", "FBI6046", "FMZ9J85", "FQB4B36",
-            "GBL5519", "GDI4977", "GHI1010", "HIV5C16", "HIV5C64", "IXK7C35", "IYF1335",
-            "IYJ4B45", "IYJ5F45", "MMI8D19", "OKD2J08", "OYX2819", "OZL9H95", "PCQ5E06",
-            "PED2233", "PQA8A79", "QGZ8D98", "QNL5349", "QQW1H80", "QQY9B48", "QUP8A07",
-            "QWK4208", "RFQ1G43", "RGU1F61", "RHO1C11", "RMG0E43", "RMQ1H71", "RRQ7G89",
-            "RTO3A77", "RYB7J71", "RZE1J10", "RZG3C83", "SEI6G41", "SEN6A48", "SIG7I46",
-            "SJD0B58", "SNR3I18", "SOB7C05", "SSX7D85", "SYB2E37", "TCJ8G60", "TKB7H57",
-            "EHT2095", "EHT2A95"
+    private static final List<String> SUSPECT_PLATES = List.of(
+            "BBP3B50", "BCX1011", "BDI2E74", "BEN4C72", "DTA1G77", "ELL4B38", "FAM5G66",
+            "FFM0533", "FQE3A32", "GJP0F98", "IXT7I26", "JAC7I62", "JAJ1E90", "JBX3J00",
+            "EYQ5993", "FWQ6628", "GCZ5B67", "GHI1010",
+            "DKU9B11", "QCV2E16", "SWI4I26"
     );
 
     @GetMapping("/check-plates")
-    public Map<String, Object> checkPlates() {
+    public List<Map<String, Object>> checkPlates() {
 
-        String sql = """
-                SELECT plate, active, deleted_at, has_ever_communicated, created_at
-                FROM vehicles
-                WHERE plate IN (:plates)
-                ORDER BY plate
-                """;
+        // plate (upper) → active linkage
+        Map<String, DeviceLinkage> linkageByPlate = new HashMap<>();
+        for (DeviceLinkage dl : deviceLinkageRepository.findAllActiveWithVehicleAndDevice()) {
+            if (dl.getVehicle() != null && dl.getVehicle().getPlate() != null) {
+                linkageByPlate.putIfAbsent(dl.getVehicle().getPlate().toUpperCase(), dl);
+            }
+        }
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
-                sql,
-                new MapSqlParameterSource("plates", PLATES)
-        );
+        // plate (upper) → best policy status
+        Map<String, PolicyStatus> policyStatusByPlate = new HashMap<>();
+        for (Policy p : policyRepository.findAll()) {
+            if (p.getPlate() == null) continue;
+            String key = p.getPlate().toUpperCase();
+            PolicyStatus status = PolicyResponse.computeStatus(p);
+            PolicyStatus existing = policyStatusByPlate.get(key);
+            if (existing == null) {
+                policyStatusByPlate.put(key, status);
+            } else {
+                boolean newActive  = status == PolicyStatus.ACTIVE || status == PolicyStatus.EXPIRING || status == PolicyStatus.FUTURE;
+                boolean prevActive = existing == PolicyStatus.ACTIVE || existing == PolicyStatus.EXPIRING || existing == PolicyStatus.FUTURE;
+                if (newActive && !prevActive) policyStatusByPlate.put(key, status);
+            }
+        }
 
-        List<String> found = rows.stream()
-                .map(r -> (String) r.get("plate"))
-                .toList();
+        return SUSPECT_PLATES.stream().map(plate -> {
+            String key = plate.toUpperCase();
+            Optional<Vehicle> opt = vehicleRepository.findByPlate(plate);
+            DeviceLinkage dl = linkageByPlate.get(key);
+            PolicyStatus ps = policyStatusByPlate.get(key);
 
-        List<String> missing = PLATES.stream()
-                .filter(p -> !found.contains(p))
-                .toList();
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("plate", plate);
 
-        return Map.of("rows", rows, "missing", missing);
+            if (opt.isEmpty()) {
+                row.put("exists", false);
+                row.put("active", null);
+                row.put("deletedAt", null);
+                row.put("hasEverCommunicated", null);
+                row.put("vehicleGroup", null);
+            } else {
+                Vehicle v = opt.get();
+                row.put("exists", true);
+                row.put("active", v.getActive());
+                row.put("deletedAt", v.getDeletedAt());
+                row.put("hasEverCommunicated", v.getHasEverCommunicated());
+                row.put("vehicleGroup", v.getVehicleGroup() != null ? v.getVehicleGroup().name() : null);
+            }
+
+            row.put("activeLinkage", dl != null);
+            row.put("deviceNumber", dl != null && dl.getDevice() != null ? dl.getDevice().getNumberStr() : null);
+            row.put("policyStatus", ps != null ? ps.name() : null);
+
+            return row;
+        }).toList();
 
     }
 
