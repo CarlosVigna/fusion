@@ -86,14 +86,16 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
-                                "/vehicles/operational-update",
+                                HttpMethod.GET,
+                                "/vehicles",
+                                "/vehicles/grid",
                                 "/vehicles/signal-control",
-                                "/vehicles/never-communicated",
-                                "/vehicles/grid"
-                        ).hasAnyRole(
-                                "ADMIN",
-                                "OPERATOR"
-                        )
+                                "/vehicles/never-communicated"
+                        ).hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(
+                                "/vehicles/operational-update"
+                        ).hasAnyRole("ADMIN", "OPERATOR")
 
                         .requestMatchers(
                                 "/vehicles/**"
