@@ -61,12 +61,30 @@ public class SetupController {
             "PELOTAS1030", "RIOPRETO0101"
     );
 
+    private static final List<String> INDEVIDOS_2026_07_21 = List.of(
+            "BBP3B50", "BCX1011", "BDI2E74", "BEN4C72", "DTA1G77", "ELL4B38", "FAM5G66",
+            "FFM0533", "FQE3A32", "GJP0F98", "IXT7I26", "JAC7I62", "JAJ1E90", "JBX3J00",
+            "EYQ5993", "FWQ6628", "GCZ5B67", "GHI1010"
+    );
+
     private static final List<String> SUSPECT_PLATES = List.of(
             "BBP3B50", "BCX1011", "BDI2E74", "BEN4C72", "DTA1G77", "ELL4B38", "FAM5G66",
             "FFM0533", "FQE3A32", "GJP0F98", "IXT7I26", "JAC7I62", "JAJ1E90", "JBX3J00",
             "EYQ5993", "FWQ6628", "GCZ5B67", "GHI1010",
             "DKU9B11", "QCV2E16", "SWI4I26"
     );
+
+    @PostMapping("/reactivate-vehicles")
+    public Map<String, Object> reactivateVehicles() {
+        String sql = """
+                UPDATE vehicles
+                SET active = true, deleted_at = NULL
+                WHERE deleted_at::date = '2026-07-21'
+                AND plate IN (:plates)
+                """;
+        int updated = jdbcTemplate.update(sql, new MapSqlParameterSource("plates", INDEVIDOS_2026_07_21));
+        return Map.of("updated", updated, "plates", INDEVIDOS_2026_07_21);
+    }
 
     @GetMapping("/check-plates")
     public List<Map<String, Object>> checkPlates() {

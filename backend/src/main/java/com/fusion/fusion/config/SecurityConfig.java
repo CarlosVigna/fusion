@@ -60,7 +60,8 @@ public class SecurityConfig {
                                 "/setup/check-plates",
                                 "/setup/check-vehicles",
                                 "/setup/soft-delete-invalid-plates",
-                                "/setup/check-encoding"
+                                "/setup/check-encoding",
+                                "/setup/reactivate-vehicles"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao

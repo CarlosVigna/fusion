@@ -27,7 +27,9 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -81,6 +83,21 @@ public class LinkageImportService {
 
             int headerRow = findHeaderRow(sheet, "Data Inicial");
 
+            // PASSO 1 — coletar todas as placas com pelo menos um vínculo "Aberto"
+            // na planilha, para não soft-deletar veículos que aparecem como
+            // encerrados em uma linha mas ativos em outra.
+            Set<String> placasComVinculoAberto = new HashSet<>();
+            for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) continue;
+                String plate = PlateNormalizer.normalize(getCellValue(row.getCell(2)));
+                if (!PlateValidator.isValidPlate(plate)) continue;
+                if ("Aberto".equalsIgnoreCase(getCellValue(row.getCell(7)))) {
+                    placasComVinculoAberto.add(plate);
+                }
+            }
+
+            // PASSO 2 — processar cada linha
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
                 Row row = sheet.getRow(i);
@@ -102,9 +119,11 @@ public class LinkageImportService {
                         getCellValue(row.getCell(7));
 
                 if (!"Aberto".equalsIgnoreCase(status)) {
-                    // Vínculo encerrado: desativar linkage ativo e, se o
-                    // veículo não tiver mais dispositivo vinculado, soft-deletar.
-                    deactivateVehicleIfOrphaned(plate);
+                    // Só desativar/soft-deletar se a placa não tem nenhum
+                    // vínculo "Aberto" em outra linha da mesma planilha.
+                    if (!placasComVinculoAberto.contains(plate)) {
+                        deactivateVehicleIfOrphaned(plate);
+                    }
                     continue;
                 }
 
@@ -120,6 +139,13 @@ public class LinkageImportService {
                                                         .build()
                                         )
                                 );
+
+                // Reativar veículo se foi soft-deletado em import anterior
+                if (Boolean.FALSE.equals(vehicle.getActive()) || vehicle.getDeletedAt() != null) {
+                    vehicle.setActive(true);
+                    vehicle.setDeletedAt(null);
+                    vehicleRepository.save(vehicle);
+                }
 
                 linkedVehicles++;
 
