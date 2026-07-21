@@ -187,8 +187,10 @@ export default function Sidebar() {
             if (!isAdmin) return;
             try {
                 const data = await getPolicyBadgeCounts();
-                setPoliciesExpiredCount(data.noPolicy ?? 0);
-                setPoliciesExpiringCount(data.terminated ?? 0);
+                if (data && typeof data === 'object' && !Array.isArray(data)) {
+                    setPoliciesExpiredCount(data.noPolicy ?? 0);
+                    setPoliciesExpiringCount(data.terminated ?? 0);
+                }
             } catch (error) {
                 console.error(error);
             }
