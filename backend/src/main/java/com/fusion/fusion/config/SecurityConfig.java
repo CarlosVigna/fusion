@@ -86,7 +86,10 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
-                                "/vehicles/operational-update"
+                                "/vehicles/operational-update",
+                                "/vehicles/signal-control",
+                                "/vehicles/never-communicated",
+                                "/vehicles/grid"
                         ).hasAnyRole(
                                 "ADMIN",
                                 "OPERATOR"
@@ -97,11 +100,30 @@ public class SecurityConfig {
                         ).hasRole("ADMIN")
 
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/policies/alerts"
+                        ).hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/policies/*/dismiss-alert"
+                        ).hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(
                                 "/policies/**"
                         ).hasRole("ADMIN")
 
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/etl/status"
+                        ).hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(
                                 "/etl/**"
+                        ).hasRole("ADMIN")
+
+                        .requestMatchers(
+                                "/users/**"
                         ).hasRole("ADMIN")
 
                         .anyRequest().authenticated()

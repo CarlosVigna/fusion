@@ -2,6 +2,7 @@ package com.fusion.fusion.user;
 
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -9,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -17,10 +19,12 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
 
     public List<UserResponse> listAll() {
-        return repository.findAllByOrderByCreatedAtAsc()
+        List<UserResponse> list = repository.findAllByOrderByCreatedAtAsc()
                 .stream()
                 .map(this::toResponse)
                 .toList();
+        log.info("[USERS] listAll → {} usuários", list.size());
+        return list;
     }
 
     @Transactional
@@ -35,7 +39,9 @@ public class UserService {
                 .role(request.role())
                 .active(true)
                 .build();
-        return toResponse(repository.save(user));
+        UserResponse saved = toResponse(repository.save(user));
+        log.info("[USERS] criado id={} email={} role={}", saved.id(), saved.email(), saved.role());
+        return saved;
     }
 
     @Transactional

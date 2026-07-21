@@ -42,11 +42,9 @@ function Modal({ user, onClose, onSaved }) {
     try {
       const payload = { ...form };
       if (isEdit && !payload.password) delete payload.password;
-      const saved = isEdit
-        ? await updateUser(user.id, payload)
-        : await createUser(payload);
+      await (isEdit ? updateUser(user.id, payload) : createUser(payload));
       toast.success(isEdit ? "Usuário atualizado" : "Usuário criado");
-      onSaved(saved);
+      onSaved();
     } catch (err) {
       toast.error(err?.response?.data?.message || err.message || "Erro ao salvar");
     } finally {
@@ -155,21 +153,8 @@ export default function Users() {
 
   useEffect(() => { load(); }, []);
 
-  function onSaved(saved) {
-    if (!saved || !saved.id) {
-      load();
-      setModal(null);
-      return;
-    }
-    setUsers(prev => {
-      const idx = prev.findIndex(u => u.id === saved.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = saved;
-        return next;
-      }
-      return [...prev, saved];
-    });
+  function onSaved() {
+    load();
     setModal(null);
   }
 
