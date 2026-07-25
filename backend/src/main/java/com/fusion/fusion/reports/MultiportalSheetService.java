@@ -96,6 +96,14 @@ public class MultiportalSheetService {
                 .filter(vehicle -> vehicle.getVehicleGroup() == VehicleGroup.KAKO)
                 .toList();
 
+        log.info("[MULTIPORTAL-SHEET] Total veículos: {} | Pattern: {}", allVehicles.size(), PLATE_PATTERN.pattern());
+        allVehicles.forEach(v -> {
+            boolean matches = v.getPlate() != null && PLATE_PATTERN.matcher(v.getPlate()).matches();
+            if (!matches) {
+                log.info("[MULTIPORTAL-SHEET] Teste detectado: {} (deletedAt={})", v.getPlate(), v.getDeletedAt());
+            }
+        });
+
         List<Vehicle> testVehicles = allVehicles.stream()
                 .filter(v -> v.getPlate() != null
                         && !PLATE_PATTERN.matcher(v.getPlate()).matches())
