@@ -374,7 +374,7 @@ public class SinistroIndicatorService {
 
     private String classifyHorario(String time) {
         try {
-            int hour = Integer.parseInt(time.substring(0, 2));
+            int hour = Integer.parseInt(time.split(":")[0].trim());
             if (hour < 5) return "Madrugada";
             if (hour >= 22) return "Noturno";
             return "Comercial/Tarde";

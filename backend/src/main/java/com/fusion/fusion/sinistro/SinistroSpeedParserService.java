@@ -47,6 +47,9 @@ public class SinistroSpeedParserService {
             Integer dateCol  = columns.get("dateTime");
             Integer speedCol = columns.get("speed");
 
+            if (dateCol == null)  log.warn("[SINISTRO] Excesso Velocidade: coluna 'Data Evento' não mapeada — todas as linhas serão ignoradas");
+            if (speedCol == null) log.warn("[SINISTRO] Excesso Velocidade: coluna 'Vel.' não mapeada — todas as linhas serão ignoradas");
+
             List<SpeedEventEntry> entries = new ArrayList<>();
 
             for (int i = headerRowNum + 1; i <= sheet.getLastRowNum(); i++) {
