@@ -17,6 +17,7 @@ import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MultiportalSheetService {
@@ -93,12 +95,17 @@ public class MultiportalSheetService {
                 .filter(vehicle -> vehicle.getVehicleGroup() == VehicleGroup.KAKO)
                 .toList();
 
-        List<Vehicle> testVehicles = vehicleRepository.findByDeletedAtIsNotNull()
-                .stream()
+        List<Vehicle> softDeleted = vehicleRepository.findByDeletedAtIsNotNull();
+        log.info("[MULTIPORTAL-SHEET] Soft-deletados encontrados: {}", softDeleted.size());
+
+        List<Vehicle> testVehicles = softDeleted.stream()
                 .filter(v -> !Boolean.TRUE.equals(v.getHasEverCommunicated())
                         || !PLATE_PATTERN.matcher(v.getPlate()).matches())
                 .sorted(Comparator.comparing(Vehicle::getPlate))
                 .toList();
+        log.info("[MULTIPORTAL-SHEET] Testes após filtro: {} | placas: {}",
+                testVehicles.size(),
+                testVehicles.stream().map(Vehicle::getPlate).toList());
 
         List<Vehicle> verificationVehicles = activeVehicles.stream()
                 .filter(vehicle -> {
