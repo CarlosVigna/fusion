@@ -7,5 +7,6 @@ public record InstallationSyncResult(
         int inserted,
         int skipped,
         int closed,
+        int reopened,
         LocalDateTime syncedAt
 ) {}

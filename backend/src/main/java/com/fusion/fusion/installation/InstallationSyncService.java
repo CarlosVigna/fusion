@@ -47,8 +47,8 @@ public class InstallationSyncService {
 
             InstallationSyncResult result = syncFromPortal();
 
-            log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas, {} fechadas",
-                    result.found(), result.inserted(), result.skipped(), result.closed());
+            log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas, {} fechadas, {} reabertas",
+                    result.found(), result.inserted(), result.skipped(), result.closed(), result.reopened());
 
         } catch (Exception e) {
 
@@ -84,6 +84,7 @@ public class InstallationSyncService {
             int inserted = 0;
             int skipped = 0;
             int closed = 0;
+            int reopened = 0;
 
             // externalIds presentes no portal neste ciclo (todos AGUARDANDO_AGENDAMENTO)
             Set<String> externalIdsNoPortal = allItems.stream()
@@ -101,8 +102,21 @@ public class InstallationSyncService {
                     continue;
                 }
 
-                if (installationRepository.findByExternalId(externalId).isPresent()) {
-                    skipped++;
+                Optional<Installation> existingOpt = installationRepository.findByExternalId(externalId);
+                if (existingOpt.isPresent()) {
+                    Installation inst = existingOpt.get();
+                    if (inst.getStatus() != InstallationStatus.PENDING) {
+                        // Voltou para AGUARDANDO_AGENDAMENTO no portal — reabrir
+                        inst.setStatus(InstallationStatus.PENDING);
+                        inst.setPortalStatus("AGUARDANDO_AGENDAMENTO");
+                        inst.setClosedAt(null);
+                        installationRepository.save(inst);
+                        log.info("[INSTALACOES] {} reaberta no portal (era {})",
+                                inst.getPlate(), inst.getStatus());
+                        reopened++;
+                    } else {
+                        skipped++;
+                    }
                     continue;
                 }
 
@@ -168,7 +182,7 @@ public class InstallationSyncService {
             ));
 
             InstallationSyncResult result = new InstallationSyncResult(
-                    found, inserted, skipped, closed, LocalDateTime.now(ZoneOffset.UTC)
+                    found, inserted, skipped, closed, reopened, LocalDateTime.now(ZoneOffset.UTC)
             );
             lastResult = result;
             return result;
