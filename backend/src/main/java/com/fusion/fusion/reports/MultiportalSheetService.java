@@ -40,7 +40,7 @@ public class MultiportalSheetService {
     // são classificados como de teste (placas como "LINKS-BAU", "ABC0707").
     // Veículos reais acidentalmente soft-deletados têm placa válida + já comunicaram.
     private static final Pattern PLATE_PATTERN =
-            Pattern.compile("^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$|^[A-Z]{3}[0-9]{4}$");
+            Pattern.compile("^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$");
 
     private final VehicleRepository vehicleRepository;
     private final DeviceLinkageRepository deviceLinkageRepository;
