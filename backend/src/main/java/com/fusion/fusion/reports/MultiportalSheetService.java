@@ -80,8 +80,9 @@ public class MultiportalSheetService {
 
         Map<String, Policy> policyByPlate = buildBestPolicyByPlate();
 
-        List<Vehicle> activeVehicles = vehicleRepository.findAll()
-                .stream()
+        List<Vehicle> allVehicles = vehicleRepository.findAll();
+
+        List<Vehicle> activeVehicles = allVehicles.stream()
                 .filter(vehicle -> vehicle.getDeletedAt() == null)
                 .sorted(Comparator.comparing(Vehicle::getPlate))
                 .toList();
@@ -95,15 +96,12 @@ public class MultiportalSheetService {
                 .filter(vehicle -> vehicle.getVehicleGroup() == VehicleGroup.KAKO)
                 .toList();
 
-        List<Vehicle> softDeleted = vehicleRepository.findByDeletedAtIsNotNull();
-        log.info("[MULTIPORTAL-SHEET] Soft-deletados encontrados: {}", softDeleted.size());
-
-        List<Vehicle> testVehicles = softDeleted.stream()
-                .filter(v -> !Boolean.TRUE.equals(v.getHasEverCommunicated())
-                        || !PLATE_PATTERN.matcher(v.getPlate()).matches())
+        List<Vehicle> testVehicles = allVehicles.stream()
+                .filter(v -> v.getPlate() != null
+                        && !PLATE_PATTERN.matcher(v.getPlate()).matches())
                 .sorted(Comparator.comparing(Vehicle::getPlate))
                 .toList();
-        log.info("[MULTIPORTAL-SHEET] Testes após filtro: {} | placas: {}",
+        log.info("[MULTIPORTAL-SHEET] Testes (placa inválida): {} | placas: {}",
                 testVehicles.size(),
                 testVehicles.stream().map(Vehicle::getPlate).toList());
 
