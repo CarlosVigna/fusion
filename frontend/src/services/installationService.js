@@ -9,6 +9,10 @@ export async function getInstallationsPendingCount() {
   return apiClient.get("/installations/pending-count");
 }
 
+export async function getInstallationsDashboard() {
+  return apiClient.get("/installations/dashboard");
+}
+
 export async function getInstallationReport({ search, status, startDate, endDate } = {}) {
   const params = new URLSearchParams();
   if (search) params.append("search", search);
@@ -29,4 +33,16 @@ export async function cancelInstallation(id) {
 
 export async function deleteInstallation(id) {
   return apiClient.delete(`/installations/${id}`);
+}
+
+export async function addInstallationObservation(id, text) {
+  return apiClient.post(`/installations/${id}/observations`, { text });
+}
+
+export async function getInstallationObservations(id) {
+  return apiClient.get(`/installations/${id}/observations`);
+}
+
+export async function dismissInstallationAlert(id) {
+  return apiClient.post(`/installations/${id}/dismiss-alert`);
 }

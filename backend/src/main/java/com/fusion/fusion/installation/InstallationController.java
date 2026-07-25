@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 @Slf4j
 @RestController
@@ -33,7 +34,33 @@ public class InstallationController {
 
     @GetMapping("/pending-count")
     public Map<String, Long> pendingCount() {
-        return Map.of("count", service.countPending());
+        Map<String, Long> result = new LinkedHashMap<>();
+        result.put("count", service.countPending());
+        result.put("critical", service.countCritical());
+        return result;
+    }
+
+    @GetMapping("/dashboard")
+    public Map<String, Object> dashboard() {
+        return service.getDashboard();
+    }
+
+    @PostMapping("/{id}/observations")
+    public InstallationObservationResponse addObservation(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> body
+    ) {
+        return service.addObservation(id, body.get("text"));
+    }
+
+    @GetMapping("/{id}/observations")
+    public List<InstallationObservationResponse> getObservations(@PathVariable Long id) {
+        return service.getObservations(id);
+    }
+
+    @PostMapping("/{id}/dismiss-alert")
+    public InstallationResponse dismissAlert(@PathVariable Long id) {
+        return service.dismissAlert(id);
     }
 
     @GetMapping("/report")

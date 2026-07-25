@@ -3,6 +3,7 @@ package com.fusion.fusion.installation;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
@@ -56,6 +57,12 @@ public class Installation {
     private LocalDateTime sentAt;
 
     private String sentBy;
+
+    private String lastObservation;
+
+    private LocalDate alertDismissedAt;
+
+    private LocalDateTime closedAt;
 
     private LocalDateTime createdAt;
 

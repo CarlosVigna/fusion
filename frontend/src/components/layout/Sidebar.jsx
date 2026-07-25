@@ -121,6 +121,8 @@ export default function Sidebar() {
 
     const [installationsCount, setInstallationsCount] = useState(0);
 
+    const [installationsCriticalCount, setInstallationsCriticalCount] = useState(0);
+
     const [policiesExpiredCount, setPoliciesExpiredCount] = useState(0);
 
     const [policiesExpiringCount, setPoliciesExpiringCount] = useState(0);
@@ -164,12 +166,14 @@ export default function Sidebar() {
         async function loadInstallationsCount() {
             try {
                 const data = await getInstallationsPendingCount();
-                const count = data.count ?? 0;
+                const count = data?.count ?? 0;
+                const critical = data?.critical ?? 0;
                 if (prevInstallationsCountRef.current !== null && count > prevInstallationsCountRef.current) {
                     notifyInstallationsNew(count - prevInstallationsCountRef.current);
                 }
                 prevInstallationsCountRef.current = count;
                 setInstallationsCount(count);
+                setInstallationsCriticalCount(critical);
             } catch (error) {
                 console.error(error);
             }
@@ -187,10 +191,8 @@ export default function Sidebar() {
             if (!isAdmin) return;
             try {
                 const data = await getPolicyBadgeCounts();
-                if (data && typeof data === 'object' && !Array.isArray(data)) {
-                    setPoliciesExpiredCount(data.noPolicy ?? 0);
-                    setPoliciesExpiringCount(data.terminated ?? 0);
-                }
+                setPoliciesExpiredCount(data?.noPolicy ?? 0);
+                setPoliciesExpiringCount(data?.terminated ?? 0);
             } catch (error) {
                 console.error(error);
             }
@@ -204,7 +206,7 @@ export default function Sidebar() {
 
     const badgeCounts = {
         signalControl: signalControlCount,
-        installations: installationsCount,
+        installations: installationsCriticalCount,
         policiesExpired: policiesExpiredCount,
         policiesExpiring: policiesExpiringCount,
     };
