@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -46,8 +47,8 @@ public class InstallationSyncService {
 
             InstallationSyncResult result = syncFromPortal();
 
-            log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas",
-                    result.found(), result.inserted(), result.skipped());
+            log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas, {} fechadas",
+                    result.found(), result.inserted(), result.skipped(), result.closed());
 
         } catch (Exception e) {
 
@@ -82,6 +83,13 @@ public class InstallationSyncService {
             int found = allItems.size();
             int inserted = 0;
             int skipped = 0;
+            int closed = 0;
+
+            // externalIds presentes no portal neste ciclo (todos AGUARDANDO_AGENDAMENTO)
+            Set<String> externalIdsNoPortal = allItems.stream()
+                    .map(o -> extractString(o, "externalId"))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
 
             for (Map<String, Object> item : allItems) {
 
@@ -129,6 +137,28 @@ public class InstallationSyncService {
 
             }
 
+            // Instalações que estavam PENDING no banco mas não apareceram mais
+            // na lista do portal = saíram de AGUARDANDO_AGENDAMENTO
+            List<Installation> pendingNoBank =
+                    installationRepository.findByStatusOrderByCreatedAtDesc(InstallationStatus.PENDING);
+
+            for (Installation inst : pendingNoBank) {
+                if (inst.getExternalId() == null) continue;
+                if (!externalIdsNoPortal.contains(inst.getExternalId())) {
+                    inst.setPortalStatus("SAIU_DE_AGUARDANDO_AGENDAMENTO");
+                    inst.setStatus(InstallationStatus.SCHEDULED);
+                    if (inst.getClosedAt() == null) {
+                        inst.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
+                    }
+                    installationRepository.save(inst);
+                    log.info("[INSTALACOES] {} saiu de AGUARDANDO_AGENDAMENTO (externalId={})",
+                            inst.getPlate(), inst.getExternalId());
+                    closed++;
+                }
+            }
+
+            log.info("[INSTALACOES] Fechadas neste ciclo: {}", closed);
+
             long durationMs = System.currentTimeMillis() - startMs;
             LocalDateTime nextRun = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(15);
 
@@ -138,7 +168,7 @@ public class InstallationSyncService {
             ));
 
             InstallationSyncResult result = new InstallationSyncResult(
-                    found, inserted, skipped, LocalDateTime.now(ZoneOffset.UTC)
+                    found, inserted, skipped, closed, LocalDateTime.now(ZoneOffset.UTC)
             );
             lastResult = result;
             return result;
