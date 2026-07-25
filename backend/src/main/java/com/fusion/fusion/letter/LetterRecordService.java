@@ -34,6 +34,7 @@ public class LetterRecordService {
 
     private final SignalReturnAlertRepository signalReturnAlertRepository;
 
+    @Transactional(readOnly = true)
     public List<LetterRecordResponse> findAll(boolean includeArchived) {
 
         List<LetterRecord> records = includeArchived
@@ -48,6 +49,7 @@ public class LetterRecordService {
 
     // Central Operacional — cartas ativas cujo veiculo tem sinal recuperado
     // (delay < 24h). O operador precisa dar baixa na carta manualmente.
+    @Transactional(readOnly = true)
     public List<LetterRecordResponse> findPendingBaixa() {
 
         List<LetterRecord> active =
