@@ -4,6 +4,7 @@ import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.importation.ImportType;
+import com.fusion.fusion.whatsapp.WhatsAppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +28,7 @@ public class InstallationSyncService {
 
     private final InstallationRepository installationRepository;
     private final EtlStatusService etlStatusService;
+    private final WhatsAppService whatsAppService;
     private final RestTemplate restTemplate;
 
     @Value("${portal.parceiro.url:https://onmeseguros.com.br}")
@@ -148,6 +150,8 @@ public class InstallationSyncService {
 
                 installationRepository.save(installation);
                 inserted++;
+
+                whatsAppService.sendInstallationAlert(installation);
 
             }
 
