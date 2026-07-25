@@ -27,21 +27,18 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class MultiportalSheetService {
 
-    // Veiculos de teste usados para validar o pipeline de sync MULTIPORTAL
-    // — ficam soft-deletados no banco, nunca aparecem nos blocos
-    // operacionais, mas precisam ser conferidos manualmente (bloco tests).
-    private static final List<String> TEST_PLATES = List.of(
-            "ABC0707", "COMBURIU9999", "CURITIBA1515", "FRANCKCAMPINAS0101", "ITU0202",
-            "LINKS-BAU", "LINKS-CARU", "LINKS-FEIRA", "LINKS-FORTA", "LINKS-INDAIA",
-            "LINKS-ITA", "LINKS-ITUM", "LINKS-JOIN", "LINKS-JP0101", "LINKS-LON",
-            "LINKS-MARIL", "LINKS-MARIN", "LINKS-PIRA", "MARCELO0101", "NATAL0101",
-            "PELOTAS1030", "RIOPRETO0101"
-    );
+    // Padrões de placa brasileira válida (Mercosul e padrão antigo).
+    // Veículos soft-deletados que nunca comunicaram OU têm placa inválida
+    // são classificados como de teste (placas como "LINKS-BAU", "ABC0707").
+    // Veículos reais acidentalmente soft-deletados têm placa válida + já comunicaram.
+    private static final Pattern PLATE_PATTERN =
+            Pattern.compile("^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$|^[A-Z]{3}[0-9]{4}$");
 
     private final VehicleRepository vehicleRepository;
     private final DeviceLinkageRepository deviceLinkageRepository;
@@ -96,8 +93,10 @@ public class MultiportalSheetService {
                 .filter(vehicle -> vehicle.getVehicleGroup() == VehicleGroup.KAKO)
                 .toList();
 
-        List<Vehicle> testVehicles = vehicleRepository.findByPlateIn(TEST_PLATES)
+        List<Vehicle> testVehicles = vehicleRepository.findByDeletedAtIsNotNull()
                 .stream()
+                .filter(v -> !Boolean.TRUE.equals(v.getHasEverCommunicated())
+                        || !PLATE_PATTERN.matcher(v.getPlate()).matches())
                 .sorted(Comparator.comparing(Vehicle::getPlate))
                 .toList();
 

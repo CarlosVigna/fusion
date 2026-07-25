@@ -17,4 +17,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, UUID> {
 
     List<Vehicle> findByPlateIn(Collection<String> plates);
 
+    List<Vehicle> findByDeletedAtIsNotNull();
+
 }
