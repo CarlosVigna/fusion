@@ -283,11 +283,12 @@ public class OutlookAttachmentService {
     private String stageLabel(com.fusion.fusion.signalcontrol.SignalStage stage) {
         if (stage == null) return "";
         return switch (stage) {
-            case AWAITING_COMMAND  -> "1-2 dias";
-            case CONTACT_INSURED   -> "3-4 dias";
-            case SUSPENSION_PENDING -> "5+ dias — suspensão";
+            case AWAITING_COMMAND    -> "1-2 dias";
+            case CONTACT_INSURED     -> "3-4 dias";
+            case SUSPENSION_PENDING  -> "5+ dias — suspensão";
             case MAINTENANCE_PENDING -> "5+ dias — manutenção";
-            case SIGNAL_RETURNED   -> "Sinal retornou";
+            case SIGNAL_RETURNED     -> "Sinal retornou";
+            default                  -> stage.name();
         };
     }
 
