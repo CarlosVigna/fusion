@@ -39,6 +39,9 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String photoUrl;
 
+    @Column(columnDefinition = "TEXT")
+    private String microsoftSignatureHtml;
+
     @Builder.Default
     private Boolean active = true;
 

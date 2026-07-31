@@ -90,4 +90,13 @@ public class AuthController {
 
     }
 
+    @PutMapping("/me/signature")
+    public MeResponse saveSignature(
+            @RequestBody java.util.Map<String, String> body
+    ) {
+
+        return authService.saveSignature(body.get("signatureHtml"));
+
+    }
+
 }

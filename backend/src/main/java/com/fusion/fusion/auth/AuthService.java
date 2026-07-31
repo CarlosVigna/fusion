@@ -47,6 +47,14 @@ public class AuthService {
     }
 
     @Transactional
+    public MeResponse saveSignature(String signatureHtml) {
+        User user = getCurrentUser();
+        user.setMicrosoftSignatureHtml(signatureHtml);
+        repository.save(user);
+        return toResponse(user);
+    }
+
+    @Transactional
     public void changePassword(ChangePasswordRequest request) {
 
         User user = getCurrentUser();
@@ -98,7 +106,8 @@ public class AuthService {
                 user.getName(),
                 user.getEmail(),
                 user.getRole(),
-                user.getPhotoUrl()
+                user.getPhotoUrl(),
+                user.getMicrosoftSignatureHtml()
         );
 
     }

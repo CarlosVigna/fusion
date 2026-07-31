@@ -13,6 +13,8 @@ import {
   updateProfile,
 } from "../services/authService";
 
+import { saveSignature } from "../services/outlookService";
+
 const MAX_PHOTO_SIZE = 256;
 
 const THEMES = [
@@ -101,6 +103,10 @@ export default function Account() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [savingPassword, setSavingPassword] = useState(false);
+
+  const [signatureHtml, setSignatureHtml] = useState(user?.microsoftSignatureHtml || "");
+
+  const [savingSignature, setSavingSignature] = useState(false);
 
   async function handlePhotoChange(e) {
 
@@ -192,6 +198,34 @@ export default function Account() {
     } finally {
 
       setSavingPassword(false);
+
+    }
+
+  }
+
+  async function handleSaveSignature(e) {
+
+    e.preventDefault();
+
+    setSavingSignature(true);
+
+    try {
+
+      const updated = await saveSignature(signatureHtml);
+
+      setUser(updated);
+
+      toast.success("Assinatura salva");
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao salvar assinatura");
+
+    } finally {
+
+      setSavingSignature(false);
 
     }
 
@@ -363,6 +397,57 @@ export default function Account() {
         </form>
 
       </div>
+
+      <form
+        onSubmit={handleSaveSignature}
+        className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
+      >
+
+        <h2 className="text-lg font-semibold">Assinatura de e-mail</h2>
+
+        <p className="mt-1 text-sm text-zinc-500">
+          HTML da assinatura usada nos e-mails de Passagem de Turno gerados no Outlook.
+        </p>
+
+        <div className="mt-5">
+          <label className="text-sm text-zinc-500">HTML da assinatura</label>
+          <textarea
+            rows={6}
+            value={signatureHtml}
+            onChange={(e) => setSignatureHtml(e.target.value)}
+            placeholder='<p>Nome Sobrenome<br><span style="color:#666">Cargo — Empresa</span></p>'
+            className="
+              mt-1 w-full rounded-xl border border-zinc-800
+              bg-zinc-950 px-4 py-2.5 text-sm outline-none
+              font-mono resize-y placeholder:text-zinc-600
+            "
+          />
+        </div>
+
+        {signatureHtml && (
+          <div className="mt-4">
+            <p className="mb-2 text-xs text-zinc-500">Preview</p>
+            <div
+              className="rounded-xl border border-zinc-700 bg-white p-4 text-black"
+              dangerouslySetInnerHTML={{ __html: signatureHtml }}
+            />
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={savingSignature}
+          className="
+            mt-5 rounded-2xl bg-white px-6 py-3
+            text-sm font-semibold text-black
+            transition hover:opacity-90
+            disabled:opacity-50
+          "
+        >
+          {savingSignature ? "Salvando..." : "Salvar assinatura"}
+        </button>
+
+      </form>
 
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
 

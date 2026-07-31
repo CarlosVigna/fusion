@@ -25,6 +25,9 @@ import Account from "../pages/Account";
 import Login from "../pages/Login";
 import VehicleDetails from "../pages/VehicleDetails";
 
+import MicrosoftCallback from "../pages/MicrosoftCallback";
+import ShiftHandover from "../pages/ShiftHandover";
+
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
@@ -33,6 +36,15 @@ export default function AppRoutes() {
             <Route
                 path="/login"
                 element={<Login />}
+            />
+
+            <Route
+                path="/auth/microsoft/callback"
+                element={
+                    <ProtectedRoute>
+                        <MicrosoftCallback />
+                    </ProtectedRoute>
+                }
             />
 
             <Route
@@ -126,6 +138,11 @@ export default function AppRoutes() {
                 <Route
                     path="account"
                     element={<Account />}
+                />
+
+                <Route
+                    path="shift-handover"
+                    element={<ShiftHandover />}
                 />
             </Route>
 

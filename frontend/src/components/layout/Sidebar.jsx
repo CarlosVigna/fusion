@@ -14,6 +14,7 @@ import {
     Radio,
     ScrollText,
     Search,
+    Send,
     Settings,
     Shield,
     Users,
@@ -83,9 +84,10 @@ const GROUPS = [
         icon: Settings,
         adminOnly: true,
         items: [
-            { label: "Veículos",    icon: Car,      path: "/vehicles" },
-            { label: "Monitor ETL", icon: Activity, path: "/etl" },
-            { label: "Usuários",    icon: Users,    path: "/users" },
+            { label: "Veículos",         icon: Car,      path: "/vehicles" },
+            { label: "Monitor ETL",      icon: Activity, path: "/etl" },
+            { label: "Usuários",         icon: Users,    path: "/users" },
+            { label: "Passagem de Turno", icon: Send,    path: "/shift-handover" },
         ],
     },
 ];

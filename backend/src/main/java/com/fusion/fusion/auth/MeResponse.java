@@ -14,7 +14,9 @@ public record MeResponse(
 
         Role role,
 
-        String photoUrl
+        String photoUrl,
+
+        String microsoftSignatureHtml
 
 ) {
 }
