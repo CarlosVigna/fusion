@@ -449,6 +449,41 @@ export default function SignalControl() {
 
   }
 
+  function handleExportEmail() {
+
+    const sorted = [...vehicles]
+      .filter((v) => v.suggestedStage !== "SIGNAL_RETURNED")
+      .sort((a, b) => (b.signalDelayMinutes ?? 0) - (a.signalDelayMinutes ?? 0));
+
+    const lines = sorted.map((v) => {
+      const lastComm = v.lastCommunicationAt
+        ? formatDateTimeForExport(v.lastCommunicationAt)
+        : "Sem dados";
+      const endDate = v.policyEndDate
+        ? v.policyEndDate.split("-").reverse().join("/")
+        : "Sem apólice";
+      const obs = v.lastObservation?.text || "Sem observação";
+
+      return [
+        `PLACA: ${v.plate}`,
+        `Última posição: ${lastComm}`,
+        `Fim de vigência: ${endDate}`,
+        `Observação: ${obs}`,
+      ].join("\n");
+    });
+
+    const content = lines.join("\n\n---\n\n");
+
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `controle_sinais_${todayForFilename()}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+  }
+
   function handleObservationSaved(plate) {
 
     setHistory((current) => {
@@ -647,6 +682,20 @@ export default function SignalControl() {
         >
           <FileText size={16} />
           PDF
+        </button>
+
+        <button
+          onClick={handleExportEmail}
+          className="
+            flex items-center justify-center gap-2
+            rounded-xl border border-zinc-700
+            bg-zinc-950 px-5 py-2.5
+            text-sm font-semibold
+            transition hover:bg-zinc-800
+          "
+        >
+          <Mail size={16} />
+          E-mail
         </button>
 
       </div>
