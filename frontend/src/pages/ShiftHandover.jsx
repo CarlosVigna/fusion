@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { CheckCircle, ExternalLink, Mail, RefreshCw, Send, Unlink } from "lucide-react";
+import { Archive, CheckCircle, Download, ExternalLink, Mail, RefreshCw, Send, Unlink } from "lucide-react";
 
 import { useAuthStore } from "../store/authStore";
 
@@ -15,6 +15,8 @@ import {
 } from "../services/microsoftAuthService";
 
 import { createShiftHandoverDraft, previewShiftHandover } from "../services/outlookService";
+
+import { apiClient } from "../services/api/apiClient";
 
 import { formatDateTimeForExport, todayForFilename } from "../utils/exportXlsx";
 
@@ -159,6 +161,64 @@ export default function ShiftHandover() {
   const casosCount = vehicles.filter(
     (v) => v.lastObservation?.text !== EXCLUDED_OBS
   ).length;
+
+  function downloadBlob(bytes, filename, mimeType) {
+    const blob = new Blob([bytes], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleDownloadEml() {
+    if (!dataEntrada || !dataSaida || !toEmail) {
+      toast.error("Preencha data de entrada, saída e destinatário");
+      return;
+    }
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
+      const token = localStorage.getItem("fusion_token");
+      const req = buildRequest(
+        fmtDateLabel(dataEntrada),
+        fmtDateLabel(dataSaida),
+        toEmail,
+        vehicles,
+        tracknme
+      );
+      const response = await fetch(`${API_BASE}/outlook/eml/passagem-turno`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(req),
+      });
+      if (!response.ok) throw new Error("Erro ao gerar EML");
+      const bytes = await response.arrayBuffer();
+      const today = fmtDateLabel(dataEntrada).replaceAll("/", "-");
+      downloadBlob(bytes, `passagem-turno-${today}.eml`, "message/rfc822");
+    } catch (err) {
+      toast.error(err.message || "Erro ao baixar EML");
+    }
+  }
+
+  async function handleDownloadZip() {
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8080";
+      const token = localStorage.getItem("fusion_token");
+      const response = await fetch(`${API_BASE}/outlook/attachments/passagem-turno`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error("Erro ao gerar ZIP");
+      const bytes = await response.arrayBuffer();
+      const today = new Date().toLocaleDateString("pt-BR").replaceAll("/", "-");
+      downloadBlob(bytes, `planilhas-${today}.zip`, "application/zip");
+    } catch (err) {
+      toast.error(err.message || "Erro ao baixar planilhas");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -436,6 +496,52 @@ export default function ShiftHandover() {
           </a>
         </div>
       )}
+
+      {/* Alternativa sem Microsoft */}
+      <div className="rounded-2xl border border-zinc-700 bg-zinc-900/50 p-6">
+
+        <h2 className="mb-1 text-base font-semibold">Alternativa sem autenticação Microsoft</h2>
+        <p className="mb-4 text-sm text-zinc-500">
+          Baixe o rascunho de e-mail e as planilhas localmente para importar manualmente no Outlook.
+        </p>
+
+        <div className="flex flex-wrap gap-3">
+
+          <button
+            onClick={handleDownloadEml}
+            className="
+              flex items-center gap-2
+              rounded-xl border border-zinc-700
+              bg-zinc-950 px-5 py-2.5
+              text-sm font-semibold
+              transition hover:bg-zinc-800
+            "
+          >
+            <Download size={16} />
+            Baixar Rascunho (.eml)
+          </button>
+
+          <button
+            onClick={handleDownloadZip}
+            className="
+              flex items-center gap-2
+              rounded-xl border border-zinc-700
+              bg-zinc-950 px-5 py-2.5
+              text-sm font-semibold
+              transition hover:bg-zinc-800
+            "
+          >
+            <Archive size={16} />
+            Baixar Planilhas (.zip)
+          </button>
+
+        </div>
+
+        <p className="mt-3 text-xs text-zinc-600">
+          O ZIP inclui: SINAIS (sempre) · MULTIPORTAL (sempre) · Cartas de Suspensão (se houver ativas) · Manutenções (se houver abertas)
+        </p>
+
+      </div>
 
       {/* Preview */}
       {previewHtml && (
