@@ -11,6 +11,7 @@ import com.fusion.fusion.policy.Policy;
 import com.fusion.fusion.policy.PolicyRepository;
 import com.fusion.fusion.policy.PolicyResponse;
 import com.fusion.fusion.policy.PolicyStatus;
+import com.fusion.fusion.signalcontrol.SignalControlService;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -33,7 +34,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/setup")
@@ -48,6 +51,40 @@ public class SetupController {
     private final VehicleObservationService vehicleObservationService;
     private final LetterRecordRepository letterRecordRepository;
     private final PolicyRepository policyRepository;
+    private final SignalControlService signalControlService;
+
+    private static final Set<String> MULTIPORTAL_PLATES = Set.of(
+        "FXZ9249", "QXX8I71", "FWQ9D54", "QWY7149", "QYJ4B61", "RXZ5F74", "SIE4D31", "TAP2C19", "PDH5I98", "TQU9E05",
+        "SII1I58", "TRI6C75", "GJY1B69", "PCZ8923", "BZK4720", "JCN0H41", "FFM0533", "RZZ6I41", "SJA4F28", "UHM5I06",
+        "JAC7I62", "RHM3J30", "UAC2E05", "UFO9B29", "UHM9G81", "BCE4I61", "QYD5I12", "SNM6H78", "IZE5G56", "BCL3653",
+        "RTB4E98", "QYP6C20", "RMP4D44", "SGU7D79", "UHJ0B60", "PWI1I33", "EVD9I24", "BDI2E74", "SIC6J67", "RZV3A73",
+        "EZY7717", "QQN1899", "QYZ7J23", "FHL4E40", "BEC6H32", "RUR1915", "UHJ0J32", "GJV0D63", "PLY6F74", "GIH6H97",
+        "IPM5D84", "RFQ4G24", "QYP6D99", "TCV5B33", "SPB9I47", "SJB9J37", "ECQ3E25", "IXT7I26", "SYW1I29", "OMA1292",
+        "RHK4A96", "QQQ4J75", "EDP2462", "RZM9J45", "RUB2C73", "SOX2I19", "SJC6C84", "JAJ1E90", "SNS6E03", "BCY0H12",
+        "QYL3J49", "SDV4D17", "PZZ5D00", "RPL0F76", "PZQ9F38", "IYK8J46", "AQE5I57", "LTK6I71", "BDU9E61", "SPB4B48",
+        "SHQ2E08", "QPR4C84", "UJA0E20", "RND7C82", "PDK9F20", "QYI6D47", "FQE3A32", "QNZ8D09", "SOV3E35", "PNA0B83",
+        "AZN8438", "SPB7G51", "TQY2A49", "SUI7J11", "QOT6C47", "TCO0I35", "RZJ3I31", "TBD9H18", "ELU5644", "TOT3I36",
+        "ORS0I80", "QOH7F43", "RTS6C57", "PTR0G45", "TTO9B59", "EUH2G33", "RVD8E86", "PCX6619", "SOE7I72", "PGG2752",
+        "EJG0I65", "MKJ4F15", "BET3F56", "SIY1E67", "QYL2A27", "ITD7J68", "UAU0H64", "FAM5G66", "JCA6G37", "SHV2J78",
+        "QUR8424", "BCX1011", "FAL4I25", "PDT7D53", "QYL1D28", "FRK8D68", "RFM4J29", "RGE2B55", "SUM2I94", "QYS2B16",
+        "PKW8674", "RTN4E69", "IYA4B66", "JBW7H69", "SNK7E73", "IZU8E55", "RVP3F95", "QYT8A21", "FOW7B76", "RZL4F12",
+        "PDT3D80", "PCE3B86", "RDK7F00", "RPS0A42", "SFB9B59", "BDK9B15", "QYO9J19", "PZB0H10", "SNX7J60", "SIZ3B73",
+        "SII8H33", "SJB9J21", "FKO4H64", "RZO4B55", "SEG7D69", "SHS1I13", "RPW1H86", "FNM6056", "DKU9B11", "EYQ5993",
+        "FWQ6628", "SWI4I26", "GCZ5B67", "QCV2E16", "OZQ0F42", "SVJ7B79", "PWC3754", "PCO1565", "GXF9E01", "PGF3212",
+        "ARK2I09", "FZZ4A95", "SNM5H53", "BAU4706", "QNI2E71", "PCO8B10", "PVV8H48", "FPI8587", "IZS3I05", "SOZ1F21",
+        "RHN5A17", "SIF5D90", "IYS7F64", "PGY0266", "FGF7611", "BBP3B50", "RZY8D64", "UGI2A38", "SYB4B23", "DTA1G77",
+        "PDG8G36", "END5218", "FQM0H95", "SOL7E87", "PNZ0G68", "FKY5C72", "RJQ0C98", "FRT6789", "ELL4B38", "SJG2A22",
+        "IZY7J82", "ECO9H70", "GJP0F98", "EME3E55", "SVN4A31", "BEN4C72", "QPC4G04", "AYW2J34", "IZL9I67", "FZW4095",
+        "PZS5993", "CAM3I65", "BCL9B28", "RMV4F44", "QQC0G82", "STO4E84", "SOY0B11", "THS4J05", "SEE4J29", "SWN0E30",
+        "FWN9J88", "SYS4J70", "PAROBE0101", "QWU0810", "SDR6E43", "SCF4J62", "SHR5C46", "FRS5547", "RGV8H21", "TZR1B88",
+        "SHN5B82", "FPO5H30", "RTU9E00", "UDZ2C61", "RDG0C45", "QXQ7J07", "FFG6B53", "IWS1430", "RFQ1E88", "RTV6C09",
+        "SIR7A26", "QNA2112", "RZU3F32", "GEU1E94", "QGS9J12", "QYM5I87", "TDZ4E23", "FIK3766", "SPA7J26", "QYT2I23",
+        "RTC4J52", "JAE3E78", "UBV8F61", "QOM6H85", "QNB0C22", "BDD4I02", "SJD0B34", "GID6I45", "ABC0707",
+        "FRANCKCAMPINAS0101", "ITU0202", "LINKS-BAU", "LINKS-CARU", "LINKS-FEIRA", "LINKS-INDAIA", "LINKS-ITA",
+        "LINKS-ITUM", "LINKS-JOIN", "LINKS-LON", "LINKS-MARIL", "LINKS-MARIN", "NATAL0101", "TESTEBLU",
+        "PGY3G49", "SPB8C78", "OGF5D31", "SJD9I96", "IWQ1461", "TCB1G90", "BDB7E94", "PRH3J98", "SHL9E21",
+        "RUO2I25", "SIR7H01", "JCD7I80", "PDU8J85", "RMV9H81"
+    );
 
     private static final List<String> INVALID_PLATES = List.of(
             "000555", "ADMILBRASILIA0101", "USE"
@@ -416,6 +453,49 @@ public class SetupController {
             String cpfCnpj,
             VehicleGroup vehicleGroup
     ) {
+    }
+
+    @GetMapping("/compare-grid")
+    public Map<String, Object> compareGrid() {
+
+        Set<String> fusionPlates = vehicleRepository.findAll().stream()
+                .filter(v -> v.getDeletedAt() == null)
+                .map(v -> v.getPlate().toUpperCase())
+                .collect(Collectors.toSet());
+
+        Set<String> signalControlPlates = signalControlService.findAll(true).stream()
+                .map(r -> r.plate().toUpperCase())
+                .collect(Collectors.toSet());
+
+        List<String> apenasNoMultiportal = MULTIPORTAL_PLATES.stream()
+                .filter(p -> !fusionPlates.contains(p))
+                .sorted()
+                .collect(Collectors.toList());
+
+        List<String> apenasNoFusion = fusionPlates.stream()
+                .filter(p -> !MULTIPORTAL_PLATES.contains(p))
+                .sorted()
+                .collect(Collectors.toList());
+
+        List<String> emAmbos = MULTIPORTAL_PLATES.stream()
+                .filter(fusionPlates::contains)
+                .sorted()
+                .collect(Collectors.toList());
+
+        List<String> naoNoControleSinais = emAmbos.stream()
+                .filter(p -> !signalControlPlates.contains(p))
+                .sorted()
+                .collect(Collectors.toList());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("totalMultiportal", MULTIPORTAL_PLATES.size());
+        result.put("totalFusion", fusionPlates.size());
+        result.put("emAmbos", emAmbos);
+        result.put("apenasNoMultiportal", apenasNoMultiportal);
+        result.put("apenasNoFusion", apenasNoFusion);
+        result.put("naoNoControleSinais", naoNoControleSinais);
+        return result;
+
     }
 
 }
