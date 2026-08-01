@@ -34,6 +34,15 @@ export async function getOperationalGrid(
 
   }
 
+  if (filters.includeTest) {
+
+    params.append(
+      "includeTest",
+      "true"
+    );
+
+  }
+
   const query =
     params.toString();
 
@@ -47,4 +56,8 @@ export async function getOperationalGrid(
 
   );
 
+}
+
+export async function getNoLinkageVehicles() {
+  return apiClient.get("/vehicles/no-linkage");
 }

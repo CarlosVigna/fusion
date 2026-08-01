@@ -1,6 +1,7 @@
 package com.fusion.fusion.vehicle;
 
 import com.fusion.fusion.vehicle.grid.GridVehicleResponse;
+import com.fusion.fusion.vehicle.grid.NoLinkageVehicleResponse;
 import com.fusion.fusion.vehicle.grid.VehicleGridService;
 import com.fusion.fusion.vehicle.multiportal.operational.OperationalUpdateRequest;
 import com.fusion.fusion.vehicle.multiportal.operational.OperationalUpdateResponse;
@@ -79,10 +80,18 @@ public class VehicleController {
 
     @GetMapping("/grid")
     public List<GridVehicleResponse> grid(
-            @RequestParam(defaultValue = "false") boolean includeKako
+            @RequestParam(defaultValue = "false") boolean includeKako,
+            @RequestParam(defaultValue = "false") boolean includeTest
     ) {
 
-        return gridService.getGrid(includeKako);
+        return gridService.getGrid(includeKako, includeTest);
+
+    }
+
+    @GetMapping("/no-linkage")
+    public List<NoLinkageVehicleResponse> noLinkage() {
+
+        return gridService.getNoLinkageVehicles();
 
     }
 

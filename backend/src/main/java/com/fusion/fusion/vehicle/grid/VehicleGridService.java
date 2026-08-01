@@ -37,7 +37,7 @@ public class VehicleGridService {
 
     private final PolicyRepository policyRepository;
 
-    public List<GridVehicleResponse> getGrid(boolean includeKako) {
+    public List<GridVehicleResponse> getGrid(boolean includeKako, boolean includeTest) {
 
         // Pre-carrega tudo de uma vez em vez de 2 queries por veículo
         // (era o N+1 que fazia /vehicles/grid demorar ~20s para 245+
@@ -91,6 +91,9 @@ public class VehicleGridService {
                                 && (includeKako
                                         || vehicle.getVehicleGroup()
                                         != VehicleGroup.KAKO)
+                                && (includeTest
+                                        || vehicle.getVehicleGroup()
+                                        != VehicleGroup.TEST)
                 )
                 .toList();
 
@@ -107,6 +110,27 @@ public class VehicleGridService {
                         latestObservationByVehicleId.get(vehicle.getId()),
                         activePolicyByPlate.get(vehicle.getPlate().toUpperCase())
                 ))
+                .toList();
+
+    }
+
+    public List<NoLinkageVehicleResponse> getNoLinkageVehicles() {
+
+        java.util.Set<UUID> linkedVehicleIds = new java.util.HashSet<>();
+
+        for (DeviceLinkage linkage : linkageRepository.findAllActiveWithVehicleAndDevice()) {
+            if (linkage.getVehicle() != null) {
+                linkedVehicleIds.add(linkage.getVehicle().getId());
+            }
+        }
+
+        return vehicleRepository.findAll().stream()
+                .filter(v -> v.getDeletedAt() == null
+                        && v.getVehicleGroup() != VehicleGroup.TEST
+                        && v.getVehicleGroup() != VehicleGroup.KAKO
+                        && !linkedVehicleIds.contains(v.getId()))
+                .map(v -> new NoLinkageVehicleResponse(v.getPlate(), v.getInsuredName(), v.getVehicleGroup()))
+                .sorted(java.util.Comparator.comparing(NoLinkageVehicleResponse::plate))
                 .toList();
 
     }

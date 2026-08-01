@@ -111,6 +111,40 @@ public class SetupController {
             "DKU9B11", "QCV2E16", "SWI4I26"
     );
 
+    private static final List<String> TEST_VEHICLE_PLATES_FIX = List.of(
+            "ABC0707", "FRANCKCAMPINAS0101", "ITU0202", "LINKS-BAU", "LINKS-CARU",
+            "LINKS-FEIRA", "LINKS-INDAIA", "LINKS-ITA", "LINKS-ITUM", "LINKS-JOIN",
+            "LINKS-LON", "LINKS-MARIL", "LINKS-MARIN", "NATAL0101", "TESTEBLU",
+            "COMBURIU9999", "CURITIBA1515", "LINKS-FORTA", "LINKS-JP0101",
+            "LINKS-PIRA", "MARCELO0101", "PELOTAS1030", "RIOPRETO0101", "PAROBE0101"
+    );
+
+    private static final List<String> SETUP_PLATES_TO_DELETE = List.of(
+            "000555", "ADMILBRASILIA0101", "USE"
+    );
+
+    @PostMapping("/fix-vehicle-groups")
+    public Map<String, Object> fixVehicleGroups() {
+
+        int testUpdated = jdbcTemplate.update(
+                "UPDATE vehicles SET deleted_at = NULL, active = true, vehicle_group = 'TEST' WHERE plate IN (:plates)",
+                new MapSqlParameterSource("plates", TEST_VEHICLE_PLATES_FIX)
+        );
+
+        int setupDeleted = jdbcTemplate.update(
+                "UPDATE vehicles SET deleted_at = NOW(), active = false WHERE plate IN (:plates)",
+                new MapSqlParameterSource("plates", SETUP_PLATES_TO_DELETE)
+        );
+
+        return Map.of(
+                "testVehiclesUpdated", testUpdated,
+                "setupVehiclesDeleted", setupDeleted,
+                "testPlates", TEST_VEHICLE_PLATES_FIX,
+                "deletedPlates", SETUP_PLATES_TO_DELETE
+        );
+
+    }
+
     @PostMapping("/reactivate-vehicles")
     public Map<String, Object> reactivateVehicles() {
         String sql = """

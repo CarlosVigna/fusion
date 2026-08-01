@@ -28,19 +28,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MultiportalSheetService {
 
-    // Padrões de placa brasileira válida (Mercosul e padrão antigo).
-    // Veículos soft-deletados que nunca comunicaram OU têm placa inválida
-    // são classificados como de teste (placas como "LINKS-BAU", "ABC0707").
-    // Veículos reais acidentalmente soft-deletados têm placa válida + já comunicaram.
-    private static final Pattern PLATE_PATTERN =
-            Pattern.compile("^([A-Z]{3}[0-9]{4}|[A-Z]{3}[0-9][A-Z][0-9]{2})$");
 
     private final VehicleRepository vehicleRepository;
     private final DeviceLinkageRepository deviceLinkageRepository;
@@ -96,20 +89,13 @@ public class MultiportalSheetService {
                 .filter(vehicle -> vehicle.getVehicleGroup() == VehicleGroup.KAKO)
                 .toList();
 
-        log.info("[MULTIPORTAL-SHEET] Total veículos: {} | Pattern: {}", allVehicles.size(), PLATE_PATTERN.pattern());
-        allVehicles.forEach(v -> {
-            boolean matches = v.getPlate() != null && PLATE_PATTERN.matcher(v.getPlate()).matches();
-            if (!matches) {
-                log.info("[MULTIPORTAL-SHEET] Teste detectado: {} (deletedAt={})", v.getPlate(), v.getDeletedAt());
-            }
-        });
+        log.info("[MULTIPORTAL-SHEET] Total veículos: {}", allVehicles.size());
 
         List<Vehicle> testVehicles = allVehicles.stream()
-                .filter(v -> v.getPlate() != null
-                        && !PLATE_PATTERN.matcher(v.getPlate()).matches())
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.TEST)
                 .sorted(Comparator.comparing(Vehicle::getPlate))
                 .toList();
-        log.info("[MULTIPORTAL-SHEET] Testes (placa inválida): {} | placas: {}",
+        log.info("[MULTIPORTAL-SHEET] Testes (group=TEST): {} | placas: {}",
                 testVehicles.size(),
                 testVehicles.stream().map(Vehicle::getPlate).toList());
 

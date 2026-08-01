@@ -5,11 +5,15 @@ import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
   Car,
+  ChevronDown,
+  ChevronRight,
   Columns3,
+  FlaskConical,
   RefreshCw,
   Settings,
 } from "lucide-react";
@@ -19,6 +23,8 @@ import { useGridStore } from "../store/gridStore";
 import { realtimeService } from "../services/realtime/realtimeService";
 
 import { triggerImport } from "../services/importStatusService";
+
+import { getNoLinkageVehicles } from "../services/gridService";
 
 import {
   getPreference,
@@ -358,6 +364,17 @@ export default function Grid() {
     useState(false);
 
   const showKakoRef = useRef(false);
+
+  const [showTest, setShowTest] =
+    useState(false);
+
+  const showTestRef = useRef(false);
+
+  const [noLinkageVehicles, setNoLinkageVehicles] =
+    useState([]);
+
+  const [verificationOpen, setVerificationOpen] =
+    useState(false);
 
   const [sortConfig, setSortConfig] =
     useState({ key: null, direction: null });
@@ -763,11 +780,65 @@ export default function Grid() {
 
     showKakoRef.current = next;
 
-    await loadGrid({ includeKako: next });
+    await loadGrid({ includeKako: next, includeTest: showTestRef.current });
 
     savePreference("show_kako", String(next)).catch(console.error);
 
   }
+
+  useEffect(() => {
+
+    async function loadTestPreference() {
+
+      try {
+
+        const val = await getPreference("show_test");
+
+        const testOn = val === "true" || val === true;
+
+        if (testOn) {
+
+          setShowTest(true);
+
+          showTestRef.current = true;
+
+          loadGrid({ includeKako: showKakoRef.current, includeTest: true });
+
+        }
+
+      } catch (error) {
+
+        console.error(error);
+
+      }
+
+    }
+
+    loadTestPreference();
+
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleTestToggle() {
+
+    const next = !showTest;
+
+    setShowTest(next);
+
+    showTestRef.current = next;
+
+    await loadGrid({ includeKako: showKakoRef.current, includeTest: next });
+
+    savePreference("show_test", String(next)).catch(console.error);
+
+  }
+
+  useEffect(() => {
+
+    getNoLinkageVehicles()
+      .then(setNoLinkageVehicles)
+      .catch(console.error);
+
+  }, []);
 
   useEffect(() => {
 
@@ -783,7 +854,7 @@ export default function Grid() {
 
       if (event?.type === "GRID_UPDATED") {
 
-        loadGrid({ includeKako: showKakoRef.current });
+        loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current });
 
       }
 
@@ -1214,6 +1285,23 @@ export default function Grid() {
           </button>
 
           <button
+            onClick={handleTestToggle}
+            title={showTest ? "Ocultar veículos de teste" : "Mostrar veículos de teste"}
+            className={`
+              flex items-center gap-2
+              rounded-2xl border px-5 py-3
+              text-sm font-semibold transition
+              ${showTest
+                ? "border-violet-500/50 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
+                : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
+              }
+            `}
+          >
+            <FlaskConical size={16} />
+            Testes
+          </button>
+
+          <button
             onClick={handleRefreshFromEtl}
             disabled={refreshing}
             className="
@@ -1422,6 +1510,70 @@ export default function Grid() {
         </div>
 
       </div>
+
+      {noLinkageVehicles.length > 0 && (
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
+
+          <button
+            onClick={() => setVerificationOpen((o) => !o)}
+            className="
+              flex w-full items-center justify-between
+              px-4 py-3 text-sm font-semibold
+              text-amber-400 hover:bg-zinc-800 transition
+            "
+          >
+            <span className="flex items-center gap-2">
+              <AlertTriangle size={15} />
+              Verificação — {noLinkageVehicles.length} veículo{noLinkageVehicles.length !== 1 ? "s" : ""} sem rastreador ativo
+            </span>
+            {verificationOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+
+          {verificationOpen && (
+
+            <div className="border-t border-zinc-800">
+
+              <table className="min-w-full text-sm">
+
+                <thead className="bg-zinc-950 text-xs text-zinc-400">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Placa</th>
+                    <th className="px-4 py-3 text-left">Segurado</th>
+                    <th className="px-4 py-3 text-left">Situação</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {noLinkageVehicles.map((v) => (
+                    <tr key={v.plate} className="border-t border-zinc-800 hover:bg-amber-500/5 transition">
+                      <td className="px-4 py-3 font-mono font-semibold">
+                        <a
+                          href={`/vehicles/${v.plate}`}
+                          className="hover:text-white transition"
+                        >
+                          {v.plate}
+                        </a>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-300">{v.insuredName || "--"}</td>
+                      <td className="px-4 py-3">
+                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-400">
+                          Sem rastreador ativo
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+
+              </table>
+
+            </div>
+
+          )}
+
+        </div>
+
+      )}
 
       {columnSettingsOpen && (
 
