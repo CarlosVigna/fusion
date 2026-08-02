@@ -83,7 +83,9 @@ public class SetupController {
         "FRANCKCAMPINAS0101", "ITU0202", "LINKS-BAU", "LINKS-CARU", "LINKS-FEIRA", "LINKS-INDAIA", "LINKS-ITA",
         "LINKS-ITUM", "LINKS-JOIN", "LINKS-LON", "LINKS-MARIL", "LINKS-MARIN", "NATAL0101", "TESTEBLU",
         "PGY3G49", "SPB8C78", "OGF5D31", "SJD9I96", "IWQ1461", "TCB1G90", "BDB7E94", "PRH3J98", "SHL9E21",
-        "RUO2I25", "SIR7H01", "JCD7I80", "PDU8J85", "RMV9H81"
+        "RUO2I25", "SIR7H01", "JCD7I80", "PDU8J85", "RMV9H81",
+        // adicionados na atualização de 2026-08-01
+        "BCP1F49", "IXC2671", "JDL3I32", "TIY7C80", "TRJ9I53"
     );
 
     private static final List<String> INVALID_PLATES = List.of(
@@ -496,6 +498,138 @@ public class SetupController {
             String cpfCnpj,
             VehicleGroup vehicleGroup
     ) {
+    }
+
+    private static final List<String> INSERT_TEST_PLATES = List.of(
+            "ABC0707", "FRANCKCAMPINAS0101", "ITU0202", "LINKS-BAU", "LINKS-CARU",
+            "LINKS-FEIRA", "LINKS-INDAIA", "LINKS-ITA", "LINKS-ITUM", "LINKS-JOIN",
+            "LINKS-LON", "LINKS-MARIL", "LINKS-MARIN", "NATAL0101", "TESTEBLU"
+    );
+
+    @PostMapping("/insert-test-vehicles")
+    public Map<String, Object> insertTestVehicles() {
+
+        Set<String> existing = new java.util.HashSet<>(
+                jdbcTemplate.queryForList(
+                        "SELECT plate FROM vehicles WHERE plate IN (:plates)",
+                        new MapSqlParameterSource("plates", INSERT_TEST_PLATES),
+                        String.class
+                )
+        );
+
+        int inserted = 0;
+        int updated = 0;
+
+        for (String plate : INSERT_TEST_PLATES) {
+            if (!existing.contains(plate)) {
+                jdbcTemplate.update(
+                        "INSERT INTO vehicles (id, plate, vehicle_group, platform, active, has_ever_communicated, in_maintenance, created_at) " +
+                        "VALUES (gen_random_uuid(), :plate, 'TEST', 'MULTIPORTAL', true, false, false, NOW())",
+                        new MapSqlParameterSource("plate", plate)
+                );
+                inserted++;
+            } else {
+                int rows = jdbcTemplate.update(
+                        "UPDATE vehicles SET vehicle_group = 'TEST', active = true, deleted_at = NULL WHERE plate = :plate AND vehicle_group != 'TEST'",
+                        new MapSqlParameterSource("plate", plate)
+                );
+                if (rows > 0) updated++;
+            }
+        }
+
+        return Map.of(
+                "inserted", inserted,
+                "updated", updated,
+                "alreadyCorrect", INSERT_TEST_PLATES.size() - inserted - updated,
+                "plates", INSERT_TEST_PLATES
+        );
+
+    }
+
+    @GetMapping("/full-audit")
+    public Map<String, Object> fullAudit() {
+
+        List<Vehicle> allVehicles = vehicleRepository.findAll();
+
+        Set<UUID> linkedVehicleIds = new java.util.HashSet<>();
+        for (DeviceLinkage dl : deviceLinkageRepository.findAllActiveWithVehicleAndDevice()) {
+            if (dl.getVehicle() != null) linkedVehicleIds.add(dl.getVehicle().getId());
+        }
+
+        List<Vehicle> active = allVehicles.stream()
+                .filter(v -> v.getDeletedAt() == null)
+                .toList();
+
+        List<Vehicle> activeOp = active.stream()
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.OPERATIONAL)
+                .toList();
+        List<Vehicle> activeTest = active.stream()
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.TEST)
+                .toList();
+        List<Vehicle> activeKako = active.stream()
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.KAKO)
+                .toList();
+        List<Vehicle> softDeleted = allVehicles.stream()
+                .filter(v -> v.getDeletedAt() != null)
+                .toList();
+
+        Set<String> fusionActivePlates = active.stream()
+                .map(v -> v.getPlate().toUpperCase())
+                .collect(Collectors.toSet());
+
+        List<String> apenasNoMultiportal = MULTIPORTAL_PLATES.stream()
+                .filter(p -> !fusionActivePlates.contains(p.toUpperCase()))
+                .sorted()
+                .toList();
+
+        List<String> apenasNoFusion = active.stream()
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.OPERATIONAL
+                        && !MULTIPORTAL_PLATES.contains(v.getPlate().toUpperCase()))
+                .map(Vehicle::getPlate)
+                .sorted()
+                .toList();
+
+        List<String> semDispositivo = activeOp.stream()
+                .filter(v -> !linkedVehicleIds.contains(v.getId()))
+                .map(Vehicle::getPlate)
+                .sorted()
+                .toList();
+
+        List<String> semComunicacao = activeOp.stream()
+                .filter(v -> !Boolean.TRUE.equals(v.getHasEverCommunicated()))
+                .map(Vehicle::getPlate)
+                .sorted()
+                .toList();
+
+        List<String> verificacao = activeOp.stream()
+                .filter(v -> !linkedVehicleIds.contains(v.getId())
+                        || !Boolean.TRUE.equals(v.getHasEverCommunicated()))
+                .map(Vehicle::getPlate)
+                .sorted()
+                .toList();
+
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("totalMultiportal", MULTIPORTAL_PLATES.size());
+        summary.put("totalFusionAtivos", active.size());
+        summary.put("totalFusionOperacional", activeOp.size());
+        summary.put("totalFusionTestes", activeTest.size());
+        summary.put("totalFusionKako", activeKako.size());
+        summary.put("totalFusionVerificacao", verificacao.size());
+        summary.put("totalSoftDeletados", softDeleted.size());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("summary", summary);
+        result.put("emAmbos", MULTIPORTAL_PLATES.size() - apenasNoMultiportal.size());
+        result.put("apenasNoMultiportal", apenasNoMultiportal);
+        result.put("apenasNoFusion", apenasNoFusion);
+        result.put("testesNoFusion", activeTest.stream().map(Vehicle::getPlate).sorted().toList());
+        result.put("kakoNoFusion", activeKako.stream().map(Vehicle::getPlate).sorted().toList());
+        result.put("verificacao", verificacao);
+        result.put("semDispositivo", semDispositivo);
+        result.put("semComunicacao", semComunicacao);
+        result.put("softDeletados", softDeleted.stream().map(Vehicle::getPlate).sorted().toList());
+        return result;
+
     }
 
     @GetMapping("/compare-grid")
