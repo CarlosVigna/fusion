@@ -126,6 +126,15 @@ public class SetupController {
     @PostMapping("/fix-vehicle-groups")
     public Map<String, Object> fixVehicleGroups() {
 
+        // Expande o check constraint para aceitar TEST
+        jdbcTemplate.getJdbcTemplate().execute(
+                "ALTER TABLE vehicles DROP CONSTRAINT IF EXISTS vehicles_vehicle_group_check"
+        );
+        jdbcTemplate.getJdbcTemplate().execute(
+                "ALTER TABLE vehicles ADD CONSTRAINT vehicles_vehicle_group_check " +
+                "CHECK (vehicle_group IN ('OPERATIONAL','KAKO','TEST'))"
+        );
+
         int testUpdated = jdbcTemplate.update(
                 "UPDATE vehicles SET deleted_at = NULL, active = true, vehicle_group = 'TEST' WHERE plate IN (:plates)",
                 new MapSqlParameterSource("plates", TEST_VEHICLE_PLATES_FIX)
