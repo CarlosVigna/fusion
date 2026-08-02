@@ -80,21 +80,17 @@ public class VehicleGridService {
         // comunicou"), nao aqui — eles nao tem nada de "atraso" a mostrar.
         List<Vehicle> vehicles = vehicleRepository.findAll()
                 .stream()
-                .filter(vehicle ->
-                        vehicle.getDeletedAt() == null
-                                && Boolean.TRUE.equals(
-                                vehicle.getHasEverCommunicated()
-                        )
-                                && activeLinkageByVehicleId.containsKey(
-                                vehicle.getId()
-                        )
-                                && (includeKako
-                                        || vehicle.getVehicleGroup()
-                                        != VehicleGroup.KAKO)
-                                && (includeTest
-                                        || vehicle.getVehicleGroup()
-                                        != VehicleGroup.TEST)
-                )
+                .filter(vehicle -> {
+                        if (vehicle.getDeletedAt() != null) return false;
+                        boolean isTest = vehicle.getVehicleGroup() == VehicleGroup.TEST;
+                        boolean isKako = vehicle.getVehicleGroup() == VehicleGroup.KAKO;
+                        if (isTest && !includeTest) return false;
+                        if (isKako && !includeKako) return false;
+                        // Veículos de teste aparecem independentemente de linkage/comunicação
+                        if (isTest) return true;
+                        return Boolean.TRUE.equals(vehicle.getHasEverCommunicated())
+                                && activeLinkageByVehicleId.containsKey(vehicle.getId());
+                })
                 .toList();
 
         Map<UUID, VehicleObservation> latestObservationByVehicleId =
