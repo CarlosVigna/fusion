@@ -89,6 +89,7 @@ public class InstallationSyncService {
             int skipped = 0;
             int closed = 0;
             int reopened = 0;
+            boolean isFirstItem = true;
 
             // externalIds presentes no portal neste ciclo (todos AGUARDANDO_AGENDAMENTO)
             Set<String> externalIdsNoPortal = allItems.stream()
@@ -104,6 +105,13 @@ public class InstallationSyncService {
                     log.warn("[INSTALACOES] externalId nulo, ignorando item id={}", item.get("id"));
                     skipped++;
                     continue;
+                }
+
+                if (isFirstItem) {
+                    log.info("[INSTALACOES] Estrutura completa do campo veiculo: {}", item.get("veiculo"));
+                    log.info("[INSTALACOES] Estrutura completa do campo segurado: {}", item.get("segurado"));
+                    log.info("[INSTALACOES] Todas as chaves do item: {}", item.keySet());
+                    isFirstItem = false;
                 }
 
                 Optional<Installation> existingOpt = installationRepository.findByExternalId(externalId);
