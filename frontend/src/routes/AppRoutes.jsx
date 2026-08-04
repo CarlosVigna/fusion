@@ -27,6 +27,10 @@ import VehicleDetails from "../pages/VehicleDetails";
 
 import MicrosoftCallback from "../pages/MicrosoftCallback";
 import ShiftHandover from "../pages/ShiftHandover";
+import ServiceOrderDashboard from "../pages/ServiceOrderDashboard";
+import ServiceOrders from "../pages/ServiceOrders";
+import Technicians from "../pages/Technicians";
+import ServiceOrderClose from "../pages/ServiceOrderClose";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -143,6 +147,26 @@ export default function AppRoutes() {
                 <Route
                     path="shift-handover"
                     element={<ShiftHandover />}
+                />
+
+                <Route
+                    path="service-orders/dashboard"
+                    element={<ServiceOrderDashboard />}
+                />
+
+                <Route
+                    path="service-orders"
+                    element={<ServiceOrders />}
+                />
+
+                <Route
+                    path="technicians"
+                    element={<Technicians />}
+                />
+
+                <Route
+                    path="service-orders/closing"
+                    element={<ServiceOrderClose />}
                 />
             </Route>
 

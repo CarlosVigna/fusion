@@ -5,6 +5,7 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    ClipboardCheck,
     ClipboardList,
     FileSpreadsheet,
     FileText,
@@ -17,6 +18,7 @@ import {
     Send,
     Settings,
     Shield,
+    UserCog,
     Users,
     Wrench,
 } from "lucide-react";
@@ -79,6 +81,17 @@ const GROUPS = [
         ],
     },
     {
+        key: "serviceorders",
+        label: "Ordens de Serviço",
+        icon: ClipboardCheck,
+        items: [
+            { label: "Dashboard",      icon: ClipboardCheck, path: "/service-orders/dashboard" },
+            { label: "Ordens",         icon: ClipboardList,  path: "/service-orders" },
+            { label: "Técnicos",       icon: UserCog,        path: "/technicians" },
+            { label: "Fechamento",     icon: FileSpreadsheet, path: "/service-orders/closing" },
+        ],
+    },
+    {
         key: "admin",
         label: "Administração",
         icon: Settings,
@@ -101,7 +114,7 @@ function loadGroupState() {
         const saved = localStorage.getItem(GROUPS_STORAGE_KEY);
         if (saved) return JSON.parse(saved);
     } catch {}
-    return { monitoring: false, portal: false, sinistro: false, admin: true };
+    return { monitoring: false, portal: false, sinistro: false, serviceorders: false, admin: true };
 }
 
 // Auto-recolhe apenas no Grid (tabela densa); Home e demais ficam abertos.

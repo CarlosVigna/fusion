@@ -4,16 +4,21 @@ import { Pencil, Plus, UserX, X } from "lucide-react";
 import { createUser, deactivateUser, getUsers, updateUser } from "../services/userService";
 
 const ROLES = [
-  { value: "ADMIN",    label: "Administrador" },
-  { value: "OPERATOR", label: "Operador" },
+  { value: "ADMIN",      label: "Administrador" },
+  { value: "OPERATOR",   label: "Operador" },
+  { value: "FIELD",      label: "Campo" },
+  { value: "TECHNICIAN", label: "Técnico" },
 ];
 
 const EMPTY_FORM = { name: "", email: "", password: "", role: "OPERATOR" };
 
+const ROLE_LABELS = { ADMIN: "Administrador", OPERATOR: "Operador", FIELD: "Campo", TECHNICIAN: "Técnico" };
+
 function roleBadge(role) {
-  return role === "ADMIN"
-    ? "bg-blue-950/60 text-blue-300 border border-blue-800/50"
-    : "bg-zinc-800 text-zinc-300 border border-zinc-700";
+  if (role === "ADMIN")      return "bg-blue-950/60 text-blue-300 border border-blue-800/50";
+  if (role === "FIELD")      return "bg-emerald-950/60 text-emerald-300 border border-emerald-800/50";
+  if (role === "TECHNICIAN") return "bg-yellow-950/60 text-yellow-300 border border-yellow-800/50";
+  return "bg-zinc-800 text-zinc-300 border border-zinc-700";
 }
 
 function Modal({ user, onClose, onSaved }) {
@@ -229,7 +234,7 @@ export default function Users() {
                 <td className="px-5 py-3 text-zinc-400">{u.email}</td>
                 <td className="px-5 py-3">
                   <span className={`inline-block rounded-lg px-2.5 py-0.5 text-xs font-semibold ${roleBadge(u.role)}`}>
-                    {u.role === "ADMIN" ? "Administrador" : "Operador"}
+                    {ROLE_LABELS[u.role] ?? u.role}
                   </span>
                 </td>
                 <td className="px-5 py-3">

@@ -91,6 +91,14 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
+                                "/service-orders/**"
+                        ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
+
+                        .requestMatchers(
+                                "/technicians/**"
+                        ).hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(
                                 HttpMethod.GET,
                                 "/vehicles",
                                 "/vehicles/grid",

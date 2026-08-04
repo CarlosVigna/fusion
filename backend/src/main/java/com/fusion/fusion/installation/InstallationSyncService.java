@@ -4,6 +4,7 @@ import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.importation.ImportType;
+import com.fusion.fusion.serviceorder.ServiceOrderService;
 import com.fusion.fusion.whatsapp.WhatsAppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ public class InstallationSyncService {
     private final EtlStatusService etlStatusService;
     private final WhatsAppService whatsAppService;
     private final RestTemplate restTemplate;
+    private final ServiceOrderService serviceOrderService;
 
     @Value("${portal.parceiro.url:https://onmeseguros.com.br}")
     private String portalUrl;
@@ -150,6 +152,16 @@ public class InstallationSyncService {
 
                 installationRepository.save(installation);
                 inserted++;
+
+                serviceOrderService.createFromInstallation(
+                        installation.getExternalId(),
+                        installation.getPlate(),
+                        installation.getCustomerName(),
+                        installation.getPhone(),
+                        installation.getCity(),
+                        installation.getAddress(),
+                        installation.getPortalCreatedAt()
+                );
 
                 whatsAppService.sendInstallationAlert(installation);
 
