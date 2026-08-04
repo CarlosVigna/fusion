@@ -641,13 +641,20 @@ public class SetupController {
     @PostMapping("/migrate-installations")
     public Map<String, Object> migrateInstallations() {
 
-        List<Installation> pending = installationRepository.findByStatusOrderByCreatedAtDesc(InstallationStatus.PENDING);
+        List<Installation> all = installationRepository.findAllByOrderByCreatedAtDesc();
 
         int created = 0;
         int skipped = 0;
+        int noExternalId = 0;
 
-        for (Installation inst : pending) {
-            if (inst.getExternalId() == null) { skipped++; continue; }
+        Map<String, Long> byStatus = new LinkedHashMap<>();
+        for (Installation inst : all) {
+            String s = inst.getStatus() != null ? inst.getStatus().name() : "NULL";
+            byStatus.merge(s, 1L, Long::sum);
+        }
+
+        for (Installation inst : all) {
+            if (inst.getExternalId() == null) { noExternalId++; continue; }
             var result = serviceOrderService.createFromInstallation(
                     inst.getExternalId(),
                     inst.getPlate(),
@@ -661,9 +668,11 @@ public class SetupController {
         }
 
         return Map.of(
-                "pendingInstallations", pending.size(),
+                "totalInstallations", all.size(),
+                "byStatus", byStatus,
                 "ordersCreated", created,
-                "alreadyExisted", skipped
+                "alreadyExisted", skipped,
+                "noExternalId", noExternalId
         );
 
     }
