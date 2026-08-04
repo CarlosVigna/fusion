@@ -65,7 +65,11 @@ public class SecurityConfig {
                                 "/setup/compare-grid",
                                 "/setup/fix-vehicle-groups",
                                 "/setup/insert-test-vehicles",
-                                "/setup/full-audit",
+                                "/setup/full-audit"
+                        ).permitAll()
+
+                        // endpoint de migração de instalações para OS
+                        .requestMatchers(
                                 "/setup/migrate-installations"
                         ).permitAll()
 
