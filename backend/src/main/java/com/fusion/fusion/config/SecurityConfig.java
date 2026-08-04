@@ -73,7 +73,8 @@ public class SecurityConfig {
                                 "/setup/migrate-installations",
                                 "/setup/check-installations",
                                 "/setup/fix-plate-nullable",
-                                "/setup/cleanup-service-orders"
+                                "/setup/cleanup-service-orders",
+                                "/setup/test-nominatim"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao

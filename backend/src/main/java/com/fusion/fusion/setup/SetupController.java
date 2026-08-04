@@ -638,6 +638,21 @@ public class SetupController {
 
     }
 
+    @GetMapping("/test-nominatim")
+    public org.springframework.http.ResponseEntity<?> testNominatim() {
+        try {
+            org.springframework.web.client.RestTemplate rt = new org.springframework.web.client.RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("User-Agent", "FusionApp/1.0 contact@fusion.com");
+            org.springframework.http.HttpEntity<?> entity = new org.springframework.http.HttpEntity<>(headers);
+            String url = "https://nominatim.openstreetmap.org/search?q=S%C3%A3o+Paulo%2C+SP%2C+Brasil&format=json&limit=1&countrycodes=br";
+            org.springframework.http.ResponseEntity<String> response = rt.exchange(url, HttpMethod.GET, entity, String.class);
+            return org.springframework.http.ResponseEntity.ok(Map.of("status", response.getStatusCode().toString(), "body", response.getBody()));
+        } catch (Exception e) {
+            return org.springframework.http.ResponseEntity.ok(Map.of("error", e.getMessage()));
+        }
+    }
+
     @PostMapping("/cleanup-service-orders")
     public Map<String, Object> cleanupServiceOrders() {
         int deleted = jdbcTemplate.getJdbcTemplate().update(
