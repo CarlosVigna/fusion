@@ -13,6 +13,7 @@ public record ServiceOrderRequest(
         String address,
         String neighborhood,
         String state,
+        String zipCode,
         String customerName,
         String customerPhone,
         String observations

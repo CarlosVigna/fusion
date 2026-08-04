@@ -24,6 +24,7 @@ public record ServiceOrderResponse(
         String address,
         String neighborhood,
         String state,
+        String zipCode,
         String customerName,
         String customerPhone,
         Double distanceKm,

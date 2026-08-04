@@ -162,6 +162,7 @@ public class InstallationSyncService {
                         installation.getAddress(),
                         installation.getNeighborhood(),
                         installation.getState(),
+                        installation.getZipCode(),
                         installation.getPortalCreatedAt()
                 );
 
@@ -203,6 +204,7 @@ public class InstallationSyncService {
                         inst.getAddress(),
                         inst.getNeighborhood(),
                         inst.getState(),
+                        inst.getZipCode(),
                         inst.getPortalCreatedAt()
                 );
                 if (os != null) {

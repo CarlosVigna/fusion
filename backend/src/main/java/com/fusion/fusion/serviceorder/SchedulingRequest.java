@@ -10,5 +10,6 @@ public record SchedulingRequest(
         LocalDate scheduledDate,
         String scheduledTime,
         BigDecimal serviceValue,
+        BigDecimal displacementValue,
         String observations
 ) {}

@@ -24,6 +24,10 @@ export async function confirmCompletion(id) {
   return apiClient.put(`/service-orders/${id}/confirm-completion`, {});
 }
 
+export async function deleteServiceOrder(id) {
+  return apiClient.delete(`/service-orders/${id}`);
+}
+
 export async function getServiceOrderDashboard() {
   return apiClient.get("/service-orders/dashboard");
 }

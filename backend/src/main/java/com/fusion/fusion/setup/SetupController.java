@@ -696,6 +696,7 @@ public class SetupController {
                     inst.getAddress(),
                     inst.getNeighborhood(),
                     inst.getState(),
+                    inst.getZipCode(),
                     inst.getPortalCreatedAt()
             );
             if (result != null) created++; else skipped++;

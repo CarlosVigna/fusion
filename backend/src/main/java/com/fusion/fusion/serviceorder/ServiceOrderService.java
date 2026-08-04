@@ -44,6 +44,7 @@ public class ServiceOrderService {
                 .address(request.address())
                 .neighborhood(request.neighborhood())
                 .state(request.state())
+                .zipCode(request.zipCode())
                 .customerName(request.customerName())
                 .customerPhone(request.customerPhone())
                 .observations(request.observations())
@@ -63,7 +64,7 @@ public class ServiceOrderService {
     public ServiceOrderResponse createFromInstallation(
             String externalInstallationId, String plate, String customerName,
             String customerPhone, String city, String address,
-            String neighborhood, String state, LocalDateTime requestedAt) {
+            String neighborhood, String state, String zipCode, LocalDateTime requestedAt) {
 
         if (repository.existsByExternalInstallationId(externalInstallationId)) return null;
 
@@ -78,6 +79,7 @@ public class ServiceOrderService {
                 .address(address)
                 .neighborhood(neighborhood)
                 .state(state)
+                .zipCode(zipCode)
                 .customerName(customerName)
                 .customerPhone(customerPhone)
                 .createdBy("PORTAL")
@@ -99,6 +101,7 @@ public class ServiceOrderService {
         so.setAddress(request.address());
         so.setNeighborhood(request.neighborhood());
         so.setState(request.state());
+        so.setZipCode(request.zipCode());
         so.setCustomerName(request.customerName());
         so.setCustomerPhone(request.customerPhone());
         if (request.requestedBy() != null) so.setRequestedBy(request.requestedBy());
@@ -141,6 +144,10 @@ public class ServiceOrderService {
         if (request.scheduledTime() != null) so.setScheduledTime(request.scheduledTime());
         if (request.serviceValue() != null) {
             so.setServiceValue(request.serviceValue());
+            recalcTotal(so);
+        }
+        if (request.displacementValue() != null) {
+            so.setDisplacementValue(request.displacementValue());
             recalcTotal(so);
         }
         if (request.observations() != null) so.setObservations(request.observations());
@@ -211,6 +218,12 @@ public class ServiceOrderService {
     }
 
     @Transactional
+    public void delete(UUID id) {
+        if (!repository.existsById(id)) throw new ResourceNotFoundException("OS não encontrada: " + id);
+        repository.deleteById(id);
+    }
+
+    @Transactional
     public void markCompletionAlertSent(UUID id) {
         find(id).setCompletionAlertSent(true);
         repository.findById(id).ifPresent(so -> {
@@ -248,6 +261,7 @@ public class ServiceOrderService {
                 so.getAddress(),
                 so.getNeighborhood(),
                 so.getState(),
+                so.getZipCode(),
                 so.getCustomerName(),
                 so.getCustomerPhone(),
                 so.getDistanceKm(),
