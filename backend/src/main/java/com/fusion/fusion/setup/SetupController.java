@@ -638,6 +638,14 @@ public class SetupController {
 
     }
 
+    @PostMapping("/fix-plate-nullable")
+    public Map<String, Object> fixPlateNullable() {
+        jdbcTemplate.getJdbcTemplate().execute(
+                "ALTER TABLE service_orders ALTER COLUMN plate DROP NOT NULL"
+        );
+        return Map.of("status", "ok", "message", "Constraint NOT NULL removida da coluna plate em service_orders");
+    }
+
     @GetMapping("/check-installations")
     public Map<String, Object> checkInstallations() {
 

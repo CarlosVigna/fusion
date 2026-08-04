@@ -37,6 +37,9 @@ public class OrsService {
                     + "&text=" + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
                     + "&boundary.country=BR&size=1";
 
+            log.info("[ORS] Geocodificando endereço: {}", query);
+            log.info("[ORS] URL usada: {}", url.replaceAll("api_key=[^&]+", "api_key=***"));
+
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/json");
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
@@ -45,7 +48,12 @@ public class OrsService {
             JsonNode features = root.path("features");
             if (features.isArray() && features.size() > 0) {
                 JsonNode coords = features.get(0).path("geometry").path("coordinates");
-                return new double[]{coords.get(1).asDouble(), coords.get(0).asDouble()}; // [lat, lon]
+                double lat = coords.get(1).asDouble();
+                double lon = coords.get(0).asDouble();
+                log.info("[ORS] Resultado geocoding: lat={}, lon={}", lat, lon);
+                return new double[]{lat, lon};
+            } else {
+                log.warn("[ORS] Geocoding sem resultado para: {}", query);
             }
         } catch (HttpClientErrorException e) {
             log.debug("[ORS] geocode HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), address);

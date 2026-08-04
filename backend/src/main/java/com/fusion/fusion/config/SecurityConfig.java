@@ -71,7 +71,8 @@ public class SecurityConfig {
                         // endpoints temporários de diagnóstico/migração
                         .requestMatchers(
                                 "/setup/migrate-installations",
-                                "/setup/check-installations"
+                                "/setup/check-installations",
+                                "/setup/fix-plate-nullable"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao
