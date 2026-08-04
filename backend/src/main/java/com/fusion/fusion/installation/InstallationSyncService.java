@@ -44,7 +44,8 @@ public class InstallationSyncService {
 
     private volatile InstallationSyncResult lastResult;
 
-    @Scheduled(cron = "0 */15 * * * *")
+    // @Scheduled desativado — controle de novas instalações agora é via Ordens de Serviço
+    // @Scheduled(cron = "0 */15 * * * *")
     public void scheduledSync() {
 
         try {
@@ -163,7 +164,6 @@ public class InstallationSyncService {
                         installation.getPortalCreatedAt()
                 );
 
-                whatsAppService.sendInstallationAlert(installation);
 
             }
 

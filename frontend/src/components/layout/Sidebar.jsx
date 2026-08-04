@@ -8,7 +8,6 @@ import {
     ClipboardCheck,
     ClipboardList,
     FileSpreadsheet,
-    FileText,
     LayoutGrid,
     Mail,
     MonitorCheck,
@@ -68,8 +67,6 @@ const GROUPS = [
                     { key: "policiesExpiring", color: "bg-yellow-500 text-black" },
                 ],
             },
-            { label: "Instalações",                icon: ClipboardList, path: "/installations", badgeKey: "installations" },
-            { label: "Relatórios de Instalações",  icon: FileText,      path: "/installations/reports" },
         ],
     },
     {

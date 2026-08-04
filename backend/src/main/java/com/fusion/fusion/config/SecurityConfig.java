@@ -65,7 +65,8 @@ public class SecurityConfig {
                                 "/setup/compare-grid",
                                 "/setup/fix-vehicle-groups",
                                 "/setup/insert-test-vehicles",
-                                "/setup/full-audit"
+                                "/setup/full-audit",
+                                "/setup/migrate-installations"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao

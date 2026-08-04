@@ -1,5 +1,8 @@
 package com.fusion.fusion.setup;
 
+import com.fusion.fusion.installation.Installation;
+import com.fusion.fusion.installation.InstallationRepository;
+import com.fusion.fusion.installation.InstallationStatus;
 import com.fusion.fusion.letter.LetterRecord;
 import com.fusion.fusion.letter.LetterRecordRepository;
 import com.fusion.fusion.letter.LetterStatus;
@@ -8,6 +11,7 @@ import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.policy.Policy;
+import com.fusion.fusion.serviceorder.ServiceOrderService;
 import com.fusion.fusion.policy.PolicyRepository;
 import com.fusion.fusion.policy.PolicyResponse;
 import com.fusion.fusion.policy.PolicyStatus;
@@ -52,6 +56,8 @@ public class SetupController {
     private final LetterRecordRepository letterRecordRepository;
     private final PolicyRepository policyRepository;
     private final SignalControlService signalControlService;
+    private final InstallationRepository installationRepository;
+    private final ServiceOrderService serviceOrderService;
 
     private static final Set<String> MULTIPORTAL_PLATES = Set.of(
         "FXZ9249", "QXX8I71", "FWQ9D54", "QWY7149", "QYJ4B61", "RXZ5F74", "SIE4D31", "TAP2C19", "PDH5I98", "TQU9E05",
@@ -629,6 +635,36 @@ public class SetupController {
         result.put("semComunicacao", semComunicacao);
         result.put("softDeletados", softDeleted.stream().map(Vehicle::getPlate).sorted().toList());
         return result;
+
+    }
+
+    @PostMapping("/migrate-installations")
+    public Map<String, Object> migrateInstallations() {
+
+        List<Installation> pending = installationRepository.findByStatusOrderByCreatedAtDesc(InstallationStatus.PENDING);
+
+        int created = 0;
+        int skipped = 0;
+
+        for (Installation inst : pending) {
+            if (inst.getExternalId() == null) { skipped++; continue; }
+            var result = serviceOrderService.createFromInstallation(
+                    inst.getExternalId(),
+                    inst.getPlate(),
+                    inst.getCustomerName(),
+                    inst.getPhone(),
+                    inst.getCity(),
+                    inst.getAddress(),
+                    inst.getPortalCreatedAt()
+            );
+            if (result != null) created++; else skipped++;
+        }
+
+        return Map.of(
+                "pendingInstallations", pending.size(),
+                "ordersCreated", created,
+                "alreadyExisted", skipped
+        );
 
     }
 
