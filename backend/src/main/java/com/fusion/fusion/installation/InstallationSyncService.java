@@ -188,6 +188,27 @@ public class InstallationSyncService {
 
             log.info("[INSTALACOES] Fechadas neste ciclo: {}", closed);
 
+            // Backfill: PENDING sem OS vinculada → criar agora
+            int backfilled = 0;
+            for (Installation inst : pendingNoBank) {
+                if (inst.getExternalId() == null) continue;
+                var os = serviceOrderService.createFromInstallation(
+                        inst.getExternalId(),
+                        inst.getPlate(),
+                        inst.getCustomerName(),
+                        inst.getPhone(),
+                        inst.getCity(),
+                        inst.getAddress(),
+                        inst.getPortalCreatedAt()
+                );
+                if (os != null) {
+                    backfilled++;
+                    log.info("[INSTALACOES] Backfill OS criada para instalação PENDING externalId={} plate={}",
+                            inst.getExternalId(), inst.getPlate());
+                }
+            }
+            if (backfilled > 0) log.info("[INSTALACOES] Backfill: {} OS criadas para instalações PENDING sem OS", backfilled);
+
             long durationMs = System.currentTimeMillis() - startMs;
             LocalDateTime nextRun = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(15);
 
