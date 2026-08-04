@@ -69,6 +69,16 @@ public class TechnicianService {
                 .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + id));
     }
 
+    @Transactional
+    public void geocodeIfMissing(Technician t) {
+        if (t.getLatitude() != null) return;
+        geocode(t);
+        if (t.getLatitude() != null) {
+            repository.save(t);
+            log.info("[TECNICO] Coordenadas salvas para {} (lat={}, lon={})", t.getName(), t.getLatitude(), t.getLongitude());
+        }
+    }
+
     private void geocode(Technician t) {
         if (t.getAddress() == null || t.getCity() == null) return;
         double[] coords = orsService.geocode(t.getAddress(), t.getCity(), t.getState());
