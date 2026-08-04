@@ -122,15 +122,25 @@ public class ServiceOrderService {
             so.setTechnician(tech);
 
             if (techChanged && tech.getLatitude() != null && so.getAddress() != null && so.getCity() != null) {
-                double[] clientCoords = orsService.geocode(so.getAddress(), so.getCity(), "");
+                log.info("[OS] Calculando deslocamento para OS={}, tecnico={}, endereco='{}, {}'",
+                        id, request.technicianId(), so.getAddress(), so.getCity());
+                double[] clientCoords = orsService.geocode(so.getAddress(), so.getCity(), so.getState() != null ? so.getState() : "");
                 if (clientCoords != null) {
                     Double km = orsService.calculateRoundTripKm(tech.getLatitude(), tech.getLongitude(), clientCoords[0], clientCoords[1]);
                     if (km != null) {
                         so.setDistanceKm(km);
                         so.setDisplacementValue(orsService.calculateDisplacement(km));
                         recalcTotal(so);
+                        log.info("[OS] Deslocamento calculado: {}km, R${}", km, so.getDisplacementValue());
+                    } else {
+                        log.warn("[OS] ORS retornou null para rota OS={}", id);
                     }
+                } else {
+                    log.warn("[OS] Geocoding sem resultado para OS={} endereco='{}'", id, so.getAddress());
                 }
+            } else {
+                log.info("[OS] Deslocamento nao calculado: techChanged={}, techLat={}, address={}, city={}",
+                        techChanged, tech.getLatitude(), so.getAddress(), so.getCity());
             }
         }
 

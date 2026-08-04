@@ -166,7 +166,9 @@ export default function ServiceOrders() {
   const visible = applyFilter(orders);
 
   // --- open modals ---
-  function openCreate() { setModal({ type: "create", form: { ...EMPTY_ORDER } }); }
+  function openCreate() {
+    setModal({ type: "create", form: { ...EMPTY_ORDER, requestedBy: user?.name || "" } });
+  }
 
   function openEdit(o) {
     setModal({
@@ -441,7 +443,7 @@ export default function ServiceOrders() {
               <button onClick={() => setModal(null)}><X size={20} className="text-zinc-400" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {[["requestedBy","Solicitante",1],["plate","Placa",1],["chassis","Chassi",1],["equipment","Equipamento",1]].map(([key,label,span]) => (
+              {[["plate","Placa",1],["chassis","Chassi",1],["equipment","Equipamento",1]].map(([key,label,span]) => (
                 <Field key={key} label={label} span={span}>
                   <input value={modal.form[key] ?? ""} onChange={e => setForm(f => ({...f,[key]:e.target.value}))} className={INPUT} />
                 </Field>
