@@ -24,19 +24,17 @@ const FIN_COLOR = {
   APROVADO:  "bg-green-500/10 text-green-400",
   REPROVADO: "bg-red-500/10 text-red-400",
 };
-
 const SERVICE_TYPES = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 const SCHEDULING_STATUSES = ["ABERTO", "AGENDADO", "CONCLUIDO"];
 
 const EMPTY_ORDER = {
   requestedBy: "", plate: "", chassis: "", equipment: "LUMINI",
-  serviceType: "INSTALACAO", city: "", address: "", customerName: "",
-  customerPhone: "", observations: "",
+  serviceType: "INSTALACAO", zipCode: "", address: "", neighborhood: "",
+  city: "", state: "", customerName: "", customerPhone: "", observations: "",
 };
 
 function fmt(v) {
-  if (v == null) return "—";
-  return `R$ ${Number(v).toFixed(2)}`;
+  return v != null ? `R$ ${Number(v).toFixed(2)}` : null;
 }
 
 function Badge({ label, colorClass }) {
@@ -46,28 +44,43 @@ function Badge({ label, colorClass }) {
 function SlaChip({ days, isLate }) {
   return (
     <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isLate ? "bg-red-500/10 text-red-400" : "bg-zinc-800 text-zinc-400"}`}>
-      {days}d {isLate ? "⚠" : ""}
+      {days}d{isLate ? " ⚠" : ""}
     </span>
   );
 }
 
-function Section({ title, children }) {
+function InfoRow({ label, value }) {
+  if (!value && value !== 0) return null;
   return (
-    <div>
-      <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">{title}</p>
-      <div className="grid grid-cols-2 gap-x-8 gap-y-1 sm:grid-cols-4">{children}</div>
+    <div className="min-w-0">
+      <span className="text-zinc-600 text-[11px]">{label} </span>
+      <span className="text-zinc-300 text-[11px] font-medium">{value}</span>
     </div>
   );
 }
 
-function Field({ label, value, wide }) {
-  if (!value && value !== 0) return null;
+function Section({ title, cols = 4, children }) {
+  const rows = Array.isArray(children) ? children.filter(Boolean) : children ? [children] : [];
+  if (rows.length === 0) return null;
   return (
-    <div style={wide ? { gridColumn: "span 4" } : {}}>
-      <span className="text-zinc-600 text-xs">{label}: </span>
-      <span className="text-zinc-300 text-xs">{value}</span>
+    <div>
+      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">{title}</p>
+      <div className={`grid gap-x-6 gap-y-0.5`} style={{ gridTemplateColumns: `repeat(${cols}, minmax(0,1fr))` }}>
+        {children}
+      </div>
     </div>
   );
+}
+
+async function fetchCep(cep) {
+  const clean = cep.replace(/\D/g, "");
+  if (clean.length !== 8) return null;
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+    const data = await res.json();
+    if (data.erro) return null;
+    return data;
+  } catch { return null; }
 }
 
 export default function ServiceOrders() {
@@ -85,6 +98,7 @@ export default function ServiceOrders() {
   const [expanded, setExpanded] = useState(new Set());
   const [filter, setFilter] = useState(searchParams.get("filter") || "");
   const [modal, setModal] = useState(null);
+  const [cepLoading, setCepLoading] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -117,6 +131,25 @@ export default function ServiceOrders() {
     }
   }
 
+  function setForm(updater) {
+    setModal(p => ({ ...p, form: typeof updater === "function" ? updater(p.form) : updater }));
+  }
+
+  async function handleCepLookup(cep) {
+    setCepLoading(true);
+    const data = await fetchCep(cep);
+    setCepLoading(false);
+    if (data) {
+      setForm(f => ({
+        ...f,
+        address: data.logradouro || f.address,
+        neighborhood: data.bairro || f.neighborhood,
+        city: data.localidade || f.city,
+        state: data.uf || f.state,
+      }));
+    }
+  }
+
   const visible = applyFilter(orders);
 
   function openCreate() { setModal({ type: "create", form: { ...EMPTY_ORDER } }); }
@@ -137,7 +170,8 @@ export default function ServiceOrders() {
 
   async function handleSaveCreate() {
     try {
-      await createServiceOrder(modal.form);
+      const { zipCode, ...payload } = modal.form;
+      await createServiceOrder(payload);
       toast.success("OS criada");
       setModal(null);
       load();
@@ -174,11 +208,8 @@ export default function ServiceOrders() {
           <p className="text-zinc-400 mt-1">{visible.length} ordem(ns)</p>
         </div>
         <div className="flex items-center gap-3">
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-          >
+          <select value={filter} onChange={(e) => setFilter(e.target.value)}
+            className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
             <option value="">Todos</option>
             <option value="ABERTO">Abertas</option>
             <option value="AGENDADO">Agendadas</option>
@@ -187,10 +218,8 @@ export default function ServiceOrders() {
             <option value="PEND_CONF">Pend. Confirmação</option>
           </select>
           {isField && (
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200"
-            >
+            <button onClick={openCreate}
+              className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200">
               <Plus size={16} /> Nova Ordem
             </button>
           )}
@@ -214,12 +243,8 @@ export default function ServiceOrders() {
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>
-            )}
-            {!loading && visible.length === 0 && (
-              <tr><td colSpan={10} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS encontrada</td></tr>
-            )}
+            {loading && <tr><td colSpan={10} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
+            {!loading && visible.length === 0 && <tr><td colSpan={10} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS encontrada</td></tr>}
             {visible.map((o) => (
               <>
                 <tr key={o.id} className="border-b border-zinc-900 hover:bg-zinc-900/30">
@@ -231,7 +256,7 @@ export default function ServiceOrders() {
                   <td className="px-4 py-3 text-zinc-300">{o.requestedBy || "—"}</td>
                   <td className="px-4 py-3 text-zinc-400">{o.requestedAt ? new Date(o.requestedAt).toLocaleDateString("pt-BR") : "—"}</td>
                   <td className="px-4 py-3"><SlaChip days={o.slaDays} isLate={o.late} /></td>
-                  <td className="px-4 py-3 font-mono font-semibold">{o.plate}</td>
+                  <td className="px-4 py-3 font-mono font-semibold">{o.plate || "—"}</td>
                   <td className="px-4 py-3 text-zinc-400">{o.serviceType}</td>
                   <td className="px-4 py-3 text-zinc-400">{o.technician?.name || <span className="text-zinc-600">—</span>}</td>
                   <td className="px-4 py-3"><Badge label={STATUS_LABEL[o.schedulingStatus]} colorClass={STATUS_COLOR[o.schedulingStatus]} /></td>
@@ -255,68 +280,62 @@ export default function ServiceOrders() {
                 {expanded.has(o.id) && (
                   <tr key={`${o.id}-exp`} className="border-b border-zinc-900 bg-zinc-950">
                     <td />
-                    <td colSpan={9} className="px-6 py-5">
-                      <div className="space-y-5">
+                    <td colSpan={9} className="px-5 py-3">
+                      <div className="space-y-3">
 
-                        {/* DADOS DO SERVIÇO */}
-                        <Section title="📋 Dados do Serviço">
-                          <Field label="Solicitante" value={o.requestedBy} />
-                          <Field label="Data" value={o.requestedAt ? new Date(o.requestedAt).toLocaleDateString("pt-BR") : null} />
-                          <Field label="Tipo de Serviço" value={o.serviceType} />
-                          <Field label="Equipamento" value={o.equipment} />
-                          <Field label="Chassi" value={o.chassis} />
-                          <Field label="SLA" value={`${o.slaDays}d${o.late ? " ⚠ Atrasada" : ""}`} />
-                          <Field label="Criado por" value={o.createdBy} />
-                          <Field label="Encerrada" value={o.closedAt ? new Date(o.closedAt).toLocaleString("pt-BR") : null} />
+                        <Section title="📋 Dados do Serviço" cols={5}>
+                          <InfoRow label="Solicitante" value={o.requestedBy} />
+                          <InfoRow label="Data" value={o.requestedAt ? new Date(o.requestedAt).toLocaleDateString("pt-BR") : null} />
+                          <InfoRow label="Tipo" value={o.serviceType} />
+                          <InfoRow label="Equipamento" value={o.equipment} />
+                          <InfoRow label="SLA" value={`${o.slaDays}d${o.late ? " ⚠" : ""}`} />
+                          <InfoRow label="Chassi" value={o.chassis} />
+                          <InfoRow label="Criado por" value={o.createdBy} />
+                          <InfoRow label="Encerrada" value={o.closedAt ? new Date(o.closedAt).toLocaleDateString("pt-BR") : null} />
                         </Section>
 
-                        {/* ENDEREÇO DO CLIENTE */}
-                        <Section title="📍 Endereço do Cliente">
-                          <Field label="Nome" value={o.customerName} />
-                          <Field label="Contato" value={o.customerPhone} />
-                          <Field label="Endereço" value={o.address} />
-                          <Field label="Bairro" value={o.neighborhood} />
-                          <Field label="Cidade" value={o.city} />
-                          <Field label="Estado" value={o.state} />
+                        <Section title="📍 Endereço do Cliente" cols={4}>
+                          <InfoRow label="Nome" value={o.customerName} />
+                          <InfoRow label="Contato" value={o.customerPhone} />
+                          <InfoRow label="Logradouro" value={o.address} />
+                          <InfoRow label="Bairro" value={o.neighborhood} />
+                          <InfoRow label="Cidade" value={o.city} />
+                          <InfoRow label="Estado" value={o.state} />
                         </Section>
 
-                        {/* AGENDAMENTO — só TECHNICIAN/OPERATOR/ADMIN */}
                         {(isTech || isOp) && (
-                          <Section title="🔧 Agendamento">
-                            <Field label="Técnico" value={o.technician?.name} />
-                            <Field label="Status" value={STATUS_LABEL[o.schedulingStatus]} />
-                            <Field label="Data Agendada" value={o.scheduledDate || null} />
-                            <Field label="Horário" value={o.scheduledTime || null} />
-                            <Field label="Distância" value={o.distanceKm != null ? `${o.distanceKm} km` : null} />
+                          <Section title="🔧 Agendamento" cols={4}>
+                            <InfoRow label="Técnico" value={o.technician?.name} />
+                            <InfoRow label="Status" value={STATUS_LABEL[o.schedulingStatus]} />
+                            <InfoRow label="Data" value={o.scheduledDate} />
+                            <InfoRow label="Horário" value={o.scheduledTime} />
+                            <InfoRow label="Distância" value={o.distanceKm != null ? `${o.distanceKm} km` : null} />
                           </Section>
                         )}
 
-                        {/* VALORES — só quando totalValue > 0 */}
                         {o.totalValue > 0 && (
                           <div>
-                            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">💰 Valores</p>
-                            <div className="grid grid-cols-2 gap-x-8 gap-y-1 sm:grid-cols-4">
-                              <Field label="Valor de Deslocamento" value={fmt(o.displacementValue)} />
-                              <Field label="Valor do Serviço" value={fmt(o.serviceValue)} />
-                              <Field label="Valor Total" value={fmt(o.totalValue)} />
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">💰 Valores</p>
+                            <div className="grid grid-cols-4 gap-x-6 gap-y-0.5">
+                              <InfoRow label="Valor de Deslocamento" value={fmt(o.displacementValue)} />
+                              <InfoRow label="Valor do Serviço" value={fmt(o.serviceValue)} />
+                              <InfoRow label="Valor Total" value={fmt(o.totalValue)} />
                             </div>
                             {isOp && o.financialApprovalStatus === "PENDENTE" && (
-                              <div className="flex gap-2 mt-3">
-                                <button onClick={() => handleFinancial(o.id, "APROVADO")} className="rounded-lg px-3 py-1.5 text-xs bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20">✓ Aprovar</button>
-                                <button onClick={() => handleFinancial(o.id, "REPROVADO")} className="rounded-lg px-3 py-1.5 text-xs bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20">✗ Reprovar</button>
+                              <div className="flex gap-2 mt-2">
+                                <button onClick={() => handleFinancial(o.id, "APROVADO")} className="rounded-lg px-3 py-1 text-xs bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20">✓ Aprovar</button>
+                                <button onClick={() => handleFinancial(o.id, "REPROVADO")} className="rounded-lg px-3 py-1 text-xs bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20">✗ Reprovar</button>
                               </div>
                             )}
                           </div>
                         )}
 
-                        {/* OBSERVAÇÕES */}
                         {o.observations && (
                           <div>
-                            <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-1">📝 Observações</p>
-                            <p className="text-xs text-zinc-300">{o.observations}</p>
+                            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1">📝 Observações</p>
+                            <p className="text-[11px] text-zinc-300">{o.observations}</p>
                           </div>
                         )}
-
                       </div>
                     </td>
                   </tr>
@@ -336,39 +355,50 @@ export default function ServiceOrders() {
               <button onClick={() => setModal(null)}><X size={20} className="text-zinc-400" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {[
-                ["requestedBy","Solicitante",1],["plate","Placa *",1],
-                ["chassis","Chassi",1],["equipment","Equipamento",1],
-                ["customerName","Nome do Cliente",2],["customerPhone","Telefone",1],
-                ["city","Cidade",1],["address","Endereço",2],
-              ].map(([key, label, span]) => (
+              {[["requestedBy","Solicitante",1],["plate","Placa",1],["chassis","Chassi",1],["equipment","Equipamento",1]].map(([key,label,span]) => (
                 <div key={key} style={{ gridColumn: `span ${span}` }}>
                   <label className="block text-xs text-zinc-400 mb-1">{label}</label>
-                  <input
-                    value={modal.form[key] ?? ""}
-                    onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, [key]: e.target.value } }))}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none"
-                  />
+                  <input value={modal.form[key] ?? ""} onChange={e => setForm(f => ({...f,[key]:e.target.value}))}
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
                 </div>
               ))}
               <div>
                 <label className="block text-xs text-zinc-400 mb-1">Tipo de Serviço</label>
-                <select
-                  value={modal.form.serviceType}
-                  onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, serviceType: e.target.value } }))}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-                >
+                <select value={modal.form.serviceType} onChange={e => setForm(f => ({...f,serviceType:e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
                   {SERVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
+              {/* CEP com busca automática */}
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">CEP {cepLoading && <span className="text-zinc-500">(buscando...)</span>}</label>
+                <input value={modal.form.zipCode ?? ""} maxLength={9}
+                  onChange={e => {
+                    const v = e.target.value;
+                    setForm(f => ({...f, zipCode: v}));
+                    if (v.replace(/\D/g,"").length === 8) handleCepLookup(v);
+                  }}
+                  placeholder="00000-000"
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              {[["address","Logradouro",2],["neighborhood","Bairro",1],["city","Cidade",1],["state","Estado",1]].map(([key,label,span]) => (
+                <div key={key} style={{ gridColumn: `span ${span}` }}>
+                  <label className="block text-xs text-zinc-400 mb-1">{label}</label>
+                  <input value={modal.form[key] ?? ""} onChange={e => setForm(f => ({...f,[key]:e.target.value}))}
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+                </div>
+              ))}
+              {[["customerName","Nome do Cliente",2],["customerPhone","Telefone",1]].map(([key,label,span]) => (
+                <div key={key} style={{ gridColumn: `span ${span}` }}>
+                  <label className="block text-xs text-zinc-400 mb-1">{label}</label>
+                  <input value={modal.form[key] ?? ""} onChange={e => setForm(f => ({...f,[key]:e.target.value}))}
+                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+                </div>
+              ))}
               <div style={{ gridColumn: "span 2" }}>
                 <label className="block text-xs text-zinc-400 mb-1">Observações</label>
-                <textarea
-                  value={modal.form.observations ?? ""}
-                  onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, observations: e.target.value } }))}
-                  rows={2}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none"
-                />
+                <textarea value={modal.form.observations ?? ""} onChange={e => setForm(f => ({...f,observations:e.target.value}))} rows={2}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
               </div>
             </div>
             <div className="flex justify-end gap-3">
@@ -382,77 +412,53 @@ export default function ServiceOrders() {
       {/* Modal Agendamento */}
       {modal?.type === "scheduling" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Agendamento</h2>
               <button onClick={() => setModal(null)}><X size={20} className="text-zinc-400" /></button>
             </div>
-            <div className="space-y-3">
-              {isOp && (
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Técnico</label>
-                  <select
-                    value={modal.form.technicianId}
-                    onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, technicianId: e.target.value } }))}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-                  >
-                    <option value="">— Selecionar —</option>
-                    {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
-              )}
-              {isOp && (
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Status</label>
-                  <select
-                    value={modal.form.schedulingStatus}
-                    onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, schedulingStatus: e.target.value } }))}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-                  >
-                    {SCHEDULING_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                  </select>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Data</label>
-                  <input
-                    type="date"
-                    value={modal.form.scheduledDate}
-                    onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, scheduledDate: e.target.value } }))}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Horário</label>
-                  <input
-                    type="time"
-                    value={modal.form.scheduledTime}
-                    onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, scheduledTime: e.target.value } }))}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-                  />
-                </div>
+            {isOp && (
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Técnico</label>
+                <select value={modal.form.technicianId} onChange={e => setForm(f => ({...f,technicianId:e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+                  <option value="">— Selecionar —</option>
+                  {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            )}
+            {isOp && (
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Status</label>
+                <select value={modal.form.schedulingStatus} onChange={e => setForm(f => ({...f,schedulingStatus:e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+                  {SCHEDULING_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Data</label>
+                <input type="date" value={modal.form.scheduledDate} onChange={e => setForm(f => ({...f,scheduledDate:e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
               </div>
               <div>
-                <label className="block text-xs text-zinc-400 mb-1">Valor do Serviço (R$)</label>
-                <input
-                  type="number"
-                  value={modal.form.serviceValue}
-                  onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, serviceValue: e.target.value } }))}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">Observações</label>
-                <textarea
-                  value={modal.form.observations}
-                  onChange={(e) => setModal((p) => ({ ...p, form: { ...p.form, observations: e.target.value } }))}
-                  rows={2}
-                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
-                />
+                <label className="block text-xs text-zinc-400 mb-1">Horário</label>
+                <input type="time" value={modal.form.scheduledTime} onChange={e => setForm(f => ({...f,scheduledTime:e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
               </div>
             </div>
-            <div className="flex justify-end gap-3">
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">Valor do Serviço (R$)</label>
+              <input type="number" value={modal.form.serviceValue} onChange={e => setForm(f => ({...f,serviceValue:e.target.value}))}
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">Observações</label>
+              <textarea value={modal.form.observations} onChange={e => setForm(f => ({...f,observations:e.target.value}))} rows={2}
+                className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
+            </div>
+            <div className="flex justify-end gap-3 pt-1">
               <button onClick={() => setModal(null)} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">Cancelar</button>
               <button onClick={handleSaveScheduling} className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200">Salvar</button>
             </div>

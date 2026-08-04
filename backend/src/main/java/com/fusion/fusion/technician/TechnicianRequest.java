@@ -9,5 +9,6 @@ public record TechnicianRequest(
         String city,
         String state,
         String zipCode,
+        String neighborhood,
         BigDecimal defaultServiceValue
 ) {}

@@ -29,6 +29,7 @@ public class Technician {
     private String city;
     private String state;
     private String zipCode;
+    private String neighborhood;
 
     private Double latitude;
     private Double longitude;

@@ -8,13 +8,28 @@ import {
 } from "../services/technicianService";
 import toast from "react-hot-toast";
 
-const EMPTY = { name: "", phone: "", address: "", city: "", state: "", zipCode: "", defaultServiceValue: "" };
+const EMPTY = {
+  name: "", phone: "", zipCode: "", address: "", neighborhood: "",
+  city: "", state: "", defaultServiceValue: "",
+};
+
+async function fetchCep(cep) {
+  const clean = cep.replace(/\D/g, "");
+  if (clean.length !== 8) return null;
+  try {
+    const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+    const data = await res.json();
+    if (data.erro) return null;
+    return data;
+  } catch { return null; }
+}
 
 export default function Technicians() {
   const [technicians, setTechnicians] = useState([]);
-  const [modal, setModal] = useState(null); // null | { mode: "create"|"edit", data: {} }
+  const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [cepLoading, setCepLoading] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -24,10 +39,34 @@ export default function Technicians() {
 
   function openCreate() { setForm(EMPTY); setModal({ mode: "create" }); }
   function openEdit(t) {
-    setForm({ ...t, defaultServiceValue: t.defaultServiceValue ?? "" });
+    setForm({
+      name: t.name ?? "", phone: t.phone ?? "", zipCode: t.zipCode ?? "",
+      address: t.address ?? "", neighborhood: t.neighborhood ?? "",
+      city: t.city ?? "", state: t.state ?? "",
+      defaultServiceValue: t.defaultServiceValue ?? "",
+    });
     setModal({ mode: "edit", id: t.id });
   }
   function closeModal() { setModal(null); }
+
+  async function handleCepChange(val) {
+    setForm(f => ({ ...f, zipCode: val }));
+    const clean = val.replace(/\D/g, "");
+    if (clean.length === 8) {
+      setCepLoading(true);
+      const data = await fetchCep(val);
+      setCepLoading(false);
+      if (data) {
+        setForm(f => ({
+          ...f,
+          address: data.logradouro || f.address,
+          neighborhood: data.bairro || f.neighborhood,
+          city: data.localidade || f.city,
+          state: data.uf || f.state,
+        }));
+      }
+    }
+  }
 
   async function handleSave() {
     if (!form.name?.trim()) { toast.error("Nome é obrigatório"); return; }
@@ -39,7 +78,7 @@ export default function Technicians() {
       toast.success(modal.mode === "create" ? "Técnico criado" : "Técnico atualizado");
       closeModal();
       await load();
-    } catch (e) {
+    } catch {
       toast.error("Erro ao salvar técnico");
     } finally {
       setSaving(false);
@@ -49,7 +88,7 @@ export default function Technicians() {
   async function handleDelete(id) {
     if (!confirm("Desativar este técnico?")) return;
     try { await deleteTechnician(id); toast.success("Técnico desativado"); await load(); }
-    catch (e) { toast.error("Erro ao desativar"); }
+    catch { toast.error("Erro ao desativar"); }
   }
 
   return (
@@ -59,10 +98,8 @@ export default function Technicians() {
           <h1 className="text-2xl font-bold">Técnicos</h1>
           <p className="text-zinc-400 mt-1">{technicians.length} técnico(s) ativo(s)</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200"
-        >
+        <button onClick={openCreate}
+          className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200">
           <Plus size={16} /> Novo Técnico
         </button>
       </div>
@@ -73,11 +110,11 @@ export default function Technicians() {
             <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500 uppercase tracking-wider">
               <th className="px-4 py-3">Nome</th>
               <th className="px-4 py-3">Telefone</th>
+              <th className="px-4 py-3">Endereço</th>
               <th className="px-4 py-3">Cidade/UF</th>
-              <th className="px-4 py-3">CEP</th>
               <th className="px-4 py-3">Valor Padrão</th>
               <th className="px-4 py-3">Coords</th>
-              <th className="px-4 py-3"></th>
+              <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody>
@@ -85,8 +122,10 @@ export default function Technicians() {
               <tr key={t.id} className="border-b border-zinc-900 hover:bg-zinc-900/50">
                 <td className="px-4 py-3 font-medium">{t.name}</td>
                 <td className="px-4 py-3 text-zinc-400">{t.phone || "—"}</td>
+                <td className="px-4 py-3 text-zinc-400 text-xs">
+                  {[t.address, t.neighborhood].filter(Boolean).join(", ") || "—"}
+                </td>
                 <td className="px-4 py-3 text-zinc-400">{t.city}{t.state ? `/${t.state}` : ""}</td>
-                <td className="px-4 py-3 text-zinc-400">{t.zipCode || "—"}</td>
                 <td className="px-4 py-3 text-zinc-400">{t.defaultServiceValue ? `R$ ${t.defaultServiceValue}` : "—"}</td>
                 <td className="px-4 py-3 text-zinc-500 text-xs">
                   {t.latitude ? `${t.latitude.toFixed(4)}, ${t.longitude.toFixed(4)}` : "—"}
@@ -114,29 +153,54 @@ export default function Technicians() {
               <button onClick={closeModal}><X size={20} className="text-zinc-400" /></button>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {[
-                ["name", "Nome *", 2],
-                ["phone", "Telefone", 1],
-                ["address", "Endereço", 2],
-                ["city", "Cidade", 1],
-                ["state", "UF", 1],
-                ["zipCode", "CEP", 1],
-                ["defaultServiceValue", "Valor Padrão (R$)", 1],
-              ].map(([key, label, span]) => (
-                <div key={key} style={{ gridColumn: `span ${span}` }}>
-                  <label className="block text-xs text-zinc-400 mb-1">{label}</label>
-                  <input
-                    type={key === "defaultServiceValue" ? "number" : "text"}
-                    value={form[key] ?? ""}
-                    onChange={(e) => setForm((p) => ({ ...p, [key]: e.target.value }))}
-                    className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:border-zinc-600 focus:outline-none"
-                  />
-                </div>
-              ))}
+              <div style={{ gridColumn: "span 2" }}>
+                <label className="block text-xs text-zinc-400 mb-1">Nome *</label>
+                <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Telefone</label>
+                <input value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">
+                  CEP {cepLoading && <span className="text-zinc-500">(buscando...)</span>}
+                </label>
+                <input value={form.zipCode} onChange={e => handleCepChange(e.target.value)} maxLength={9}
+                  placeholder="00000-000"
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label className="block text-xs text-zinc-400 mb-1">Logradouro</label>
+                <input value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label className="block text-xs text-zinc-400 mb-1">Bairro</label>
+                <input value={form.neighborhood} onChange={e => setForm(f => ({...f, neighborhood: e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">Cidade</label>
+                <input value={form.city} onChange={e => setForm(f => ({...f, city: e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">UF</label>
+                <input value={form.state} onChange={e => setForm(f => ({...f, state: e.target.value}))} maxLength={2}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div style={{ gridColumn: "span 2" }}>
+                <label className="block text-xs text-zinc-400 mb-1">Valor Padrão (R$)</label>
+                <input type="number" value={form.defaultServiceValue} onChange={e => setForm(f => ({...f, defaultServiceValue: e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={closeModal} className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-50">
+              <button onClick={handleSave} disabled={saving}
+                className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-50">
                 {saving ? "Salvando..." : "Salvar"}
               </button>
             </div>

@@ -31,6 +31,7 @@ public class TechnicianService {
                 .city(request.city())
                 .state(request.state())
                 .zipCode(request.zipCode())
+                .neighborhood(request.neighborhood())
                 .defaultServiceValue(request.defaultServiceValue())
                 .active(true)
                 .build();
@@ -50,6 +51,7 @@ public class TechnicianService {
         t.setCity(request.city());
         t.setState(request.state());
         t.setZipCode(request.zipCode());
+        t.setNeighborhood(request.neighborhood());
         t.setDefaultServiceValue(request.defaultServiceValue());
         if (addressChanged) geocode(t);
         return toResponse(repository.save(t));
@@ -83,7 +85,7 @@ public class TechnicianService {
     public TechnicianResponse toResponse(Technician t) {
         return new TechnicianResponse(
                 t.getId(), t.getName(), t.getPhone(), t.getAddress(),
-                t.getCity(), t.getState(), t.getZipCode(),
+                t.getCity(), t.getState(), t.getZipCode(), t.getNeighborhood(),
                 t.getLatitude(), t.getLongitude(),
                 t.getDefaultServiceValue(), t.getActive(), t.getCreatedAt()
         );

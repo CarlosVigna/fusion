@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -46,6 +47,8 @@ public class OrsService {
                 JsonNode coords = features.get(0).path("geometry").path("coordinates");
                 return new double[]{coords.get(1).asDouble(), coords.get(0).asDouble()}; // [lat, lon]
             }
+        } catch (HttpClientErrorException e) {
+            log.debug("[ORS] geocode HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), address);
         } catch (Exception e) {
             log.warn("[ORS] geocode falhou para '{}': {}", address, e.getMessage());
         }
@@ -76,6 +79,8 @@ public class OrsService {
             JsonNode root = objectMapper.readTree(response.getBody());
             double meters = root.path("routes").get(0).path("summary").path("distance").asDouble();
             return Math.round(meters / 100.0) / 10.0; // km com 1 decimal
+        } catch (HttpClientErrorException e) {
+            log.debug("[ORS] routing HTTP {} — deslocamento ficará em branco", e.getStatusCode());
         } catch (Exception e) {
             log.warn("[ORS] routing falhou: {}", e.getMessage());
         }

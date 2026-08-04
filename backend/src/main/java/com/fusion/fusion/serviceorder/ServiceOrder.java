@@ -30,7 +30,6 @@ public class ServiceOrder {
 
     private LocalDateTime requestedAt;
 
-    @Column(nullable = false)
     private String plate;
 
     private String chassis;

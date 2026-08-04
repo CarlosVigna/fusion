@@ -12,6 +12,7 @@ public record TechnicianResponse(
         String city,
         String state,
         String zipCode,
+        String neighborhood,
         Double latitude,
         Double longitude,
         BigDecimal defaultServiceValue,

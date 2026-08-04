@@ -42,6 +42,8 @@ public class ServiceOrderService {
                 .serviceType(request.serviceType() != null ? request.serviceType() : ServiceType.INSTALACAO)
                 .city(request.city())
                 .address(request.address())
+                .neighborhood(request.neighborhood())
+                .state(request.state())
                 .customerName(request.customerName())
                 .customerPhone(request.customerPhone())
                 .observations(request.observations())
@@ -95,6 +97,8 @@ public class ServiceOrderService {
         if (request.serviceType() != null) so.setServiceType(request.serviceType());
         so.setCity(request.city());
         so.setAddress(request.address());
+        so.setNeighborhood(request.neighborhood());
+        so.setState(request.state());
         so.setCustomerName(request.customerName());
         so.setCustomerPhone(request.customerPhone());
         if (request.requestedBy() != null) so.setRequestedBy(request.requestedBy());

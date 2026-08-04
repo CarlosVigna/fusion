@@ -11,6 +11,8 @@ public record ServiceOrderRequest(
         ServiceType serviceType,
         String city,
         String address,
+        String neighborhood,
+        String state,
         String customerName,
         String customerPhone,
         String observations
