@@ -80,7 +80,7 @@ public class TechnicianService {
         return a == null ? b == null : a.equals(b);
     }
 
-    TechnicianResponse toResponse(Technician t) {
+    public TechnicianResponse toResponse(Technician t) {
         return new TechnicianResponse(
                 t.getId(), t.getName(), t.getPhone(), t.getAddress(),
                 t.getCity(), t.getState(), t.getZipCode(),

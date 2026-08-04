@@ -46,7 +46,7 @@ public class ServiceOrderCompletionScheduler {
             boolean communicated = Boolean.TRUE.equals(v.getHasEverCommunicated());
             boolean linked       = linkedVehicleIds.contains(v.getId());
 
-            if (active && communicated && linked && !so.isCompletionAlertSent()) {
+            if (active && communicated && linked && !Boolean.TRUE.equals(so.getCompletionAlertSent())) {
                 serviceOrderService.markCompletionAlertSent(so.getId());
                 log.info("[OS-SCHEDULER] Alerta de conclusão criado para OS {} placa {}", so.getId(), so.getPlate());
             }

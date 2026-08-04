@@ -112,7 +112,7 @@ public class ServiceOrderService {
             so.setTechnician(tech);
 
             if (techChanged && tech.getLatitude() != null && so.getAddress() != null && so.getCity() != null) {
-                double[] clientCoords = orsService.geocode(so.getAddress(), so.getCity(), so.getState() != null ? so.getState() : "");
+                double[] clientCoords = orsService.geocode(so.getAddress(), so.getCity(), "");
                 if (clientCoords != null) {
                     Double km = orsService.calculateRoundTripKm(tech.getLatitude(), tech.getLongitude(), clientCoords[0], clientCoords[1]);
                     if (km != null) {
@@ -164,7 +164,7 @@ public class ServiceOrderService {
         long late     = all.stream().filter(o -> o.isLate()).count();
         long pendFin  = all.stream().filter(o -> o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO
                                             && o.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE).count();
-        long pendConf = all.stream().filter(o -> o.isCompletionAlertSent() && !o.isCompletionConfirmed()).count();
+        long pendConf = all.stream().filter(o -> Boolean.TRUE.equals(o.getCompletionAlertSent()) && !Boolean.TRUE.equals(o.getCompletionConfirmed())).count();
         OptionalDouble avgSla = all.stream()
                 .filter(o -> o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
                 .mapToLong(ServiceOrder::getSlaDays).average();
