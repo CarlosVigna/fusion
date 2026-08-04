@@ -30,15 +30,13 @@ public class OrsService {
     private static final double RATE_PER_KM = 1.20;
 
     public double[] geocode(String address, String city, String state) {
-        if (apiKey.isBlank()) return null;
-
         // Tentativa 1: endereço completo
         String query = address + ", " + city + ", " + (state != null ? state : "") + ", Brasil";
         double[] result = geocodeQuery(query);
 
-        // Fallback: só cidade + estado (útil para cidades pequenas que o ORS não resolve pelo logradouro)
+        // Fallback: só cidade + estado (útil para cidades pequenas)
         if (result == null && city != null && state != null && !state.isBlank()) {
-            log.info("[ORS] Fallback: tentando geocodificar apenas cidade/estado: {}, {}", city, state);
+            log.info("[NOMINATIM] Fallback cidade/estado: {}, {}", city, state);
             result = geocodeQuery(city + ", " + state + ", Brasil");
         }
 
@@ -47,33 +45,31 @@ public class OrsService {
 
     private double[] geocodeQuery(String query) {
         try {
-            String url = "https://api.heigit.org/geocode/search?api_key=" + apiKey
-                    + "&text=" + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
-                    + "&boundary.country=BR&size=1";
+            String url = "https://nominatim.openstreetmap.org/search?q="
+                    + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
+                    + "&format=json&limit=1&countrycodes=br";
 
-            log.info("[ORS] Geocodificando: {}", query);
-            log.info("[ORS] URL: {}", url.replaceAll("api_key=[^&]+", "api_key=***"));
+            log.info("[NOMINATIM] Geocodificando: {}", query);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Accept", "application/json");
+            headers.set("User-Agent", "FusionApp/1.0");
+            headers.set("Accept-Language", "pt-BR");
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
 
             String responseBody = response.getBody();
             JsonNode root = objectMapper.readTree(responseBody);
-            JsonNode features = root.path("features");
-            if (features.isArray() && features.size() > 0) {
-                JsonNode coords = features.get(0).path("geometry").path("coordinates");
-                double lat = coords.get(1).asDouble();
-                double lon = coords.get(0).asDouble();
-                log.info("[ORS] Resultado geocoding: lat={}, lon={}", lat, lon);
+            if (root.isArray() && root.size() > 0) {
+                double lat = root.get(0).path("lat").asDouble();
+                double lon = root.get(0).path("lon").asDouble();
+                log.info("[NOMINATIM] Resultado: lat={}, lon={}", lat, lon);
                 return new double[]{lat, lon};
             } else {
-                log.warn("[ORS] Geocoding retornou vazio para: {} | Response: {}", query, responseBody);
+                log.warn("[NOMINATIM] Retornou vazio para: {} | Response: {}", query, responseBody);
             }
         } catch (HttpClientErrorException e) {
-            log.debug("[ORS] geocode HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
+            log.debug("[NOMINATIM] HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
         } catch (Exception e) {
-            log.warn("[ORS] geocode falhou para '{}': {}", query, e.getMessage());
+            log.warn("[NOMINATIM] Falhou para '{}': {}", query, e.getMessage());
         }
         return null;
     }
