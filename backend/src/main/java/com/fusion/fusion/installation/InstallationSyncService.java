@@ -44,8 +44,7 @@ public class InstallationSyncService {
 
     private volatile InstallationSyncResult lastResult;
 
-    // @Scheduled desativado — controle de novas instalações agora é via Ordens de Serviço
-    // @Scheduled(cron = "0 */15 * * * *")
+    @Scheduled(cron = "0 */15 * * * *")
     public void scheduledSync() {
 
         try {
