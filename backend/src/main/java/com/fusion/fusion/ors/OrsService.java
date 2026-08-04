@@ -33,7 +33,7 @@ public class OrsService {
         if (apiKey.isBlank()) return null;
         try {
             String query = address + ", " + city + ", " + state + ", Brasil";
-            String url = "https://api.openrouteservice.org/geocode/search?api_key=" + apiKey
+            String url = "https://api.heigit.org/geocode/search?api_key=" + apiKey
                     + "&text=" + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
                     + "&boundary.country=BR&size=1";
 
@@ -59,7 +59,7 @@ public class OrsService {
     public Double calculateRoundTripKm(double techLat, double techLon, double clientLat, double clientLon) {
         if (apiKey.isBlank()) return null;
         try {
-            String url = "https://api.openrouteservice.org/v2/directions/driving-car";
+            String url = "https://api.heigit.org/v2/directions/driving-car";
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", apiKey);
             headers.setContentType(MediaType.APPLICATION_JSON);
