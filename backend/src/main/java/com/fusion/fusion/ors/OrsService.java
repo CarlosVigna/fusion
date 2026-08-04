@@ -31,20 +31,35 @@ public class OrsService {
 
     public double[] geocode(String address, String city, String state) {
         if (apiKey.isBlank()) return null;
+
+        // Tentativa 1: endereço completo
+        String query = address + ", " + city + ", " + (state != null ? state : "") + ", Brasil";
+        double[] result = geocodeQuery(query);
+
+        // Fallback: só cidade + estado (útil para cidades pequenas que o ORS não resolve pelo logradouro)
+        if (result == null && city != null && state != null && !state.isBlank()) {
+            log.info("[ORS] Fallback: tentando geocodificar apenas cidade/estado: {}, {}", city, state);
+            result = geocodeQuery(city + ", " + state + ", Brasil");
+        }
+
+        return result;
+    }
+
+    private double[] geocodeQuery(String query) {
         try {
-            String query = address + ", " + city + ", " + state + ", Brasil";
             String url = "https://api.heigit.org/geocode/search?api_key=" + apiKey
                     + "&text=" + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
                     + "&boundary.country=BR&size=1";
 
-            log.info("[ORS] Geocodificando endereço: {}", query);
-            log.info("[ORS] URL usada: {}", url.replaceAll("api_key=[^&]+", "api_key=***"));
+            log.info("[ORS] Geocodificando: {}", query);
+            log.info("[ORS] URL: {}", url.replaceAll("api_key=[^&]+", "api_key=***"));
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/json");
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
 
-            JsonNode root = objectMapper.readTree(response.getBody());
+            String responseBody = response.getBody();
+            JsonNode root = objectMapper.readTree(responseBody);
             JsonNode features = root.path("features");
             if (features.isArray() && features.size() > 0) {
                 JsonNode coords = features.get(0).path("geometry").path("coordinates");
@@ -53,12 +68,12 @@ public class OrsService {
                 log.info("[ORS] Resultado geocoding: lat={}, lon={}", lat, lon);
                 return new double[]{lat, lon};
             } else {
-                log.warn("[ORS] Geocoding sem resultado para: {}", query);
+                log.warn("[ORS] Geocoding retornou vazio para: {} | Response: {}", query, responseBody);
             }
         } catch (HttpClientErrorException e) {
-            log.debug("[ORS] geocode HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), address);
+            log.debug("[ORS] geocode HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
         } catch (Exception e) {
-            log.warn("[ORS] geocode falhou para '{}': {}", address, e.getMessage());
+            log.warn("[ORS] geocode falhou para '{}': {}", query, e.getMessage());
         }
         return null;
     }
