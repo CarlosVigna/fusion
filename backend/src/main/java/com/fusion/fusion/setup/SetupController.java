@@ -638,6 +638,18 @@ public class SetupController {
 
     }
 
+    @PostMapping("/cleanup-service-orders")
+    public Map<String, Object> cleanupServiceOrders() {
+        int deleted = jdbcTemplate.getJdbcTemplate().update(
+                "DELETE FROM service_orders WHERE requested_by != 'PORTAL'"
+        );
+        int kept = jdbcTemplate.getJdbcTemplate().queryForObject(
+                "SELECT COUNT(*) FROM service_orders WHERE requested_by = 'PORTAL'",
+                Integer.class
+        );
+        return Map.of("deleted", deleted, "kept", kept);
+    }
+
     @PostMapping("/fix-plate-nullable")
     public Map<String, Object> fixPlateNullable() {
         jdbcTemplate.getJdbcTemplate().execute(

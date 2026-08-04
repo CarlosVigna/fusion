@@ -72,7 +72,8 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/setup/migrate-installations",
                                 "/setup/check-installations",
-                                "/setup/fix-plate-nullable"
+                                "/setup/fix-plate-nullable",
+                                "/setup/cleanup-service-orders"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao
