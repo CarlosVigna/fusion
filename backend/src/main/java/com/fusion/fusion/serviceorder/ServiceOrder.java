@@ -57,6 +57,8 @@ public class ServiceOrder {
 
     private String city;
     private String address;
+    private String neighborhood;
+    private String state;
     private String customerName;
     private String customerPhone;
 

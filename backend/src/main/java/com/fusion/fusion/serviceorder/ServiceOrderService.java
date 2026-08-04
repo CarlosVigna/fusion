@@ -60,7 +60,8 @@ public class ServiceOrderService {
     @Transactional
     public ServiceOrderResponse createFromInstallation(
             String externalInstallationId, String plate, String customerName,
-            String customerPhone, String city, String address, LocalDateTime requestedAt) {
+            String customerPhone, String city, String address,
+            String neighborhood, String state, LocalDateTime requestedAt) {
 
         if (repository.existsByExternalInstallationId(externalInstallationId)) return null;
 
@@ -73,6 +74,8 @@ public class ServiceOrderService {
                 .serviceType(ServiceType.INSTALACAO)
                 .city(city)
                 .address(address)
+                .neighborhood(neighborhood)
+                .state(state)
                 .customerName(customerName)
                 .customerPhone(customerPhone)
                 .createdBy("PORTAL")
@@ -239,6 +242,8 @@ public class ServiceOrderService {
                 so.getScheduledTime(),
                 so.getCity(),
                 so.getAddress(),
+                so.getNeighborhood(),
+                so.getState(),
                 so.getCustomerName(),
                 so.getCustomerPhone(),
                 so.getDistanceKm(),

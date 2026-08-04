@@ -108,8 +108,7 @@ public class InstallationSyncService {
                 }
 
                 if (isFirstItem) {
-                    log.info("[INSTALACOES] Estrutura completa do campo veiculo: {}", item.get("veiculo"));
-                    log.info("[INSTALACOES] Estrutura completa do campo segurado: {}", item.get("segurado"));
+                    log.info("[INSTALACOES] Estrutura completa do campo proposta: {}", item.get("proposta"));
                     log.info("[INSTALACOES] Todas as chaves do item: {}", item.keySet());
                     isFirstItem = false;
                 }
@@ -168,6 +167,8 @@ public class InstallationSyncService {
                         installation.getPhone(),
                         installation.getCity(),
                         installation.getAddress(),
+                        installation.getNeighborhood(),
+                        installation.getState(),
                         installation.getPortalCreatedAt()
                 );
 
@@ -207,6 +208,8 @@ public class InstallationSyncService {
                         inst.getPhone(),
                         inst.getCity(),
                         inst.getAddress(),
+                        inst.getNeighborhood(),
+                        inst.getState(),
                         inst.getPortalCreatedAt()
                 );
                 if (os != null) {

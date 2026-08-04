@@ -22,6 +22,8 @@ public record ServiceOrderResponse(
         String scheduledTime,
         String city,
         String address,
+        String neighborhood,
+        String state,
         String customerName,
         String customerPhone,
         Double distanceKm,
