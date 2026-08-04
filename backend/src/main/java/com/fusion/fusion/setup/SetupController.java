@@ -638,6 +638,38 @@ public class SetupController {
 
     }
 
+    @GetMapping("/check-installations")
+    public Map<String, Object> checkInstallations() {
+
+        List<Installation> all = installationRepository.findAllByOrderByCreatedAtDesc();
+
+        Map<String, Long> byStatus = new LinkedHashMap<>();
+        for (Installation inst : all) {
+            String s = inst.getStatus() != null ? inst.getStatus().name() : "NULL";
+            byStatus.merge(s, 1L, Long::sum);
+        }
+
+        List<Map<String, Object>> list = all.stream().map(inst -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", inst.getId());
+            row.put("externalId", inst.getExternalId());
+            row.put("plate", inst.getPlate());
+            row.put("customerName", inst.getCustomerName());
+            row.put("status", inst.getStatus());
+            row.put("portalStatus", inst.getPortalStatus());
+            row.put("portalCreatedAt", inst.getPortalCreatedAt());
+            row.put("createdAt", inst.getCreatedAt());
+            return row;
+        }).toList();
+
+        return Map.of(
+                "total", all.size(),
+                "byStatus", byStatus,
+                "list", list
+        );
+
+    }
+
     @PostMapping("/migrate-installations")
     public Map<String, Object> migrateInstallations() {
 

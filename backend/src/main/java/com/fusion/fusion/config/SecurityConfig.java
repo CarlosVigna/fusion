@@ -68,9 +68,10 @@ public class SecurityConfig {
                                 "/setup/full-audit"
                         ).permitAll()
 
-                        // endpoint de migração de instalações para OS
+                        // endpoints temporários de diagnóstico/migração
                         .requestMatchers(
-                                "/setup/migrate-installations"
+                                "/setup/migrate-installations",
+                                "/setup/check-installations"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao
