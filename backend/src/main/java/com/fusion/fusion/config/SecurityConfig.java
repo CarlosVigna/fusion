@@ -56,27 +56,10 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/auth/login",
-                                "/ws/**",
-                                "/setup/check-plates",
-                                "/setup/check-vehicles",
-                                "/setup/soft-delete-invalid-plates",
-                                "/setup/check-encoding",
-                                "/setup/reactivate-vehicles",
-                                "/setup/compare-grid",
-                                "/setup/fix-vehicle-groups",
-                                "/setup/insert-test-vehicles",
-                                "/setup/full-audit"
+                                "/ws/**"
                         ).permitAll()
 
-                        // endpoints temporários de diagnóstico/migração
-                        .requestMatchers(
-                                "/setup/migrate-installations",
-                                "/setup/check-installations",
-                                "/setup/fix-plate-nullable",
-                                "/setup/cleanup-service-orders",
-                                "/setup/test-nominatim",
-                                "/setup/fix-user-roles"
-                        ).permitAll()
+                        .requestMatchers("/setup/**").permitAll()
 
                         // Health check do Render — sem isso o Render nao
                         // consegue checar se o servico esta de pe.
