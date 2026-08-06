@@ -18,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.*;
 
@@ -260,8 +261,16 @@ public class ServiceOrderService {
                         && o.getSchedulingStatus() == SchedulingStatus.AGENDADO)
                 .count();
 
-        log.info("[DASHBOARD] abertas={} emAndamento={} atrasadas={} pendAprovacao={} pendConclusao={}",
-                abertas, emAndamento, atrasadas, pendentesAprov, pendentesConclusao);
+        long prazoCumprido = all.stream()
+                .filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO
+                        && o.getTechnician() != null
+                        && o.getScheduledDate() != null
+                        && o.getServiceValue() != null
+                        && isScheduledDateTimePassed(o))
+                .count();
+
+        log.info("[DASHBOARD] abertas={} emAndamento={} atrasadas={} pendAprovacao={} pendConclusao={} prazoCumprido={}",
+                abertas, emAndamento, atrasadas, pendentesAprov, pendentesConclusao, prazoCumprido);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("abertas",             abertas);
@@ -269,6 +278,7 @@ public class ServiceOrderService {
         result.put("atrasadas",           atrasadas);
         result.put("pendentesAprovacao",  pendentesAprov);
         result.put("pendentesConclusao",  pendentesConclusao);
+        result.put("prazoCumprido",       prazoCumprido);
 
         if (showAnalytics) {
             OptionalDouble slaMedia = all.stream()
@@ -338,6 +348,21 @@ public class ServiceOrderService {
         // Auto-approve when no displacement cost
         if (disp.compareTo(BigDecimal.ZERO) == 0) {
             so.setFinancialApprovalStatus(FinancialApprovalStatus.APROVADO);
+        }
+    }
+
+    public boolean hasVehicleSignal(UUID id) {
+        return checkVehicleSignal(find(id).getPlate());
+    }
+
+    private boolean isScheduledDateTimePassed(ServiceOrder o) {
+        if (o.getScheduledDate() == null) return false;
+        if (o.getScheduledTime() == null) return !o.getScheduledDate().isAfter(LocalDate.now());
+        try {
+            LocalTime time = LocalTime.parse(o.getScheduledTime());
+            return LocalDateTime.of(o.getScheduledDate(), time).isBefore(LocalDateTime.now());
+        } catch (Exception e) {
+            return !o.getScheduledDate().isAfter(LocalDate.now());
         }
     }
 

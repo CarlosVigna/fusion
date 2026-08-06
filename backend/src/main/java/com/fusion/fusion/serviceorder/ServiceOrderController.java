@@ -59,6 +59,11 @@ public class ServiceOrderController {
         return service.confirmCompletion(id);
     }
 
+    @GetMapping("/{id}/vehicle-signal")
+    public Map<String, Boolean> vehicleSignal(@PathVariable UUID id) {
+        return Map.of("hasSignal", service.hasVehicleSignal(id));
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {

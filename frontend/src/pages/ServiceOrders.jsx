@@ -9,6 +9,7 @@ import {
   updateScheduling,
   updateFinancialApproval,
   confirmCompletion,
+  getVehicleSignal,
   deleteServiceOrder,
 } from "../services/serviceOrderService";
 import { getTechnicians } from "../services/technicianService";
@@ -102,12 +103,10 @@ async function fetchCep(cep) {
   } catch { return null; }
 }
 
-// ADMIN, OPERATOR e FIELD podem confirmar conclusão; TECHNICIAN não
-function canConfirmCompletion(o, isTech) {
-  if (isTech) return false;
-  if (!o || o.schedulingStatus !== "AGENDADO") return false;
-  if (!o.technician || !o.scheduledDate || !o.serviceValue) return false;
-  return o.scheduledDate <= new Date().toISOString().slice(0, 10);
+function isScheduledPassed(o) {
+  if (!o?.scheduledDate) return false;
+  if (!o.scheduledTime) return o.scheduledDate <= new Date().toISOString().slice(0, 10);
+  return new Date(`${o.scheduledDate}T${o.scheduledTime}:00`) < new Date();
 }
 
 export default function ServiceOrders() {
@@ -158,6 +157,9 @@ export default function ServiceOrders() {
         result = result.filter(o => o.technician && o.scheduledDate && o.scheduledDate <= today && o.serviceValue && o.schedulingStatus === "AGENDADO");
         break;
       }
+      case "PRAZO_CUMPRIDO":
+        result = result.filter(o => o.schedulingStatus === "AGENDADO" && o.technician && o.serviceValue && isScheduledPassed(o));
+        break;
     }
     if (searchText.trim()) {
       const q = searchText.toLowerCase();
@@ -204,6 +206,22 @@ export default function ServiceOrders() {
 
   function toggleAll() {
     setSelectedIds(allSelected ? new Set() : new Set(visible.map(o => o.id)));
+  }
+
+  function canConcluir(o) {
+    if (isTech || !isField) return false;
+    if (!o || o.schedulingStatus !== "AGENDADO") return false;
+    if (!o.technician || !o.scheduledDate || !o.serviceValue) return false;
+    return isScheduledPassed(o);
+  }
+
+  async function handleConcluir(orderId) {
+    try {
+      const { hasSignal } = await getVehicleSignal(orderId);
+      setConfirmModal({ type: hasSignal ? "completion" : "no-signal", orderId });
+    } catch {
+      setConfirmModal({ type: "no-signal", orderId });
+    }
   }
 
   function copySelected() {
@@ -390,6 +408,7 @@ export default function ServiceOrders() {
             <option value="LATE">Atrasadas</option>
             <option value="PEND_FIN">Pend. Aprovação</option>
             <option value="PEND_CONCLUSAO">Pend. Conclusão</option>
+            <option value="PRAZO_CUMPRIDO">Prazo Cumprido</option>
           </select>
           <select value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
@@ -540,9 +559,14 @@ export default function ServiceOrders() {
                     <DrawerRow label="Serviço"      value={fmt(selectedOrder.serviceValue)} />
                     <DrawerRow label="Total"        value={fmt(selectedOrder.totalValue)} />
                     <DrawerRow label="Aprovação">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${FIN_COLOR[selectedOrder.financialApprovalStatus]}`}>
-                        {FINANCIAL_LABEL[selectedOrder.financialApprovalStatus]}
-                      </span>
+                      {(() => {
+                        const isAutoApproved = selectedOrder.financialApprovalStatus === "APROVADO" && !(selectedOrder.displacementValue > 0);
+                        return (
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isAutoApproved ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400" : FIN_COLOR[selectedOrder.financialApprovalStatus]}`}>
+                            {isAutoApproved ? "Valor Padrão" : FINANCIAL_LABEL[selectedOrder.financialApprovalStatus]}
+                          </span>
+                        );
+                      })()}
                     </DrawerRow>
                   </DrawerSection>
                 )}
@@ -596,11 +620,11 @@ export default function ServiceOrders() {
                 </>
               )}
 
-              {/* ADMIN, OPERATOR, FIELD: Confirmar Conclusão quando condições são atendidas */}
-              {canConfirmCompletion(selectedOrder, isTech) && !selectedOrder.completionConfirmed && (
-                <button onClick={() => setConfirmModal({ type: "completion", orderId: selectedOrder.id })}
+              {/* ADMIN, OPERATOR, FIELD: Concluir quando prazo passou */}
+              {canConcluir(selectedOrder) && !selectedOrder.completionConfirmed && (
+                <button onClick={() => handleConcluir(selectedOrder.id)}
                   className="rounded-xl px-4 py-2 text-sm bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20">
-                  Confirmar Conclusão
+                  Concluir
                 </button>
               )}
 
@@ -617,14 +641,12 @@ export default function ServiceOrders() {
         </>
       )}
 
-      {/* Confirm completion modal */}
+      {/* Confirm completion modal — veículo com sinal */}
       {confirmModal?.type === "completion" && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
             <h2 className="text-lg font-semibold">Confirmar Conclusão</h2>
-            <p className="text-sm text-zinc-400">
-              Confirmar a conclusão desta OS? O sistema verificará o sinal do veículo automaticamente.
-            </p>
+            <p className="text-sm text-zinc-400">Confirmar a conclusão desta OS?</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmModal(null)}
                 className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
@@ -633,6 +655,28 @@ export default function ServiceOrders() {
               <button onClick={handleConfirmCompletion}
                 className="rounded-xl bg-teal-600 px-5 py-2 text-sm font-semibold text-white hover:bg-teal-500">
                 Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm modal — veículo sem sinal */}
+      {confirmModal?.type === "no-signal" && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-yellow-500/30 bg-zinc-950 p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-yellow-400">⚠ Veículo sem sinal</h2>
+            <p className="text-sm text-zinc-400">
+              O veículo não está posicionando (última comunicação há mais de 24h). Deseja concluir mesmo assim?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setConfirmModal(null)}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+                Cancelar
+              </button>
+              <button onClick={handleConfirmCompletion}
+                className="rounded-xl bg-yellow-600 px-5 py-2 text-sm font-semibold text-white hover:bg-yellow-500">
+                Concluir assim mesmo
               </button>
             </div>
           </div>
