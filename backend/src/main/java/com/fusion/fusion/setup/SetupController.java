@@ -676,6 +676,16 @@ public class SetupController {
         return Map.of("status", "ok", "message", "Constraint NOT NULL removida da coluna plate em service_orders");
     }
 
+    @GetMapping("/fix-user-roles")
+    public Map<String, Object> fixUserRoles() {
+        jdbcTemplate.getJdbcTemplate().execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+        jdbcTemplate.getJdbcTemplate().execute(
+                "ALTER TABLE users ADD CONSTRAINT users_role_check " +
+                "CHECK (role IN ('ADMIN', 'OPERATOR', 'FIELD', 'TECHNICIAN'))"
+        );
+        return Map.of("status", "ok", "message", "CHECK constraint users_role_check atualizada com FIELD e TECHNICIAN");
+    }
+
     @GetMapping("/check-user-constraints")
     public Map<String, Object> checkUserConstraints() {
         List<Map<String, Object>> constraints = jdbcTemplate.getJdbcTemplate().queryForList(
