@@ -84,7 +84,7 @@ const GROUPS = [
         items: [
             { label: "Dashboard",   icon: ClipboardCheck,  path: "/service-orders/dashboard" },
             { label: "Ordens",      icon: ClipboardList,   path: "/service-orders", end: true },
-            { label: "Técnicos",    icon: UserCog,         path: "/technicians" },
+            { label: "Técnicos",    icon: UserCog,         path: "/technicians", fullAccessOnly: true },
             { label: "Relatórios",  icon: FileSpreadsheet, path: "/service-orders/reports" },
         ],
     },
@@ -94,10 +94,10 @@ const GROUPS = [
         icon: Settings,
         adminOnly: true,
         items: [
-            { label: "Veículos",         icon: Car,      path: "/vehicles" },
-            { label: "Monitor ETL",      icon: Activity, path: "/etl" },
-            { label: "Usuários",         icon: Users,    path: "/users" },
-            { label: "Passagem de Turno", icon: Send,    path: "/shift-handover" },
+            { label: "Veículos",          icon: Car,      path: "/vehicles" },
+            { label: "Monitor ETL",       icon: Activity, path: "/etl" },
+            { label: "Usuários",          icon: Users,    path: "/users" },
+            { label: "Passagem de Turno", icon: Send,     path: "/shift-handover" },
         ],
     },
 ];
@@ -122,6 +122,7 @@ export default function Sidebar() {
     const location = useLocation();
     const { user } = useAuthStore();
     const isAdmin = user?.role === "ADMIN";
+    const isFieldOrTech = user?.role === "FIELD" || user?.role === "TECHNICIAN";
 
     const isGridPage = GRID_PATHS.includes(location.pathname);
 
@@ -157,6 +158,7 @@ export default function Sidebar() {
     const expanded = !collapsed || hovering;
 
     useEffect(() => {
+        if (isFieldOrTech) return;
 
         async function loadCount() {
             try {
@@ -171,9 +173,10 @@ export default function Sidebar() {
         const interval = setInterval(loadCount, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
 
-    }, []);
+    }, [isFieldOrTech]);
 
     useEffect(() => {
+        if (isFieldOrTech) return;
 
         async function loadInstallationsCount() {
             try {
@@ -195,7 +198,7 @@ export default function Sidebar() {
         const interval = setInterval(loadInstallationsCount, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
 
-    }, []);
+    }, [isFieldOrTech]);
 
     useEffect(() => {
 
@@ -225,11 +228,14 @@ export default function Sidebar() {
 
     // Filtra grupos e itens conforme o perfil do usuário
     const visibleGroups = GROUPS
+        .filter(group => !isFieldOrTech || group.key === "serviceorders")
         .map(group => ({
             ...group,
-            items: group.adminOnly && !isAdmin
-                ? []
-                : group.items.filter(item => !item.adminOnly || isAdmin),
+            items: group.items.filter(item => {
+                if (item.adminOnly && !isAdmin) return false;
+                if (item.fullAccessOnly && isFieldOrTech) return false;
+                return true;
+            }),
         }))
         .filter(group => group.items.length > 0);
 

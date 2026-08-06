@@ -2,11 +2,30 @@ import {
     Routes,
     Route,
     Navigate,
+    Outlet,
 } from "react-router-dom";
+
+import { useAuthStore } from "../store/authStore";
 
 import AppLayout from "../layouts/AppLayout";
 
 import Home from "../pages/Home";
+
+function HomeRedirect() {
+    const { user } = useAuthStore();
+    if (user?.role === "FIELD" || user?.role === "TECHNICIAN") {
+        return <Navigate to="/service-orders/dashboard" replace />;
+    }
+    return <Home />;
+}
+
+function FullAccessOnly() {
+    const { user } = useAuthStore();
+    if (user?.role === "FIELD" || user?.role === "TECHNICIAN") {
+        return <Navigate to="/service-orders/dashboard" replace />;
+    }
+    return <Outlet />;
+}
 import Dashboard from "../pages/Dashboard";
 import Grid from "../pages/Grid";
 import Imports from "../pages/Imports";
@@ -57,85 +76,11 @@ export default function AppRoutes() {
                     </ProtectedRoute>
                 }
             >
-                <Route
-                    index
-                    element={<Home />}
-                />
-
-                <Route
-                    path="dashboard"
-                    element={<Dashboard />}
-                />
-
-                <Route
-                    path="grid"
-                    element={<Grid />}
-                />
-
-                <Route
-                    path="imports"
-                    element={<Imports />}
-                />
-
-                <Route
-                    path="vehicles"
-                    element={<Vehicles />}
-                />
-
-                <Route
-                    path="vehicles/:plate"
-                    element={<VehicleDetails />}
-                />
-
-                <Route
-                    path="signal-control"
-                    element={<SignalControl />}
-                />
-
-                <Route
-                    path="letters"
-                    element={<Letters />}
-                />
-
-                <Route
-                    path="maintenance"
-                    element={<Maintenance />}
-                />
-
-
-                <Route
-                    path="policies"
-                    element={<Policies />}
-                />
-
-                <Route
-                    path="etl"
-                    element={<EtlMonitor />}
-                />
-
-                <Route
-                    path="reports"
-                    element={<Reports />}
-                />
-
-                <Route
-                    path="sinistro"
-                    element={<AnaliseSinistro />}
-                />
-
-                <Route
-                    path="users"
-                    element={<Users />}
-                />
+                <Route index element={<HomeRedirect />} />
 
                 <Route
                     path="account"
                     element={<Account />}
-                />
-
-                <Route
-                    path="shift-handover"
-                    element={<ShiftHandover />}
                 />
 
                 <Route
@@ -149,14 +94,28 @@ export default function AppRoutes() {
                 />
 
                 <Route
-                    path="technicians"
-                    element={<Technicians />}
-                />
-
-                <Route
                     path="service-orders/reports"
                     element={<ServiceOrdersReports />}
                 />
+
+                {/* Rotas bloqueadas para FIELD e TECHNICIAN */}
+                <Route element={<FullAccessOnly />}>
+                    <Route path="dashboard"        element={<Dashboard />} />
+                    <Route path="grid"             element={<Grid />} />
+                    <Route path="imports"          element={<Imports />} />
+                    <Route path="vehicles"         element={<Vehicles />} />
+                    <Route path="vehicles/:plate"  element={<VehicleDetails />} />
+                    <Route path="signal-control"   element={<SignalControl />} />
+                    <Route path="letters"          element={<Letters />} />
+                    <Route path="maintenance"      element={<Maintenance />} />
+                    <Route path="policies"         element={<Policies />} />
+                    <Route path="etl"              element={<EtlMonitor />} />
+                    <Route path="reports"          element={<Reports />} />
+                    <Route path="sinistro"         element={<AnaliseSinistro />} />
+                    <Route path="users"            element={<Users />} />
+                    <Route path="shift-handover"   element={<ShiftHandover />} />
+                    <Route path="technicians"      element={<Technicians />} />
+                </Route>
             </Route>
 
             <Route
