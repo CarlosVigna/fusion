@@ -260,11 +260,12 @@ public class ServiceOrderService {
                 .count();
 
         long pendentesConclusao = all.stream()
-                .filter(o -> o.getTechnician() != null
+                .filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO
+                        && o.getTechnician() != null
                         && o.getScheduledDate() != null
                         && !o.getScheduledDate().isAfter(LocalDate.now())
                         && o.getServiceValue() != null
-                        && o.getSchedulingStatus() == SchedulingStatus.AGENDADO)
+                        && checkVehicleSignal(o.getPlate()))
                 .count();
 
         // Diagnostic: log each AGENDADO OS with technician to diagnose prazoCumprido
