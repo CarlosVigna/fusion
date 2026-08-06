@@ -42,5 +42,5 @@ public record ServiceOrderResponse(
         LocalDateTime scheduledAt,
         Boolean completedWithoutSignal,
         long slaDays,
-        boolean isLate
+        boolean late
 ) {}

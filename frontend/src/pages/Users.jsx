@@ -51,7 +51,8 @@ function Modal({ user, onClose, onSaved }) {
       toast.success(isEdit ? "Usuário atualizado" : "Usuário criado");
       onSaved();
     } catch (err) {
-      toast.error(err?.response?.data?.message || err.message || "Erro ao salvar");
+      console.error("Erro ao salvar usuário:", err.message, err);
+      toast.error(err.message || "Erro ao salvar");
     } finally {
       setSaving(false);
     }
