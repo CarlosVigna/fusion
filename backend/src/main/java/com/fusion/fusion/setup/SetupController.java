@@ -831,4 +831,14 @@ public class SetupController {
                 .toList();
     }
 
+    @GetMapping("/fix-scheduling-status")
+    public Map<String, Object> fixSchedulingStatus() {
+        int updated = jdbcTemplate.getJdbcTemplate().update(
+            "UPDATE service_orders SET scheduling_status = 'AGENDADO' " +
+            "WHERE technician_id IS NOT NULL AND scheduled_date IS NOT NULL " +
+            "AND scheduling_status = 'ABERTO'"
+        );
+        return Map.of("status", "ok", "updated", updated);
+    }
+
 }
