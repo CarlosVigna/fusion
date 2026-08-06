@@ -2,6 +2,7 @@ package com.fusion.fusion.config;
 
 import com.fusion.fusion.auth.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import org.springframework.web.cors.CorsConfigurationSource;
 
+@Slf4j
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
@@ -35,6 +37,8 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http
     ) throws Exception {
+
+        log.info("[SECURITY] Iniciando SecurityFilterChain - versao com /setup/** permitAll");
 
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
