@@ -677,7 +677,6 @@ public class SetupController {
     }
 
     @GetMapping("/fix-user-roles")
-    @PostMapping("/fix-user-roles")
     public Map<String, Object> fixUserRoles() {
         jdbcTemplate.getJdbcTemplate().execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'FIELD'");
         jdbcTemplate.getJdbcTemplate().execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'TECHNICIAN'");
