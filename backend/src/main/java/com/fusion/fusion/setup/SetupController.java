@@ -676,11 +676,14 @@ public class SetupController {
         return Map.of("status", "ok", "message", "Constraint NOT NULL removida da coluna plate em service_orders");
     }
 
-    @GetMapping("/fix-user-roles")
-    public Map<String, Object> fixUserRoles() {
-        jdbcTemplate.getJdbcTemplate().execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'FIELD'");
-        jdbcTemplate.getJdbcTemplate().execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'TECHNICIAN'");
-        return Map.of("status", "ok", "message", "Valores FIELD e TECHNICIAN adicionados ao enum role");
+    @GetMapping("/check-user-constraints")
+    public Map<String, Object> checkUserConstraints() {
+        List<Map<String, Object>> constraints = jdbcTemplate.getJdbcTemplate().queryForList(
+                "SELECT conname, pg_get_constraintdef(oid) AS definition " +
+                "FROM pg_constraint " +
+                "WHERE conrelid = 'users'::regclass"
+        );
+        return Map.of("constraints", constraints);
     }
 
     @GetMapping("/check-installations")
