@@ -38,9 +38,11 @@ export default function ServiceOrderDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getServiceOrderDashboard()
-      .then(setData)
-      .catch(console.error)
+    Promise.allSettled([getServiceOrderDashboard()])
+      .then(([result]) => {
+        if (result.status === "fulfilled") setData(result.value);
+        else console.error("[ServiceOrderDashboard] falha ao carregar dashboard:", result.reason);
+      })
       .finally(() => setLoading(false));
   }, []);
 
