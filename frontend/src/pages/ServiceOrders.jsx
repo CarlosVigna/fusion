@@ -429,8 +429,8 @@ export default function ServiceOrders() {
                   <DrawerRow label="Encerrada"   value={selectedOrder.closedAt ? new Date(selectedOrder.closedAt).toLocaleDateString("pt-BR") : null} />
                 </DrawerSection>
 
-                {/* Col 1, Row 2: Endereço do Cliente */}
-                <DrawerSection title="Endereço do Cliente">
+                {/* Col 1, Row 2: Dados do Cliente */}
+                <DrawerSection title="Dados do Cliente">
                   <DrawerRow label="Nome"       value={selectedOrder.customerName} />
                   <DrawerRow label="Telefone"   value={selectedOrder.customerPhone} />
                   <DrawerRow label="CEP"        value={selectedOrder.zipCode} />
@@ -655,6 +655,12 @@ export default function ServiceOrders() {
                 {/* Right: editable scheduling fields */}
                 <div className="space-y-3">
                   <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Agendamento</p>
+                  <Field label="Técnico">
+                    <select value={modal.form.technicianId} onChange={e => setForm(f => ({...f, technicianId: e.target.value}))} className={INPUT}>
+                      <option value="">— Selecionar —</option>
+                      {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                  </Field>
                   <Field label="Data Agendamento">
                     <input type="date" value={modal.form.scheduledDate} onChange={e => setForm(f => ({...f, scheduledDate: e.target.value}))} className={INPUT} />
                   </Field>
@@ -690,8 +696,15 @@ export default function ServiceOrders() {
                     </Field>
                   </>
                 )}
-                {isOp && (
+                {/* Dados do cliente — editável por FIELD, OPERATOR e ADMIN */}
+                {isField && (
                   <>
+                    <Field label="Nome do Cliente">
+                      <input value={modal.form.customerName} onChange={e => setForm(f => ({...f, customerName: e.target.value}))} className={INPUT} />
+                    </Field>
+                    <Field label="Telefone">
+                      <input value={modal.form.customerPhone} onChange={e => setForm(f => ({...f, customerPhone: e.target.value}))} className={INPUT} />
+                    </Field>
                     <Field label={<>CEP{cepLoading && <span className="text-zinc-500 font-normal ml-1">(buscando...)</span>}</>}>
                       <input value={modal.form.zipCode} maxLength={9} placeholder="00000-000"
                         onChange={e => {
@@ -700,14 +713,11 @@ export default function ServiceOrders() {
                           if (v.replace(/\D/g, "").length === 8) handleCepLookup(v);
                         }} className={INPUT} />
                     </Field>
-                    <Field label="Solicitante">
-                      <input value={modal.form.requestedBy} onChange={e => setForm(f => ({...f, requestedBy: e.target.value}))} className={INPUT} />
+                    <Field label="Bairro">
+                      <input value={modal.form.neighborhood} onChange={e => setForm(f => ({...f, neighborhood: e.target.value}))} className={INPUT} />
                     </Field>
                     <Field label="Logradouro" span={2}>
                       <input value={modal.form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} className={INPUT} />
-                    </Field>
-                    <Field label="Bairro">
-                      <input value={modal.form.neighborhood} onChange={e => setForm(f => ({...f, neighborhood: e.target.value}))} className={INPUT} />
                     </Field>
                     <Field label="Cidade">
                       <input value={modal.form.city} onChange={e => setForm(f => ({...f, city: e.target.value}))} className={INPUT} />
@@ -715,13 +725,13 @@ export default function ServiceOrders() {
                     <Field label="Estado">
                       <input value={modal.form.state} onChange={e => setForm(f => ({...f, state: e.target.value}))} className={INPUT} />
                     </Field>
-                    <Field label="Nome do Cliente">
-                      <input value={modal.form.customerName} onChange={e => setForm(f => ({...f, customerName: e.target.value}))} className={INPUT} />
-                    </Field>
-                    <Field label="Telefone">
-                      <input value={modal.form.customerPhone} onChange={e => setForm(f => ({...f, customerPhone: e.target.value}))} className={INPUT} />
-                    </Field>
                   </>
+                )}
+                {/* Solicitante e agendamento — somente OPERATOR e ADMIN */}
+                {isOp && (
+                  <Field label="Solicitante">
+                    <input value={modal.form.requestedBy} onChange={e => setForm(f => ({...f, requestedBy: e.target.value}))} className={INPUT} />
+                  </Field>
                 )}
                 {isOp && (
                   <>
