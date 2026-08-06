@@ -299,14 +299,16 @@ export default function ServiceOrders() {
         observations: f.observations,
       };
       const schedPayload = {
-        schedulingStatus: f.schedulingStatus,
-        scheduledDate:    f.scheduledDate    || null,
-        scheduledTime:    f.scheduledTime    || null,
-        serviceValue:     f.serviceValue     ? Number(f.serviceValue)     : null,
-        displacementValue:f.displacementValue? Number(f.displacementValue): null,
-        observations:     f.observations     || null,
+        scheduledDate:     f.scheduledDate    || null,
+        scheduledTime:     f.scheduledTime    || null,
+        serviceValue:      f.serviceValue     ? Number(f.serviceValue)     : null,
+        displacementValue: f.displacementValue? Number(f.displacementValue): null,
+        observations:      f.observations     || null,
       };
       if (f.technicianId) schedPayload.technicianId = f.technicianId;
+      // TECH não envia status — o backend define AGENDADO automaticamente
+      // OP/ADMIN envia explicitamente para poder sobrescrever quando necessário
+      if (!isTech) schedPayload.schedulingStatus = f.schedulingStatus;
 
       if (isTech) {
         await updateScheduling(modal.id, schedPayload);

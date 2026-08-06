@@ -168,6 +168,12 @@ public class ServiceOrderService {
             }
         }
 
+        // Auto-transition: técnico + data preenchidos → AGENDADO automático
+        if (request.technicianId() != null && request.scheduledDate() != null) {
+            so.setSchedulingStatus(SchedulingStatus.AGENDADO);
+        }
+
+        // Sobrescreve se OP/ADMIN enviar status explicitamente
         if (request.schedulingStatus() != null) {
             so.setSchedulingStatus(request.schedulingStatus());
             if (request.schedulingStatus() == SchedulingStatus.CONCLUIDO && so.getClosedAt() == null) {
