@@ -547,7 +547,7 @@ export default function ServiceOrders() {
                 </DrawerSection>
 
                 {/* Col 2, Row 2: Agendamento */}
-                {(isTech || isOp) && (
+                {(isTech || isField) && (
                   <DrawerSection title="Agendamento">
                     <DrawerRow label="Técnico"   value={selectedOrder.technician?.name} />
                     <DrawerRow label="Status"    value={STATUS_LABEL[selectedOrder.schedulingStatus]} />

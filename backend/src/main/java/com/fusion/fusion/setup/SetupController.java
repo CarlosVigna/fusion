@@ -813,4 +813,22 @@ public class SetupController {
 
     }
 
+    @GetMapping("/check-service-orders")
+    public List<Map<String, Object>> checkServiceOrders() {
+        return serviceOrderService.listAll(true).stream()
+                .map(o -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id",               o.id());
+                    row.put("plate",            o.plate());
+                    row.put("schedulingStatus", o.schedulingStatus());
+                    row.put("technicianName",   o.technician() != null ? o.technician().name() : null);
+                    row.put("scheduledDate",    o.scheduledDate());
+                    row.put("scheduledTime",    o.scheduledTime());
+                    row.put("serviceValue",     o.serviceValue());
+                    row.put("createdAt",        o.createdAt());
+                    return row;
+                })
+                .toList();
+    }
+
 }

@@ -70,6 +70,8 @@ export default function Header() {
     (state) => state.logout
   );
 
+  const isFieldOrTech = user?.role === "FIELD" || user?.role === "TECHNICIAN";
+
   const [alerts, setAlerts] =
     useState([]);
 
@@ -91,34 +93,24 @@ export default function Header() {
   const alertsRef = useRef(null);
 
   async function loadAlerts() {
-
+    if (isFieldOrTech) return;
     try {
-
-      const [signalData, polData] = await Promise.all([
+      const [signalResult, polResult] = await Promise.allSettled([
         getActiveSignalReturnAlerts(),
         getPolicyAlerts(),
       ]);
-
-      setAlerts(signalData || []);
-      setPolicyAlerts(Array.isArray(polData) ? polData : []);
-
+      setAlerts(signalResult.status === "fulfilled" ? (signalResult.value || []) : []);
+      setPolicyAlerts(polResult.status === "fulfilled" && Array.isArray(polResult.value) ? polResult.value : []);
     } catch (error) {
-
       console.error(error);
-
     }
-
   }
 
   useEffect(() => {
-
     loadAlerts();
-
     const interval = setInterval(loadAlerts, POLL_INTERVAL_MS);
-
     return () => clearInterval(interval);
-
-  }, []);
+  }, [isFieldOrTech]);
 
   useEffect(() => {
 
