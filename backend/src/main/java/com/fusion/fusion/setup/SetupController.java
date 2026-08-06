@@ -676,6 +676,7 @@ public class SetupController {
         return Map.of("status", "ok", "message", "Constraint NOT NULL removida da coluna plate em service_orders");
     }
 
+    @GetMapping("/fix-user-roles")
     @PostMapping("/fix-user-roles")
     public Map<String, Object> fixUserRoles() {
         jdbcTemplate.getJdbcTemplate().execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'FIELD'");
