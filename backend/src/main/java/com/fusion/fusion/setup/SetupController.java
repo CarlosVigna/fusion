@@ -676,6 +676,13 @@ public class SetupController {
         return Map.of("status", "ok", "message", "Constraint NOT NULL removida da coluna plate em service_orders");
     }
 
+    @PostMapping("/fix-user-roles")
+    public Map<String, Object> fixUserRoles() {
+        jdbcTemplate.getJdbcTemplate().execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'FIELD'");
+        jdbcTemplate.getJdbcTemplate().execute("ALTER TYPE role ADD VALUE IF NOT EXISTS 'TECHNICIAN'");
+        return Map.of("status", "ok", "message", "Valores FIELD e TECHNICIAN adicionados ao enum role");
+    }
+
     @GetMapping("/check-installations")
     public Map<String, Object> checkInstallations() {
 

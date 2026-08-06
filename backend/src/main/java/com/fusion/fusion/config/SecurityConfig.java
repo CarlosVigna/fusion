@@ -74,7 +74,8 @@ public class SecurityConfig {
                                 "/setup/check-installations",
                                 "/setup/fix-plate-nullable",
                                 "/setup/cleanup-service-orders",
-                                "/setup/test-nominatim"
+                                "/setup/test-nominatim",
+                                "/setup/fix-user-roles"
                         ).permitAll()
 
                         // Health check do Render — sem isso o Render nao
