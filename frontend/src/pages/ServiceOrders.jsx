@@ -102,11 +102,12 @@ async function fetchCep(cep) {
   } catch { return null; }
 }
 
-// Conditions for TECHNICIAN to confirm completion
-function canConfirmForTech(o) {
-  if (!o.technician || !o.scheduledDate || !o.scheduledTime || !o.serviceValue) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return o.scheduledDate <= today;
+// ADMIN, OPERATOR e FIELD podem confirmar conclusão; TECHNICIAN não
+function canConfirmCompletion(o, isTech) {
+  if (isTech) return false;
+  if (!o || o.schedulingStatus !== "AGENDADO") return false;
+  if (!o.technician || !o.scheduledDate || !o.serviceValue) return false;
+  return o.scheduledDate <= new Date().toISOString().slice(0, 10);
 }
 
 export default function ServiceOrders() {
@@ -145,7 +146,11 @@ export default function ServiceOrders() {
       case "ABERTO":   return list.filter(o => o.schedulingStatus === "ABERTO");
       case "AGENDADO": return list.filter(o => o.schedulingStatus === "AGENDADO");
       case "LATE":     return list.filter(o => o.late);
-      case "PEND_FIN": return list.filter(o => o.schedulingStatus !== "CONCLUIDO" && o.financialApprovalStatus === "PENDENTE");
+      case "PEND_FIN":      return list.filter(o => o.schedulingStatus !== "CONCLUIDO" && o.financialApprovalStatus === "PENDENTE");
+      case "PEND_CONCLUSAO": {
+        const today = new Date().toISOString().slice(0, 10);
+        return list.filter(o => o.technician && o.scheduledDate && o.scheduledDate <= today && o.serviceValue && o.schedulingStatus === "AGENDADO");
+      }
       default: return list;
     }
   }
@@ -478,23 +483,15 @@ export default function ServiceOrders() {
             {/* Drawer footer — role-based actions */}
             <div className="border-t border-zinc-800 p-4 flex flex-wrap gap-2">
 
-              {/* TECHNICIAN: Marcar Agendamento + conditional Confirmar Conclusão */}
+              {/* TECHNICIAN: apenas Marcar Agendamento */}
               {isTech && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
-                <>
-                  <button onClick={() => openEdit(selectedOrder)}
-                    className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200">
-                    Marcar Agendamento
-                  </button>
-                  {canConfirmForTech(selectedOrder) && (
-                    <button onClick={() => setConfirmModal({ type: "completion", orderId: selectedOrder.id })}
-                      className="rounded-xl px-4 py-2 text-sm bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20">
-                      Confirmar Conclusão
-                    </button>
-                  )}
-                </>
+                <button onClick={() => openEdit(selectedOrder)}
+                  className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200">
+                  Marcar Agendamento
+                </button>
               )}
 
-              {/* FIELD (non-op, non-tech): Editar */}
+              {/* FIELD (non-op, non-tech): Editar + Confirmar Conclusão */}
               {isField && !isOp && !isTech && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
                 <button onClick={() => openEdit(selectedOrder)}
                   className="flex items-center gap-1.5 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
@@ -502,7 +499,7 @@ export default function ServiceOrders() {
                 </button>
               )}
 
-              {/* OPERATOR/ADMIN: Editar + aprovação financeira + confirmar conclusão */}
+              {/* OPERATOR/ADMIN: Editar + aprovação financeira */}
               {isOp && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
                 <button onClick={() => openEdit(selectedOrder)}
                   className="flex items-center gap-1.5 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
@@ -521,7 +518,9 @@ export default function ServiceOrders() {
                   </button>
                 </>
               )}
-              {isOp && selectedOrder.schedulingStatus !== "CONCLUIDO" && !selectedOrder.completionConfirmed && (
+
+              {/* ADMIN, OPERATOR, FIELD: Confirmar Conclusão quando condições são atendidas */}
+              {canConfirmCompletion(selectedOrder, isTech) && !selectedOrder.completionConfirmed && (
                 <button onClick={() => setConfirmModal({ type: "completion", orderId: selectedOrder.id })}
                   className="rounded-xl px-4 py-2 text-sm bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20">
                   Confirmar Conclusão

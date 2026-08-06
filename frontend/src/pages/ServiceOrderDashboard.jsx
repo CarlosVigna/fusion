@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, Clock, DollarSign, Hourglass, Timer, TrendingUp, Zap } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, DollarSign, Hourglass, Timer, TrendingUp, Zap } from "lucide-react";
 import { getServiceOrderDashboard } from "../services/serviceOrderService";
 import { useAuthStore } from "../store/authStore";
 
@@ -8,7 +8,8 @@ const CLICKABLE_CARDS = [
   { key: "abertas",            label: "Abertas",           icon: Clock,         color: "blue",   filter: "ABERTO"   },
   { key: "emAndamento",        label: "Em Andamento",      icon: Hourglass,     color: "yellow", filter: "AGENDADO" },
   { key: "atrasadas",          label: "Atrasadas",         icon: AlertTriangle, color: "red",    filter: "LATE"     },
-  { key: "pendentesAprovacao", label: "Pend. Aprovação",   icon: DollarSign,    color: "orange", filter: "PEND_FIN" },
+  { key: "pendentesAprovacao", label: "Pend. Aprovação",  icon: DollarSign,  color: "orange", filter: "PEND_FIN"       },
+  { key: "pendentesConclusao", label: "Pend. Conclusão",  icon: CheckCircle, color: "teal",   filter: "PEND_CONCLUSAO"  },
 ];
 
 const ANALYTICS_CARDS = [
@@ -54,7 +55,7 @@ export default function ServiceOrderDashboard() {
       ) : (
         <>
           {/* Clickable status cards */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
             {CLICKABLE_CARDS.map((card) => {
               const Icon = card.icon;
               return (

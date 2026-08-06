@@ -230,21 +230,45 @@ public class ServiceOrderService {
 
     public Map<String, Object> dashboard(boolean showAnalytics) {
         List<ServiceOrder> all = repository.findAll();
-        long abertas        = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.ABERTO).count();
-        long emAndamento    = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO).count();
-        long atrasadas      = all.stream().filter(ServiceOrder::isLate).count();
-        long pendentesAprov = all.stream()
-                .filter(o -> o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO
-                        && o.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE).count();
 
-        log.info("[OS-DASHBOARD] total={} abertas={}, emAndamento={}, atrasadas={}, pendentesAprovacao={}",
-                all.size(), abertas, emAndamento, atrasadas, pendentesAprov);
+        long abertas = all.stream()
+                .filter(o -> o.getTechnician() == null
+                        && o.getSchedulingStatus() == SchedulingStatus.ABERTO)
+                .count();
+
+        long emAndamento = all.stream()
+                .filter(o -> o.getTechnician() != null
+                        && o.getSchedulingStatus() == SchedulingStatus.AGENDADO)
+                .count();
+
+        long atrasadas = all.stream()
+                .filter(o -> o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO
+                        && o.isLate())
+                .count();
+
+        long pendentesAprov = all.stream()
+                .filter(o -> o.getDisplacementValue() != null
+                        && o.getDisplacementValue().compareTo(BigDecimal.ZERO) > 0
+                        && o.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE)
+                .count();
+
+        long pendentesConclusao = all.stream()
+                .filter(o -> o.getTechnician() != null
+                        && o.getScheduledDate() != null
+                        && !o.getScheduledDate().isAfter(LocalDate.now())
+                        && o.getServiceValue() != null
+                        && o.getSchedulingStatus() == SchedulingStatus.AGENDADO)
+                .count();
+
+        log.info("[DASHBOARD] abertas={} emAndamento={} atrasadas={} pendAprovacao={} pendConclusao={}",
+                abertas, emAndamento, atrasadas, pendentesAprov, pendentesConclusao);
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("abertas",            abertas);
-        result.put("emAndamento",        emAndamento);
-        result.put("atrasadas",          atrasadas);
-        result.put("pendentesAprovacao", pendentesAprov);
+        result.put("abertas",             abertas);
+        result.put("emAndamento",         emAndamento);
+        result.put("atrasadas",           atrasadas);
+        result.put("pendentesAprovacao",  pendentesAprov);
+        result.put("pendentesConclusao",  pendentesConclusao);
 
         if (showAnalytics) {
             OptionalDouble slaMedia = all.stream()
