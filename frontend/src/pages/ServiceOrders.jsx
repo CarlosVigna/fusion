@@ -105,8 +105,11 @@ async function fetchCep(cep) {
 
 function isScheduledPassed(o) {
   if (!o?.scheduledDate) return false;
-  if (!o.scheduledTime) return o.scheduledDate <= new Date().toISOString().slice(0, 10);
-  return new Date(`${o.scheduledDate}T${o.scheduledTime}:00`) < new Date();
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  if (!o.scheduledTime) return o.scheduledDate <= todayUtc;
+  // scheduledTime is stored as Brazil local time (UTC-3); convert to UTC by adding 3h
+  const scheduledUtc = new Date(`${o.scheduledDate}T${o.scheduledTime}:00-03:00`);
+  return scheduledUtc < new Date();
 }
 
 export default function ServiceOrders() {
@@ -147,7 +150,7 @@ export default function ServiceOrders() {
   function applyFilter(list) {
     let result = list;
     switch (filter) {
-      case "ABERTO":    result = result.filter(o => o.schedulingStatus === "ABERTO"); break;
+      case "ABERTO":    result = result.filter(o => o.schedulingStatus === "ABERTO" && !o.technician); break;
       case "AGENDADO":  result = result.filter(o => o.schedulingStatus === "AGENDADO"); break;
       case "CONCLUIDO": result = result.filter(o => o.schedulingStatus === "CONCLUIDO"); break;
       case "LATE":      result = result.filter(o => o.late); break;

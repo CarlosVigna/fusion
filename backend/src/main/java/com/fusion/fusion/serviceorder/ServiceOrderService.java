@@ -261,6 +261,16 @@ public class ServiceOrderService {
                         && o.getSchedulingStatus() == SchedulingStatus.AGENDADO)
                 .count();
 
+        // Diagnostic: log each AGENDADO OS with technician to diagnose prazoCumprido
+        all.stream()
+                .filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO
+                        && o.getTechnician() != null
+                        && o.getScheduledDate() != null)
+                .forEach(o -> log.info("[DASHBOARD] prazoCumprido check - OS={} scheduledDate={} scheduledTime={} passed={} tecnico={} serviceValue={} status={}",
+                        o.getId(), o.getScheduledDate(), o.getScheduledTime(),
+                        isScheduledDateTimePassed(o), o.getTechnician() != null,
+                        o.getServiceValue(), o.getSchedulingStatus()));
+
         long prazoCumprido = all.stream()
                 .filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO
                         && o.getTechnician() != null
@@ -269,8 +279,8 @@ public class ServiceOrderService {
                         && isScheduledDateTimePassed(o))
                 .count();
 
-        log.info("[DASHBOARD] abertas={} emAndamento={} atrasadas={} pendAprovacao={} pendConclusao={} prazoCumprido={}",
-                abertas, emAndamento, atrasadas, pendentesAprov, pendentesConclusao, prazoCumprido);
+        log.info("[DASHBOARD] abertas={} emAndamento={} atrasadas={} prazoCumprido={}",
+                abertas, emAndamento, atrasadas, prazoCumprido);
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("abertas",             abertas);
@@ -357,12 +367,15 @@ public class ServiceOrderService {
 
     private boolean isScheduledDateTimePassed(ServiceOrder o) {
         if (o.getScheduledDate() == null) return false;
-        if (o.getScheduledTime() == null) return !o.getScheduledDate().isAfter(LocalDate.now());
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+        if (o.getScheduledTime() == null) return !o.getScheduledDate().isAfter(today);
         try {
             LocalTime time = LocalTime.parse(o.getScheduledTime());
-            return LocalDateTime.of(o.getScheduledDate(), time).isBefore(LocalDateTime.now());
+            // scheduledTime stored as local Brazil time (UTC-3); compare with UTC by adding offset
+            LocalDateTime scheduledUtc = LocalDateTime.of(o.getScheduledDate(), time).plusHours(3);
+            return scheduledUtc.isBefore(LocalDateTime.now(ZoneOffset.UTC));
         } catch (Exception e) {
-            return !o.getScheduledDate().isAfter(LocalDate.now());
+            return !o.getScheduledDate().isAfter(today);
         }
     }
 
