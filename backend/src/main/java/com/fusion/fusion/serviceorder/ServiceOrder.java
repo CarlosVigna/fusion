@@ -87,6 +87,12 @@ public class ServiceOrder {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime closedAt;
+    private LocalDateTime scheduledAt;
+
+    @Builder.Default
+    @Column(name = "completed_without_signal", nullable = false,
+            columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private Boolean completedWithoutSignal = false;
 
     @PrePersist
     public void prePersist() {

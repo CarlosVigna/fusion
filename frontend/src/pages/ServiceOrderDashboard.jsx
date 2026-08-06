@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, CheckCircle, Clock, DollarSign, Hourglass, TrendingUp } from "lucide-react";
+import { AlertTriangle, Clock, DollarSign, Hourglass, Timer, TrendingUp, Zap } from "lucide-react";
 import { getServiceOrderDashboard } from "../services/serviceOrderService";
 
 const CARDS = [
-  { key: "open",                         label: "Ordens Abertas",              icon: Clock,         color: "blue",   filter: "ABERTO"    },
-  { key: "ongoing",                      label: "Em Andamento",                icon: Hourglass,     color: "yellow", filter: "AGENDADO"  },
-  { key: "late",                         label: "Atrasadas",                   icon: AlertTriangle, color: "red",    filter: "LATE"      },
-  { key: "pendingFinancialApproval",     label: "Pendentes de Aprovação",      icon: DollarSign,    color: "orange", filter: "PEND_FIN"  },
-  { key: "pendingCompletionConfirmation",label: "Pendentes de Confirmar",      icon: CheckCircle,   color: "teal",   filter: "PEND_CONF" },
-  { key: "avgSlaDays",                   label: "SLA Médio (dias)",            icon: TrendingUp,    color: "zinc",   filter: null        },
+  { key: "abertas",           label: "Abertas",              icon: Clock,         color: "blue",   filter: "ABERTO"    },
+  { key: "emAndamento",       label: "Em Andamento",         icon: Hourglass,     color: "yellow", filter: "AGENDADO"  },
+  { key: "atrasadas",         label: "Atrasadas",            icon: AlertTriangle, color: "red",    filter: "LATE"      },
+  { key: "pendentesAprovacao",label: "Pend. Aprovação",      icon: DollarSign,    color: "orange", filter: "PEND_FIN"  },
+  { key: "slaMediaDias",      label: "SLA Médio (dias)",     icon: TrendingUp,    color: "zinc",   filter: null        },
+  { key: "tempoMedioDeila",   label: "Tempo Deila agir (h)", icon: Zap,           color: "purple", filter: null        },
+  { key: "tempoMedioResolucao",label: "Resolução Média (h)", icon: Timer,         color: "teal",   filter: null        },
 ];
 
 const colorClass = {
@@ -19,6 +20,7 @@ const colorClass = {
   orange: "border-orange-500/30 bg-orange-500/10 text-orange-400",
   teal:   "border-teal-500/30 bg-teal-500/10 text-teal-400",
   zinc:   "border-zinc-700 bg-zinc-900 text-zinc-300",
+  purple: "border-purple-500/30 bg-purple-500/10 text-purple-400",
 };
 
 export default function ServiceOrderDashboard() {
@@ -48,7 +50,7 @@ export default function ServiceOrderDashboard() {
       {loading ? (
         <p className="text-zinc-500">Carregando...</p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
           {CARDS.map((card) => {
             const Icon = card.icon;
             const value = data?.[card.key] ?? 0;

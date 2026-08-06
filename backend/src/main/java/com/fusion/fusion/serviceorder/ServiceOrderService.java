@@ -4,10 +4,16 @@ import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.technician.Technician;
 import com.fusion.fusion.technician.TechnicianService;
+import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.VehicleRepository;
+import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
+import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -23,10 +29,21 @@ public class ServiceOrderService {
     private final ServiceOrderRepository repository;
     private final TechnicianService technicianService;
     private final OrsService orsService;
+    private final VehicleRepository vehicleRepository;
+    private final VehicleOperationalStateRepository operationalStateRepository;
 
-    public List<ServiceOrderResponse> listAll() {
+    public List<ServiceOrderResponse> listAll(boolean includeCompleted) {
         return repository.findAll().stream()
+                .filter(o -> includeCompleted || o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO)
                 .sorted(Comparator.comparing(ServiceOrder::getRequestedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List<ServiceOrderResponse> listCompleted() {
+        return repository.findAll().stream()
+                .filter(o -> o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
+                .sorted(Comparator.comparing(ServiceOrder::getClosedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(this::toResponse)
                 .toList();
     }
@@ -53,7 +70,6 @@ public class ServiceOrderService {
         return toResponse(repository.save(so));
     }
 
-    // Criação interna a partir do portal (sem usuário autenticado)
     @Transactional
     public ServiceOrderResponse createFromPortal(ServiceOrderRequest request) {
         if (request.plate() != null && repository.existsByExternalInstallationId(request.plate())) return null;
@@ -122,7 +138,6 @@ public class ServiceOrderService {
             so.setTechnician(tech);
 
             if (techChanged) {
-                // Geocodificar técnico se não tiver coordenadas (cadastrado antes do ORS)
                 if (tech.getLatitude() == null && tech.getAddress() != null) {
                     log.info("[OS] Tecnico sem coordenadas, geocodificando em tempo real: {}, {}", tech.getAddress(), tech.getCity());
                     technicianService.geocodeIfMissing(tech);
@@ -158,7 +173,15 @@ public class ServiceOrderService {
                 so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
             }
         }
-        if (request.scheduledDate() != null) so.setScheduledDate(request.scheduledDate());
+
+        if (request.scheduledDate() != null) {
+            // Track first time a date is scheduled (tempo Deila agir)
+            if (so.getScheduledAt() == null) {
+                so.setScheduledAt(LocalDateTime.now(ZoneOffset.UTC));
+            }
+            so.setScheduledDate(request.scheduledDate());
+        }
+
         if (request.scheduledTime() != null) so.setScheduledTime(request.scheduledTime());
         if (request.serviceValue() != null) {
             so.setServiceValue(request.serviceValue());
@@ -183,6 +206,22 @@ public class ServiceOrderService {
     @Transactional
     public ServiceOrderResponse confirmCompletion(UUID id) {
         ServiceOrder so = find(id);
+
+        if (so.getTechnician() == null) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Técnico deve ser atribuído antes de confirmar conclusão");
+        }
+        if (so.getServiceValue() == null) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Valor do serviço deve ser informado antes de confirmar conclusão");
+        }
+
+        boolean hasSignal = checkVehicleSignal(so.getPlate());
+        so.setCompletedWithoutSignal(!hasSignal);
+        if (!hasSignal) {
+            log.info("[OS] Concluída sem sinal do veículo: OS={} placa={}", id, so.getPlate());
+        }
+
         so.setCompletionConfirmed(true);
         so.setSchedulingStatus(SchedulingStatus.CONCLUIDO);
         if (so.getClosedAt() == null) so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
@@ -191,23 +230,36 @@ public class ServiceOrderService {
 
     public Map<String, Object> dashboard() {
         List<ServiceOrder> all = repository.findAll();
-        long open     = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.ABERTO).count();
-        long ongoing  = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO).count();
-        long late     = all.stream().filter(o -> o.isLate()).count();
-        long pendFin  = all.stream().filter(o -> o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO
-                                            && o.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE).count();
-        long pendConf = all.stream().filter(o -> Boolean.TRUE.equals(o.getCompletionAlertSent()) && !Boolean.TRUE.equals(o.getCompletionConfirmed())).count();
-        OptionalDouble avgSla = all.stream()
+        long abertas        = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.ABERTO).count();
+        long emAndamento    = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO).count();
+        long atrasadas      = all.stream().filter(ServiceOrder::isLate).count();
+        long pendentesAprov = all.stream()
+                .filter(o -> o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO
+                        && o.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE).count();
+
+        OptionalDouble slaMedia = all.stream()
                 .filter(o -> o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
                 .mapToLong(ServiceOrder::getSlaDays).average();
 
+        OptionalDouble tempoDeila = all.stream()
+                .filter(o -> o.getRequestedAt() != null && o.getScheduledAt() != null)
+                .mapToDouble(o -> java.time.Duration.between(o.getRequestedAt(), o.getScheduledAt()).toMinutes() / 60.0)
+                .average();
+
+        OptionalDouble tempoResolucao = all.stream()
+                .filter(o -> o.getRequestedAt() != null && o.getClosedAt() != null
+                        && o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
+                .mapToDouble(o -> java.time.Duration.between(o.getRequestedAt(), o.getClosedAt()).toMinutes() / 60.0)
+                .average();
+
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("open", open);
-        result.put("ongoing", ongoing);
-        result.put("late", late);
-        result.put("pendingFinancialApproval", pendFin);
-        result.put("pendingCompletionConfirmation", pendConf);
-        result.put("avgSlaDays", avgSla.isPresent() ? Math.round(avgSla.getAsDouble() * 10.0) / 10.0 : 0);
+        result.put("abertas",           abertas);
+        result.put("emAndamento",       emAndamento);
+        result.put("atrasadas",         atrasadas);
+        result.put("pendentesAprovacao", pendentesAprov);
+        result.put("slaMediaDias",      slaMedia.isPresent()      ? Math.round(slaMedia.getAsDouble()      * 10.0) / 10.0 : 0);
+        result.put("tempoMedioDeila",   tempoDeila.isPresent()    ? Math.round(tempoDeila.getAsDouble()    * 10.0) / 10.0 : 0);
+        result.put("tempoMedioResolucao", tempoResolucao.isPresent() ? Math.round(tempoResolucao.getAsDouble() * 10.0) / 10.0 : 0);
         return result;
     }
 
@@ -215,21 +267,20 @@ public class ServiceOrderService {
         List<ServiceOrder> orders = repository.findConcludedByMonth(month);
         List<ServiceOrderResponse> rows = orders.stream().map(this::toResponse).toList();
 
-        BigDecimal totalService     = rows.stream().map(r -> r.serviceValue()     != null ? r.serviceValue()     : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalDisplacement= rows.stream().map(r -> r.displacementValue()!= null ? r.displacementValue(): BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal totalValue       = rows.stream().map(r -> r.totalValue()       != null ? r.totalValue()       : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalService      = rows.stream().map(r -> r.serviceValue()      != null ? r.serviceValue()      : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalDisplacement = rows.stream().map(r -> r.displacementValue() != null ? r.displacementValue() : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalValue        = rows.stream().map(r -> r.totalValue()        != null ? r.totalValue()        : BigDecimal.ZERO).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("month", month);
-        result.put("count", rows.size());
-        result.put("totalServiceValue", totalService);
-        result.put("totalDisplacementValue", totalDisplacement);
-        result.put("totalValue", totalValue);
-        result.put("orders", rows);
+        result.put("month",                 month);
+        result.put("count",                 rows.size());
+        result.put("totalServiceValue",     totalService);
+        result.put("totalDisplacementValue",totalDisplacement);
+        result.put("totalValue",            totalValue);
+        result.put("orders",                rows);
         return result;
     }
 
-    // Verificação periódica: INSTALACAO não concluída com veículo ativo
     public List<ServiceOrder> findPendingInstallations() {
         return repository.findByServiceTypeAndSchedulingStatusNotAndCompletionConfirmedFalse(
                 ServiceType.INSTALACAO, SchedulingStatus.CONCLUIDO);
@@ -243,7 +294,6 @@ public class ServiceOrderService {
 
     @Transactional
     public void markCompletionAlertSent(UUID id) {
-        find(id).setCompletionAlertSent(true);
         repository.findById(id).ifPresent(so -> {
             so.setCompletionAlertSent(true);
             repository.save(so);
@@ -254,6 +304,26 @@ public class ServiceOrderService {
         BigDecimal disp = so.getDisplacementValue() != null ? so.getDisplacementValue() : BigDecimal.ZERO;
         BigDecimal svc  = so.getServiceValue()      != null ? so.getServiceValue()      : BigDecimal.ZERO;
         so.setTotalValue(disp.add(svc));
+        // Auto-approve when no displacement cost
+        if (disp.compareTo(BigDecimal.ZERO) == 0) {
+            so.setFinancialApprovalStatus(FinancialApprovalStatus.APROVADO);
+        }
+    }
+
+    private boolean checkVehicleSignal(String plate) {
+        if (plate == null || plate.isBlank()) return false;
+        try {
+            Optional<Vehicle> vehicleOpt = vehicleRepository.findByPlate(plate.toUpperCase());
+            if (vehicleOpt.isEmpty()) return false;
+            Optional<VehicleOperationalState> stateOpt = operationalStateRepository.findFirstByVehicle(vehicleOpt.get());
+            if (stateOpt.isEmpty()) return false;
+            LocalDateTime lastComm = stateOpt.get().getLastCommunicationAt();
+            if (lastComm == null) return false;
+            return lastComm.isAfter(LocalDateTime.now(ZoneOffset.UTC).minusHours(24));
+        } catch (Exception e) {
+            log.warn("[OS] Erro ao verificar sinal do veiculo {}: {}", plate, e.getMessage());
+            return false;
+        }
     }
 
     private ServiceOrder find(UUID id) {
@@ -294,6 +364,8 @@ public class ServiceOrderService {
                 so.getCreatedAt(),
                 so.getUpdatedAt(),
                 so.getClosedAt(),
+                so.getScheduledAt(),
+                so.getCompletedWithoutSignal(),
                 so.getSlaDays(),
                 so.isLate()
         );

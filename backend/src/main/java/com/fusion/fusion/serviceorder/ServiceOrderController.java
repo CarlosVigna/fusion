@@ -20,8 +20,14 @@ public class ServiceOrderController {
     private final ServiceOrderService service;
 
     @GetMapping
-    public List<ServiceOrderResponse> listAll() {
-        return service.listAll();
+    public List<ServiceOrderResponse> listAll(
+            @RequestParam(defaultValue = "false") boolean includeCompleted) {
+        return service.listAll(includeCompleted);
+    }
+
+    @GetMapping("/completed")
+    public List<ServiceOrderResponse> listCompleted() {
+        return service.listCompleted();
     }
 
     @PostMapping

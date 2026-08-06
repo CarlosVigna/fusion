@@ -4,6 +4,10 @@ export async function getServiceOrders() {
   return apiClient.get("/service-orders");
 }
 
+export async function getCompletedServiceOrders() {
+  return apiClient.get("/service-orders/completed");
+}
+
 export async function createServiceOrder(data) {
   return apiClient.post("/service-orders", data);
 }

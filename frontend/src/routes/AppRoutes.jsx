@@ -28,7 +28,7 @@ import ShiftHandover from "../pages/ShiftHandover";
 import ServiceOrderDashboard from "../pages/ServiceOrderDashboard";
 import ServiceOrders from "../pages/ServiceOrders";
 import Technicians from "../pages/Technicians";
-import ServiceOrderClose from "../pages/ServiceOrderClose";
+import ServiceOrdersReports from "../pages/ServiceOrdersReports";
 
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -154,8 +154,8 @@ export default function AppRoutes() {
                 />
 
                 <Route
-                    path="service-orders/closing"
-                    element={<ServiceOrderClose />}
+                    path="service-orders/reports"
+                    element={<ServiceOrdersReports />}
                 />
             </Route>
 

@@ -82,10 +82,10 @@ const GROUPS = [
         label: "Ordens de Serviço",
         icon: ClipboardCheck,
         items: [
-            { label: "Dashboard",      icon: ClipboardCheck, path: "/service-orders/dashboard" },
-            { label: "Ordens",         icon: ClipboardList,  path: "/service-orders" },
-            { label: "Técnicos",       icon: UserCog,        path: "/technicians" },
-            { label: "Fechamento",     icon: FileSpreadsheet, path: "/service-orders/closing" },
+            { label: "Dashboard",   icon: ClipboardCheck,  path: "/service-orders/dashboard" },
+            { label: "Ordens",      icon: ClipboardList,   path: "/service-orders", end: true },
+            { label: "Técnicos",    icon: UserCog,         path: "/technicians" },
+            { label: "Relatórios",  icon: FileSpreadsheet, path: "/service-orders/reports" },
         ],
     },
     {
@@ -319,6 +319,7 @@ export default function Sidebar() {
                                         <NavLink
                                             key={item.path}
                                             to={item.path}
+                                            end={!!item.end}
                                             title={!expanded ? item.label : undefined}
                                             className={({ isActive }) =>
                                                 `
