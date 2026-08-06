@@ -19,13 +19,13 @@ const ANALYTICS_CARDS = [
 ];
 
 const colorClass = {
-  blue:   "border-blue-500/30 bg-blue-500/10 text-blue-400",
-  yellow: "border-yellow-500/30 bg-yellow-500/10 text-yellow-400",
-  red:    "border-red-500/30 bg-red-500/10 text-red-400",
-  orange: "border-orange-500/30 bg-orange-500/10 text-orange-400",
-  teal:   "border-teal-500/30 bg-teal-500/10 text-teal-400",
-  zinc:   "border-zinc-700 bg-zinc-900 text-zinc-300",
-  purple: "border-purple-500/30 bg-purple-500/10 text-purple-400",
+  blue:   "border-blue-300 bg-blue-100 text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-400",
+  yellow: "border-yellow-300 bg-yellow-100 text-yellow-800 dark:border-yellow-500/30 dark:bg-yellow-500/10 dark:text-yellow-400",
+  red:    "border-red-300 bg-red-100 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400",
+  orange: "border-orange-300 bg-orange-100 text-orange-800 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400",
+  teal:   "border-teal-300 bg-teal-100 text-teal-800 dark:border-teal-500/30 dark:bg-teal-500/10 dark:text-teal-400",
+  zinc:   "border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300",
+  purple: "border-purple-300 bg-purple-100 text-purple-800 dark:border-purple-500/30 dark:bg-purple-500/10 dark:text-purple-400",
 };
 
 export default function ServiceOrderDashboard() {

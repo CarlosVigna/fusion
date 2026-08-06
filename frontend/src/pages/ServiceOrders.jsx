@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Eye, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   getServiceOrders,
@@ -17,9 +17,9 @@ import { useAuthStore } from "../store/authStore";
 const STATUS_LABEL    = { ABERTO: "Aberto", AGENDADO: "Agendado", CONCLUIDO: "Concluído" };
 const FINANCIAL_LABEL = { PENDENTE: "Pendente", APROVADO: "Aprovado", REPROVADO: "Reprovado" };
 const STATUS_COLOR = {
-  ABERTO:    "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  AGENDADO:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  CONCLUIDO: "bg-green-500/10 text-green-400 border-green-500/30",
+  ABERTO:    "bg-blue-200 text-blue-900 border-blue-300 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30",
+  AGENDADO:  "bg-yellow-200 text-yellow-900 border-yellow-300 dark:bg-yellow-500/10 dark:text-yellow-400 dark:border-yellow-500/30",
+  CONCLUIDO: "bg-green-200 text-green-900 border-green-300 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30",
 };
 const FIN_COLOR = {
   PENDENTE:  "bg-zinc-800 text-zinc-400",
@@ -43,7 +43,7 @@ function Badge({ label, colorClass }) {
 
 function SlaChip({ days, isLate }) {
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isLate ? "bg-red-500/10 text-red-400" : "bg-zinc-800 text-zinc-400"}`}>
+    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isLate ? "bg-red-200 text-red-900 dark:bg-red-500/10 dark:text-red-400" : "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"}`}>
       {days}d{isLate ? " ⚠" : ""}
     </span>
   );
@@ -126,7 +126,11 @@ export default function ServiceOrders() {
   const [filter, setFilter]           = useState(searchParams.get("filter") || "");
   const [modal, setModal]             = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
-  const [cepLoading, setCepLoading]   = useState(false);
+  const [cepLoading, setCepLoading]         = useState(false);
+  const [searchText, setSearchText]         = useState("");
+  const [filterServiceType, setFilterServiceType] = useState("");
+  const [filterTechnicianId, setFilterTechnicianId] = useState("");
+  const [selectedIds, setSelectedIds]       = useState(new Set());
 
   useEffect(() => { load(); }, []);
 
@@ -142,17 +146,30 @@ export default function ServiceOrders() {
   }
 
   function applyFilter(list) {
+    let result = list;
     switch (filter) {
-      case "ABERTO":   return list.filter(o => o.schedulingStatus === "ABERTO");
-      case "AGENDADO": return list.filter(o => o.schedulingStatus === "AGENDADO");
-      case "LATE":     return list.filter(o => o.late);
-      case "PEND_FIN":      return list.filter(o => o.schedulingStatus !== "CONCLUIDO" && o.financialApprovalStatus === "PENDENTE");
+      case "ABERTO":    result = result.filter(o => o.schedulingStatus === "ABERTO"); break;
+      case "AGENDADO":  result = result.filter(o => o.schedulingStatus === "AGENDADO"); break;
+      case "CONCLUIDO": result = result.filter(o => o.schedulingStatus === "CONCLUIDO"); break;
+      case "LATE":      result = result.filter(o => o.late); break;
+      case "PEND_FIN":  result = result.filter(o => o.schedulingStatus !== "CONCLUIDO" && o.financialApprovalStatus === "PENDENTE"); break;
       case "PEND_CONCLUSAO": {
         const today = new Date().toISOString().slice(0, 10);
-        return list.filter(o => o.technician && o.scheduledDate && o.scheduledDate <= today && o.serviceValue && o.schedulingStatus === "AGENDADO");
+        result = result.filter(o => o.technician && o.scheduledDate && o.scheduledDate <= today && o.serviceValue && o.schedulingStatus === "AGENDADO");
+        break;
       }
-      default: return list;
     }
+    if (searchText.trim()) {
+      const q = searchText.toLowerCase();
+      result = result.filter(o =>
+        (o.plate || "").toLowerCase().includes(q) ||
+        (o.customerName || "").toLowerCase().includes(q) ||
+        (o.city || "").toLowerCase().includes(q)
+      );
+    }
+    if (filterServiceType) result = result.filter(o => o.serviceType === filterServiceType);
+    if (filterTechnicianId) result = result.filter(o => String(o.technician?.id) === filterTechnicianId);
+    return result;
   }
 
   function setForm(updater) {
@@ -175,6 +192,29 @@ export default function ServiceOrders() {
   }
 
   const visible = applyFilter(orders);
+  const allSelected = visible.length > 0 && visible.every(o => selectedIds.has(o.id));
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    setSelectedIds(allSelected ? new Set() : new Set(visible.map(o => o.id)));
+  }
+
+  function copySelected() {
+    const rows = visible.filter(o => selectedIds.has(o.id));
+    const text = rows.map(o =>
+      `PLACA: ${o.plate || "—"} | Cliente: ${o.customerName || "—"} | Cidade: ${[o.city, o.state].filter(Boolean).join("/") || "—"} | Status: ${STATUS_LABEL[o.schedulingStatus] || o.schedulingStatus} | SLA: ${o.slaDays}d | Técnico: ${o.technician?.name || "—"} | Serviço: ${o.serviceType}`
+    ).join("\n");
+    navigator.clipboard.writeText(text)
+      .then(() => toast.success(`${rows.length} OS copiada(s)`))
+      .catch(() => toast.error("Erro ao copiar"));
+  }
 
   function openCreate() {
     setModal({ type: "create", form: { ...EMPTY_ORDER, requestedBy: user?.name || "" } });
@@ -310,26 +350,57 @@ export default function ServiceOrders() {
   return (
     <div className="p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
-          <p className="text-zinc-400 mt-1">{visible.length} ordem(ns)</p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
+            <p className="text-zinc-400 mt-1">{visible.length} ordem(ns)</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <button onClick={copySelected}
+                className="flex items-center gap-2 rounded-2xl border border-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-zinc-800">
+                Copiar Selecionadas ({selectedIds.size})
+              </button>
+            )}
+            {isField && (
+              <button onClick={openCreate}
+                className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200">
+                <Plus size={16} /> Nova Ordem
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+            <input
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              placeholder="Buscar placa, cliente, cidade…"
+              className="rounded-xl border border-zinc-800 bg-zinc-900 pl-8 pr-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none w-56"
+            />
+          </div>
+          <select value={filter} onChange={e => setFilter(e.target.value)}
             className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
-            <option value="">Todos</option>
+            <option value="">Todos os status</option>
             <option value="ABERTO">Abertas</option>
             <option value="AGENDADO">Agendadas</option>
+            <option value="CONCLUIDO">Concluídas</option>
             <option value="LATE">Atrasadas</option>
             <option value="PEND_FIN">Pend. Aprovação</option>
+            <option value="PEND_CONCLUSAO">Pend. Conclusão</option>
           </select>
-          {isField && (
-            <button onClick={openCreate}
-              className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200">
-              <Plus size={16} /> Nova Ordem
-            </button>
-          )}
+          <select value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}
+            className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+            <option value="">Todos os serviços</option>
+            {SERVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select value={filterTechnicianId} onChange={e => setFilterTechnicianId(e.target.value)}
+            className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+            <option value="">Todos os técnicos</option>
+            {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
         </div>
       </div>
 
@@ -338,6 +409,9 @@ export default function ServiceOrders() {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500 uppercase tracking-wider">
+              <th className="px-4 py-3 w-8">
+                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-white cursor-pointer" />
+              </th>
               <th className="px-4 py-3">Placa</th>
               <th className="px-4 py-3">Data</th>
               <th className="px-4 py-3">SLA</th>
@@ -349,12 +423,15 @@ export default function ServiceOrders() {
             </tr>
           </thead>
           <tbody>
-            {loading && <tr><td colSpan={8} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
-            {!loading && visible.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS encontrada</td></tr>}
+            {loading && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
+            {!loading && visible.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS encontrada</td></tr>}
             {visible.map((o) => (
               <tr key={o.id}
                 onClick={() => setSelectedOrder(o)}
                 className="border-b border-zinc-900 transition-colors hover:bg-zinc-900/40 cursor-pointer">
+                <td className="px-4 py-3 w-8" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} className="accent-white cursor-pointer" />
+                </td>
                 <td className="px-4 py-3 font-mono font-semibold">{o.plate || <span className="text-zinc-600">—</span>}</td>
                 <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{o.requestedAt ? new Date(o.requestedAt).toLocaleDateString("pt-BR") : "—"}</td>
                 <td className="px-4 py-3"><SlaChip days={o.slaDays} isLate={o.late} /></td>
