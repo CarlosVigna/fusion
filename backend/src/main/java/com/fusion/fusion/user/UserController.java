@@ -1,12 +1,15 @@
 package com.fusion.fusion.user;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/users")
 @RequiredArgsConstructor
@@ -20,9 +23,9 @@ public class UserController {
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse create(@RequestBody UserRequest request) {
-        return userService.create(request);
+    public ResponseEntity<UserResponse> create(@RequestBody UserRequest request) {
+        log.info("[USERS] POST /users recebido - role={}, email={}", request.role(), request.email());
+        return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(request));
     }
 
     @PutMapping("/{id}")
