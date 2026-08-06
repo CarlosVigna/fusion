@@ -6,6 +6,7 @@ import {
   updateTechnician,
   deleteTechnician,
 } from "../services/technicianService";
+import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
 
 const EMPTY = {
@@ -25,6 +26,9 @@ async function fetchCep(cep) {
 }
 
 export default function Technicians() {
+  const { user } = useAuthStore();
+  const isReadOnly = user?.role === "FIELD" || user?.role === "TECHNICIAN";
+
   const [technicians, setTechnicians] = useState([]);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(EMPTY);
@@ -98,10 +102,12 @@ export default function Technicians() {
           <h1 className="text-2xl font-bold">Técnicos</h1>
           <p className="text-zinc-400 mt-1">{technicians.length} técnico(s) ativo(s)</p>
         </div>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200">
-          <Plus size={16} /> Novo Técnico
-        </button>
+        {!isReadOnly && (
+          <button onClick={openCreate}
+            className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200">
+            <Plus size={16} /> Novo Técnico
+          </button>
+        )}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-zinc-800">
@@ -114,7 +120,7 @@ export default function Technicians() {
               <th className="px-4 py-3">Cidade/UF</th>
               <th className="px-4 py-3">Valor Padrão</th>
               <th className="px-4 py-3">Coords</th>
-              <th className="px-4 py-3" />
+              {!isReadOnly && <th className="px-4 py-3" />}
             </tr>
           </thead>
           <tbody>
@@ -130,12 +136,14 @@ export default function Technicians() {
                 <td className="px-4 py-3 text-zinc-500 text-xs">
                   {t.latitude ? `${t.latitude.toFixed(4)}, ${t.longitude.toFixed(4)}` : "—"}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2 justify-end">
-                    <button onClick={() => openEdit(t)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white"><Pencil size={14} /></button>
-                    <button onClick={() => handleDelete(t.id)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10"><Trash2 size={14} /></button>
-                  </div>
-                </td>
+                {!isReadOnly && (
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2 justify-end">
+                      <button onClick={() => openEdit(t)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white"><Pencil size={14} /></button>
+                      <button onClick={() => handleDelete(t.id)} className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10"><Trash2 size={14} /></button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
             {technicians.length === 0 && (

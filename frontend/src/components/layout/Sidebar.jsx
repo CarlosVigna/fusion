@@ -84,7 +84,7 @@ const GROUPS = [
         items: [
             { label: "Dashboard",   icon: ClipboardCheck,  path: "/service-orders/dashboard" },
             { label: "Ordens",      icon: ClipboardList,   path: "/service-orders", end: true },
-            { label: "Técnicos",    icon: UserCog,         path: "/technicians", fullAccessOnly: true },
+            { label: "Técnicos",    icon: UserCog,         path: "/technicians" },
             { label: "Relatórios",  icon: FileSpreadsheet, path: "/service-orders/reports" },
         ],
     },

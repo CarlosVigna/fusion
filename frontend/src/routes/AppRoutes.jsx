@@ -98,6 +98,11 @@ export default function AppRoutes() {
                     element={<ServiceOrdersReports />}
                 />
 
+                <Route
+                    path="technicians"
+                    element={<Technicians />}
+                />
+
                 {/* Rotas bloqueadas para FIELD e TECHNICIAN */}
                 <Route element={<FullAccessOnly />}>
                     <Route path="dashboard"        element={<Dashboard />} />
@@ -114,7 +119,6 @@ export default function AppRoutes() {
                     <Route path="sinistro"         element={<AnaliseSinistro />} />
                     <Route path="users"            element={<Users />} />
                     <Route path="shift-handover"   element={<ShiftHandover />} />
-                    <Route path="technicians"      element={<Technicians />} />
                 </Route>
             </Route>
 

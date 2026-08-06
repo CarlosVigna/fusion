@@ -132,11 +132,12 @@ export default function ServiceOrders() {
   async function load() {
     setLoading(true);
     try {
-      const [os, techs] = await Promise.all([getServiceOrders(), getTechnicians()]);
-      setOrders(os);
-      setTechnicians(techs);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      const [osResult, techsResult] = await Promise.allSettled([getServiceOrders(), getTechnicians()]);
+      if (osResult.status === "fulfilled") setOrders(osResult.value);
+      else console.error("[ServiceOrders] falha ao carregar ordens:", osResult.reason);
+      if (techsResult.status === "fulfilled") setTechnicians(techsResult.value);
+      else console.error("[ServiceOrders] falha ao carregar tecnicos:", techsResult.reason);
+    } finally { setLoading(false); }
   }
 
   function applyFilter(list) {

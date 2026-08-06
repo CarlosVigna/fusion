@@ -92,6 +92,12 @@ public class SecurityConfig {
                         ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
 
                         .requestMatchers(
+                                HttpMethod.GET,
+                                "/technicians",
+                                "/technicians/**"
+                        ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
+
+                        .requestMatchers(
                                 "/technicians/**"
                         ).hasAnyRole("ADMIN", "OPERATOR")
 
