@@ -228,7 +228,7 @@ public class ServiceOrderService {
         return toResponse(repository.save(so));
     }
 
-    public Map<String, Object> dashboard() {
+    public Map<String, Object> dashboard(boolean showAnalytics) {
         List<ServiceOrder> all = repository.findAll();
         long abertas        = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.ABERTO).count();
         long emAndamento    = all.stream().filter(o -> o.getSchedulingStatus() == SchedulingStatus.AGENDADO).count();
@@ -237,29 +237,36 @@ public class ServiceOrderService {
                 .filter(o -> o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO
                         && o.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE).count();
 
-        OptionalDouble slaMedia = all.stream()
-                .filter(o -> o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
-                .mapToLong(ServiceOrder::getSlaDays).average();
-
-        OptionalDouble tempoDeila = all.stream()
-                .filter(o -> o.getRequestedAt() != null && o.getScheduledAt() != null)
-                .mapToDouble(o -> java.time.Duration.between(o.getRequestedAt(), o.getScheduledAt()).toMinutes() / 60.0)
-                .average();
-
-        OptionalDouble tempoResolucao = all.stream()
-                .filter(o -> o.getRequestedAt() != null && o.getClosedAt() != null
-                        && o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
-                .mapToDouble(o -> java.time.Duration.between(o.getRequestedAt(), o.getClosedAt()).toMinutes() / 60.0)
-                .average();
+        log.info("[OS-DASHBOARD] total={} abertas={}, emAndamento={}, atrasadas={}, pendentesAprovacao={}",
+                all.size(), abertas, emAndamento, atrasadas, pendentesAprov);
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("abertas",           abertas);
-        result.put("emAndamento",       emAndamento);
-        result.put("atrasadas",         atrasadas);
+        result.put("abertas",            abertas);
+        result.put("emAndamento",        emAndamento);
+        result.put("atrasadas",          atrasadas);
         result.put("pendentesAprovacao", pendentesAprov);
-        result.put("slaMediaDias",      slaMedia.isPresent()      ? Math.round(slaMedia.getAsDouble()      * 10.0) / 10.0 : 0);
-        result.put("tempoMedioDeila",   tempoDeila.isPresent()    ? Math.round(tempoDeila.getAsDouble()    * 10.0) / 10.0 : 0);
-        result.put("tempoMedioResolucao", tempoResolucao.isPresent() ? Math.round(tempoResolucao.getAsDouble() * 10.0) / 10.0 : 0);
+
+        if (showAnalytics) {
+            OptionalDouble slaMedia = all.stream()
+                    .filter(o -> o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
+                    .mapToLong(ServiceOrder::getSlaDays).average();
+
+            OptionalDouble tempoDeila = all.stream()
+                    .filter(o -> o.getRequestedAt() != null && o.getScheduledAt() != null)
+                    .mapToDouble(o -> java.time.Duration.between(o.getRequestedAt(), o.getScheduledAt()).toMinutes() / 60.0)
+                    .average();
+
+            OptionalDouble tempoResolucao = all.stream()
+                    .filter(o -> o.getRequestedAt() != null && o.getClosedAt() != null
+                            && o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
+                    .mapToDouble(o -> java.time.Duration.between(o.getRequestedAt(), o.getClosedAt()).toMinutes() / 60.0)
+                    .average();
+
+            result.put("slaMediaDias",         slaMedia.isPresent()       ? Math.round(slaMedia.getAsDouble()       * 10.0) / 10.0 : 0);
+            result.put("tempoMedioDeila",      tempoDeila.isPresent()     ? Math.round(tempoDeila.getAsDouble()     * 10.0) / 10.0 : 0);
+            result.put("tempoMedioResolucao",  tempoResolucao.isPresent() ? Math.round(tempoResolucao.getAsDouble() * 10.0) / 10.0 : 0);
+        }
+
         return result;
     }
 

@@ -14,19 +14,19 @@ import {
 import { getTechnicians } from "../services/technicianService";
 import { useAuthStore } from "../store/authStore";
 
-const STATUS_LABEL = { ABERTO: "Aberto", AGENDADO: "Agendado", CONCLUIDO: "Concluído" };
+const STATUS_LABEL    = { ABERTO: "Aberto", AGENDADO: "Agendado", CONCLUIDO: "Concluído" };
 const FINANCIAL_LABEL = { PENDENTE: "Pendente", APROVADO: "Aprovado", REPROVADO: "Reprovado" };
 const STATUS_COLOR = {
-  ABERTO:   "bg-blue-500/10 text-blue-400 border-blue-500/30",
-  AGENDADO: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
-  CONCLUIDO:"bg-green-500/10 text-green-400 border-green-500/30",
+  ABERTO:    "bg-blue-500/10 text-blue-400 border-blue-500/30",
+  AGENDADO:  "bg-yellow-500/10 text-yellow-400 border-yellow-500/30",
+  CONCLUIDO: "bg-green-500/10 text-green-400 border-green-500/30",
 };
 const FIN_COLOR = {
   PENDENTE:  "bg-zinc-800 text-zinc-400",
   APROVADO:  "bg-green-500/10 text-green-400",
   REPROVADO: "bg-red-500/10 text-red-400",
 };
-const SERVICE_TYPES = ["INSTALACAO", "TROCA", "MANUTENCAO"];
+const SERVICE_TYPES       = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 const SCHEDULING_STATUSES = ["ABERTO", "AGENDADO", "CONCLUIDO"];
 
 const EMPTY_ORDER = {
@@ -35,9 +35,7 @@ const EMPTY_ORDER = {
   city: "", state: "", customerName: "", customerPhone: "", observations: "",
 };
 
-function fmt(v) {
-  return v != null ? `R$ ${Number(v).toFixed(2)}` : null;
-}
+function fmt(v) { return v != null ? `R$ ${Number(v).toFixed(2)}` : null; }
 
 function Badge({ label, colorClass }) {
   return <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${colorClass}`}>{label}</span>;
@@ -60,9 +58,9 @@ function Field({ label, children, span = 1 }) {
   );
 }
 
-function ReadField({ label, value, span = 1 }) {
+function ReadField({ label, value }) {
   return (
-    <div style={{ gridColumn: `span ${span}` }}>
+    <div>
       <label className="block text-xs text-zinc-500 mb-1">{label}</label>
       <div className="w-full rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-400 min-h-[2.25rem]">
         {value || <span className="text-zinc-600">—</span>}
@@ -73,21 +71,22 @@ function ReadField({ label, value, span = 1 }) {
 
 const INPUT = "w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none";
 
+// Drawer section component — flat vertical list for side-by-side columns
 function DrawerSection({ title, children }) {
   return (
     <div>
       <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">{title}</p>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">{children}</div>
+      <div className="space-y-1.5">{children}</div>
     </div>
   );
 }
 
-function DrawerRow({ label, value, full = false }) {
-  if (!value && value !== 0) return null;
+function DrawerRow({ label, value, children }) {
+  if (!value && value !== 0 && !children) return null;
   return (
-    <div style={{ gridColumn: full ? "span 2" : "span 1" }}>
-      <span className="text-zinc-600 text-xs">{label} </span>
-      <span className="text-zinc-300 text-xs font-medium">{value}</span>
+    <div>
+      <span className="text-[11px] text-zinc-600">{label}: </span>
+      {children || <span className="text-[11px] text-zinc-300 font-medium">{value}</span>}
     </div>
   );
 }
@@ -96,30 +95,37 @@ async function fetchCep(cep) {
   const clean = cep.replace(/\D/g, "");
   if (clean.length !== 8) return null;
   try {
-    const res = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+    const res  = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
     const data = await res.json();
     if (data.erro) return null;
     return data;
   } catch { return null; }
 }
 
+// Conditions for TECHNICIAN to confirm completion
+function canConfirmForTech(o) {
+  if (!o.technician || !o.scheduledDate || !o.scheduledTime || !o.serviceValue) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return o.scheduledDate <= today;
+}
+
 export default function ServiceOrders() {
   const [searchParams] = useSearchParams();
   const { user } = useAuthStore();
-  const role = user?.role;
+  const role    = user?.role;
   const isAdmin = role === "ADMIN";
   const isOp    = role === "OPERATOR" || isAdmin;
   const isField = role === "FIELD" || isOp;
   const isTech  = role === "TECHNICIAN";
 
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders]           = useState([]);
   const [technicians, setTechnicians] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [filter, setFilter] = useState(searchParams.get("filter") || "");
-  const [modal, setModal] = useState(null);
+  const [filter, setFilter]           = useState(searchParams.get("filter") || "");
+  const [modal, setModal]             = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
-  const [cepLoading, setCepLoading] = useState(false);
+  const [cepLoading, setCepLoading]   = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -135,10 +141,10 @@ export default function ServiceOrders() {
 
   function applyFilter(list) {
     switch (filter) {
-      case "ABERTO":    return list.filter(o => o.schedulingStatus === "ABERTO");
-      case "AGENDADO":  return list.filter(o => o.schedulingStatus === "AGENDADO");
-      case "LATE":      return list.filter(o => o.late);
-      case "PEND_FIN":  return list.filter(o => o.schedulingStatus !== "CONCLUIDO" && o.financialApprovalStatus === "PENDENTE");
+      case "ABERTO":   return list.filter(o => o.schedulingStatus === "ABERTO");
+      case "AGENDADO": return list.filter(o => o.schedulingStatus === "AGENDADO");
+      case "LATE":     return list.filter(o => o.late);
+      case "PEND_FIN": return list.filter(o => o.schedulingStatus !== "CONCLUIDO" && o.financialApprovalStatus === "PENDENTE");
       default: return list;
     }
   }
@@ -192,15 +198,15 @@ export default function ServiceOrders() {
         scheduledTime:     o.scheduledTime     || "",
         serviceValue:      o.serviceValue      != null ? String(o.serviceValue)      : "",
         displacementValue: o.displacementValue != null ? String(o.displacementValue) : "",
-        // keep originals for read-only display in tech modal
-        _plate:        o.plate,
-        _chassis:      o.chassis,
-        _equipment:    o.equipment,
-        _serviceType:  o.serviceType,
-        _customerName: o.customerName,
-        _customerPhone:o.customerPhone,
-        _city:         o.city,
-        _address:      o.address,
+        // originals for tech read-only panel
+        _plate:         o.plate,
+        _chassis:       o.chassis,
+        _equipment:     o.equipment,
+        _serviceType:   o.serviceType,
+        _customerName:  o.customerName,
+        _customerPhone: o.customerPhone,
+        _city:          o.city,
+        _address:       o.address,
       },
     });
   }
@@ -227,11 +233,11 @@ export default function ServiceOrders() {
       };
       const schedPayload = {
         schedulingStatus: f.schedulingStatus,
-        scheduledDate: f.scheduledDate || null,
-        scheduledTime: f.scheduledTime || null,
-        serviceValue: f.serviceValue ? Number(f.serviceValue) : null,
-        displacementValue: f.displacementValue ? Number(f.displacementValue) : null,
-        observations: f.observations || null,
+        scheduledDate:    f.scheduledDate    || null,
+        scheduledTime:    f.scheduledTime    || null,
+        serviceValue:     f.serviceValue     ? Number(f.serviceValue)     : null,
+        displacementValue:f.displacementValue? Number(f.displacementValue): null,
+        observations:     f.observations     || null,
       };
       if (f.technicianId) schedPayload.technicianId = f.technicianId;
 
@@ -297,6 +303,7 @@ export default function ServiceOrders() {
 
   return (
     <div className="p-6 space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
@@ -320,6 +327,7 @@ export default function ServiceOrders() {
         </div>
       </div>
 
+      {/* Table */}
       <div className="overflow-x-auto rounded-2xl border border-zinc-800">
         <table className="w-full text-sm">
           <thead>
@@ -348,7 +356,7 @@ export default function ServiceOrders() {
                 <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
                   {[o.city, o.state].filter(Boolean).join(", ") || <span className="text-zinc-600">—</span>}
                 </td>
-                <td className="px-4 py-3 text-zinc-500 hidden lg:table-cell max-w-[200px] truncate" title={o.address}>{o.address || "—"}</td>
+                <td className="px-4 py-3 text-zinc-500 hidden lg:table-cell max-w-[200px] truncate">{o.address || "—"}</td>
                 <td className="px-4 py-3"><Badge label={STATUS_LABEL[o.schedulingStatus]} colorClass={STATUS_COLOR[o.schedulingStatus]} /></td>
                 <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                   <div className="flex gap-1 items-center">
@@ -370,94 +378,132 @@ export default function ServiceOrders() {
         </table>
       </div>
 
-      {/* Drawer lateral */}
+      {/* ====== DRAWER LATERAL ====== */}
       {selectedOrder && (
         <>
           <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSelectedOrder(null)} />
-          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
-            {/* header */}
+          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
+
+            {/* Drawer header */}
             <div className="flex items-start justify-between border-b border-zinc-800 p-5">
               <div className="space-y-1.5">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <span className="font-mono text-xl font-bold">{selectedOrder.plate || "Sem placa"}</span>
                   <Badge label={STATUS_LABEL[selectedOrder.schedulingStatus]} colorClass={STATUS_COLOR[selectedOrder.schedulingStatus]} />
                   {selectedOrder.late && <span className="text-xs text-red-400 font-semibold">⚠ Atrasada</span>}
+                  {selectedOrder.completedWithoutSignal && (
+                    <span className="text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-full px-2 py-0.5">
+                      Sem sinal
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-zinc-500">{selectedOrder.serviceType} · {selectedOrder.requestedAt ? new Date(selectedOrder.requestedAt).toLocaleDateString("pt-BR") : "—"}</p>
+                <p className="text-xs text-zinc-500">
+                  {selectedOrder.serviceType} · {selectedOrder.requestedAt ? new Date(selectedOrder.requestedAt).toLocaleDateString("pt-BR") : "—"}
+                  {selectedOrder.technician && ` · ${selectedOrder.technician.name}`}
+                </p>
               </div>
               <button onClick={() => setSelectedOrder(null)} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800">
                 <X size={18} />
               </button>
             </div>
 
-            {/* scrollable body */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
-              <DrawerSection title="Dados do Veículo">
-                <DrawerRow label="Placa" value={selectedOrder.plate} />
-                <DrawerRow label="Chassi" value={selectedOrder.chassis} />
-                <DrawerRow label="Equipamento" value={selectedOrder.equipment} />
-                <DrawerRow label="SLA" value={`${selectedOrder.slaDays}d${selectedOrder.late ? " ⚠" : ""}`} />
-              </DrawerSection>
+            {/* Drawer body — 2-column grid */}
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-5">
 
-              <DrawerSection title="Dados da Solicitação">
-                <DrawerRow label="Solicitante" value={selectedOrder.requestedBy} />
-                <DrawerRow label="Data" value={selectedOrder.requestedAt ? new Date(selectedOrder.requestedAt).toLocaleDateString("pt-BR") : null} />
-                <DrawerRow label="Tipo" value={selectedOrder.serviceType} />
-                <DrawerRow label="Criado por" value={selectedOrder.createdBy} />
-                <DrawerRow label="Encerrada" value={selectedOrder.closedAt ? new Date(selectedOrder.closedAt).toLocaleDateString("pt-BR") : null} />
-                {selectedOrder.completedWithoutSignal && (
-                  <div style={{ gridColumn: "span 2" }}>
-                    <span className="text-xs text-yellow-400 bg-yellow-500/10 border border-yellow-500/30 rounded-full px-2 py-0.5">⚠ Concluída sem sinal</span>
-                  </div>
+                {/* Col 1, Row 1: Dados do Veículo */}
+                <DrawerSection title="Dados do Veículo">
+                  <DrawerRow label="Placa"       value={selectedOrder.plate} />
+                  <DrawerRow label="Chassi"      value={selectedOrder.chassis} />
+                  <DrawerRow label="Equipamento" value={selectedOrder.equipment} />
+                  <DrawerRow label="SLA"         value={`${selectedOrder.slaDays}d${selectedOrder.late ? " ⚠" : ""}`} />
+                </DrawerSection>
+
+                {/* Col 2, Row 1: Dados da Solicitação */}
+                <DrawerSection title="Dados da Solicitação">
+                  <DrawerRow label="Solicitante" value={selectedOrder.requestedBy} />
+                  <DrawerRow label="Data"        value={selectedOrder.requestedAt ? new Date(selectedOrder.requestedAt).toLocaleDateString("pt-BR") : null} />
+                  <DrawerRow label="Tipo"        value={selectedOrder.serviceType} />
+                  <DrawerRow label="Criado por"  value={selectedOrder.createdBy} />
+                  <DrawerRow label="Encerrada"   value={selectedOrder.closedAt ? new Date(selectedOrder.closedAt).toLocaleDateString("pt-BR") : null} />
+                </DrawerSection>
+
+                {/* Col 1, Row 2: Endereço do Cliente */}
+                <DrawerSection title="Endereço do Cliente">
+                  <DrawerRow label="Nome"       value={selectedOrder.customerName} />
+                  <DrawerRow label="Telefone"   value={selectedOrder.customerPhone} />
+                  <DrawerRow label="CEP"        value={selectedOrder.zipCode} />
+                  <DrawerRow label="Logradouro" value={selectedOrder.address} />
+                  <DrawerRow label="Bairro"     value={selectedOrder.neighborhood} />
+                  <DrawerRow label="Cidade"     value={selectedOrder.city} />
+                  <DrawerRow label="Estado"     value={selectedOrder.state} />
+                </DrawerSection>
+
+                {/* Col 2, Row 2: Agendamento */}
+                {(isTech || isOp) && (
+                  <DrawerSection title="Agendamento">
+                    <DrawerRow label="Técnico"   value={selectedOrder.technician?.name} />
+                    <DrawerRow label="Status"    value={STATUS_LABEL[selectedOrder.schedulingStatus]} />
+                    <DrawerRow label="Data"      value={selectedOrder.scheduledDate} />
+                    <DrawerRow label="Horário"   value={selectedOrder.scheduledTime} />
+                    <DrawerRow label="Distância" value={selectedOrder.distanceKm != null ? `${selectedOrder.distanceKm} km` : null} />
+                  </DrawerSection>
                 )}
-              </DrawerSection>
 
-              <DrawerSection title="Endereço do Cliente">
-                <DrawerRow label="Nome" value={selectedOrder.customerName} />
-                <DrawerRow label="Telefone" value={selectedOrder.customerPhone} />
-                <DrawerRow label="CEP" value={selectedOrder.zipCode} />
-                <DrawerRow label="Logradouro" value={selectedOrder.address} full />
-                <DrawerRow label="Bairro" value={selectedOrder.neighborhood} />
-                <DrawerRow label="Cidade" value={selectedOrder.city} />
-                <DrawerRow label="Estado" value={selectedOrder.state} />
-              </DrawerSection>
+                {/* Col 1, Row 3: Valores */}
+                {(selectedOrder.totalValue > 0 || selectedOrder.displacementValue != null) && (
+                  <DrawerSection title="Valores">
+                    <DrawerRow label="Deslocamento" value={fmt(selectedOrder.displacementValue)} />
+                    <DrawerRow label="Serviço"      value={fmt(selectedOrder.serviceValue)} />
+                    <DrawerRow label="Total"        value={fmt(selectedOrder.totalValue)} />
+                    <DrawerRow label="Aprovação">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${FIN_COLOR[selectedOrder.financialApprovalStatus]}`}>
+                        {FINANCIAL_LABEL[selectedOrder.financialApprovalStatus]}
+                      </span>
+                    </DrawerRow>
+                  </DrawerSection>
+                )}
 
-              {(isTech || isOp) && (
-                <DrawerSection title="Agendamento">
-                  <DrawerRow label="Técnico" value={selectedOrder.technician?.name} full />
-                  <DrawerRow label="Status" value={STATUS_LABEL[selectedOrder.schedulingStatus]} />
-                  <DrawerRow label="Data" value={selectedOrder.scheduledDate} />
-                  <DrawerRow label="Horário" value={selectedOrder.scheduledTime} />
-                  <DrawerRow label="Distância" value={selectedOrder.distanceKm != null ? `${selectedOrder.distanceKm} km` : null} />
-                </DrawerSection>
-              )}
+                {/* Col 2, Row 3: Observações */}
+                {selectedOrder.observations && (
+                  <DrawerSection title="Observações">
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">{selectedOrder.observations}</p>
+                  </DrawerSection>
+                )}
 
-              {(selectedOrder.totalValue > 0 || selectedOrder.displacementValue != null) && (
-                <DrawerSection title="Valores">
-                  <DrawerRow label="Deslocamento" value={fmt(selectedOrder.displacementValue)} />
-                  <DrawerRow label="Serviço" value={fmt(selectedOrder.serviceValue)} />
-                  <DrawerRow label="Total" value={fmt(selectedOrder.totalValue)} />
-                  <div style={{ gridColumn: "span 2" }}>
-                    <span className="text-zinc-600 text-xs">Aprovação </span>
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${FIN_COLOR[selectedOrder.financialApprovalStatus]}`}>
-                      {FINANCIAL_LABEL[selectedOrder.financialApprovalStatus]}
-                    </span>
-                  </div>
-                </DrawerSection>
-              )}
-
-              {selectedOrder.observations && (
-                <div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-1.5">Observações</p>
-                  <p className="text-sm text-zinc-300">{selectedOrder.observations}</p>
-                </div>
-              )}
+              </div>
             </div>
 
-            {/* footer actions */}
+            {/* Drawer footer — role-based actions */}
             <div className="border-t border-zinc-800 p-4 flex flex-wrap gap-2">
-              {(isField || isTech) && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
-                <button onClick={() => { openEdit(selectedOrder); }}
+
+              {/* TECHNICIAN: Marcar Agendamento + conditional Confirmar Conclusão */}
+              {isTech && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
+                <>
+                  <button onClick={() => openEdit(selectedOrder)}
+                    className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200">
+                    Marcar Agendamento
+                  </button>
+                  {canConfirmForTech(selectedOrder) && (
+                    <button onClick={() => setConfirmModal({ type: "completion", orderId: selectedOrder.id })}
+                      className="rounded-xl px-4 py-2 text-sm bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20">
+                      Confirmar Conclusão
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* FIELD (non-op, non-tech): Editar */}
+              {isField && !isOp && !isTech && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
+                <button onClick={() => openEdit(selectedOrder)}
+                  className="flex items-center gap-1.5 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+                  <Pencil size={13} /> Editar
+                </button>
+              )}
+
+              {/* OPERATOR/ADMIN: Editar + aprovação financeira + confirmar conclusão */}
+              {isOp && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
+                <button onClick={() => openEdit(selectedOrder)}
                   className="flex items-center gap-1.5 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
                   <Pencil size={13} /> Editar
                 </button>
@@ -480,6 +526,8 @@ export default function ServiceOrders() {
                   Confirmar Conclusão
                 </button>
               )}
+
+              {/* Delete (any role with permission) */}
               {canDelete(selectedOrder) && (
                 <button onClick={() => handleDelete(selectedOrder)}
                   className="rounded-lg p-2 text-red-400 hover:bg-red-500/10 ml-auto">
@@ -487,6 +535,7 @@ export default function ServiceOrders() {
                 </button>
               )}
             </div>
+
           </div>
         </>
       )}
@@ -497,7 +546,7 @@ export default function ServiceOrders() {
           <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
             <h2 className="text-lg font-semibold">Confirmar Conclusão</h2>
             <p className="text-sm text-zinc-400">
-              Confirmar a conclusão desta OS? O sistema verificará o sinal do veículo.
+              Confirmar a conclusão desta OS? O sistema verificará o sinal do veículo automaticamente.
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmModal(null)}
@@ -513,7 +562,7 @@ export default function ServiceOrders() {
         </div>
       )}
 
-      {/* Modal Nova OS */}
+      {/* ====== MODAL NOVA OS ====== */}
       {modal?.type === "create" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto">
           <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
@@ -539,12 +588,12 @@ export default function ServiceOrders() {
               <Field label="Solicitante" span={2}>
                 <input value={modal.form.requestedBy ?? ""} onChange={e => setForm(f => ({...f, requestedBy: e.target.value}))} className={INPUT} />
               </Field>
-              <Field label={<>CEP {cepLoading && <span className="text-zinc-500 font-normal">(buscando...)</span>}</>}>
+              <Field label={<>CEP{cepLoading && <span className="text-zinc-500 font-normal ml-1">(buscando...)</span>}</>}>
                 <input value={modal.form.zipCode ?? ""} maxLength={9} placeholder="00000-000"
                   onChange={e => {
                     const v = e.target.value;
                     setForm(f => ({...f, zipCode: v}));
-                    if (v.replace(/\D/g,"").length === 8) handleCepLookup(v);
+                    if (v.replace(/\D/g, "").length === 8) handleCepLookup(v);
                   }} className={INPUT} />
               </Field>
               <Field label="Logradouro" span={2}>
@@ -577,52 +626,51 @@ export default function ServiceOrders() {
         </div>
       )}
 
-      {/* Modal Editar OS */}
+      {/* ====== MODAL EDITAR OS ====== */}
       {modal?.type === "edit" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Editar Ordem de Serviço</h2>
+              <h2 className="text-lg font-semibold">
+                {isTech ? "Agendamento" : "Editar Ordem de Serviço"}
+              </h2>
               <button onClick={() => setModal(null)}><X size={20} className="text-zinc-400" /></button>
             </div>
 
-            {/* Tech view: read-only operator data + editable scheduling */}
+            {/* TECHNICIAN: 2-column — read-only left / editable right */}
             {isTech ? (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Dados do Operador (leitura)</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <ReadField label="Placa" value={modal.form._plate} />
-                    <ReadField label="Chassi" value={modal.form._chassis} />
-                    <ReadField label="Equipamento" value={modal.form._equipment} />
-                    <ReadField label="Tipo de Serviço" value={modal.form._serviceType} />
-                    <ReadField label="Cliente" value={modal.form._customerName} />
-                    <ReadField label="Telefone" value={modal.form._customerPhone} />
-                    <ReadField label="Cidade" value={modal.form._city} span={2} />
-                    <ReadField label="Endereço" value={modal.form._address} span={2} />
-                  </div>
+              <div className="grid grid-cols-2 gap-6">
+                {/* Left: read-only operator data */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Dados do Operador</p>
+                  <ReadField label="Placa"          value={modal.form._plate} />
+                  <ReadField label="Equipamento"    value={modal.form._equipment} />
+                  <ReadField label="Tipo de Serviço"value={modal.form._serviceType} />
+                  <ReadField label="Cliente"        value={modal.form._customerName} />
+                  <ReadField label="Telefone"       value={modal.form._customerPhone} />
+                  <ReadField label="Endereço"       value={modal.form._address} />
+                  <ReadField label="Cidade"         value={modal.form._city} />
                 </div>
-                <div>
-                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Agendamento</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Data Agendamento">
-                      <input type="date" value={modal.form.scheduledDate} onChange={e => setForm(f => ({...f, scheduledDate: e.target.value}))} className={INPUT} />
-                    </Field>
-                    <Field label="Horário">
-                      <input type="time" value={modal.form.scheduledTime} onChange={e => setForm(f => ({...f, scheduledTime: e.target.value}))} className={INPUT} />
-                    </Field>
-                    <Field label="Valor do Serviço (R$)" span={2}>
-                      <input type="number" value={modal.form.serviceValue} onChange={e => setForm(f => ({...f, serviceValue: e.target.value}))} className={INPUT} />
-                    </Field>
-                    <Field label="Observações" span={2}>
-                      <textarea value={modal.form.observations} onChange={e => setForm(f => ({...f, observations: e.target.value}))} rows={2} className={INPUT} />
-                    </Field>
-                  </div>
+                {/* Right: editable scheduling fields */}
+                <div className="space-y-3">
+                  <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Agendamento</p>
+                  <Field label="Data Agendamento">
+                    <input type="date" value={modal.form.scheduledDate} onChange={e => setForm(f => ({...f, scheduledDate: e.target.value}))} className={INPUT} />
+                  </Field>
+                  <Field label="Horário">
+                    <input type="time" value={modal.form.scheduledTime} onChange={e => setForm(f => ({...f, scheduledTime: e.target.value}))} className={INPUT} />
+                  </Field>
+                  <Field label="Valor do Serviço (R$)">
+                    <input type="number" value={modal.form.serviceValue} onChange={e => setForm(f => ({...f, serviceValue: e.target.value}))} className={INPUT} />
+                  </Field>
+                  <Field label="Observações">
+                    <textarea value={modal.form.observations} onChange={e => setForm(f => ({...f, observations: e.target.value}))} rows={3} className={INPUT} />
+                  </Field>
                 </div>
               </div>
             ) : (
+              /* FIELD / OP / ADMIN: standard grid */
               <div className="grid grid-cols-2 gap-3">
-                {/* FIELD + OP/ADMIN: dados do serviço */}
                 {!isTech && (
                   <>
                     <Field label="Placa">
@@ -641,15 +689,14 @@ export default function ServiceOrders() {
                     </Field>
                   </>
                 )}
-
                 {isOp && (
                   <>
-                    <Field label={<>CEP {cepLoading && <span className="text-zinc-500 font-normal">(buscando...)</span>}</>}>
+                    <Field label={<>CEP{cepLoading && <span className="text-zinc-500 font-normal ml-1">(buscando...)</span>}</>}>
                       <input value={modal.form.zipCode} maxLength={9} placeholder="00000-000"
                         onChange={e => {
                           const v = e.target.value;
                           setForm(f => ({...f, zipCode: v}));
-                          if (v.replace(/\D/g,"").length === 8) handleCepLookup(v);
+                          if (v.replace(/\D/g, "").length === 8) handleCepLookup(v);
                         }} className={INPUT} />
                     </Field>
                     <Field label="Solicitante">
@@ -675,24 +722,19 @@ export default function ServiceOrders() {
                     </Field>
                   </>
                 )}
-
-                {(isTech || isOp) && (
+                {isOp && (
                   <>
-                    {isOp && (
-                      <Field label="Técnico" span={2}>
-                        <select value={modal.form.technicianId} onChange={e => setForm(f => ({...f, technicianId: e.target.value}))} className={INPUT}>
-                          <option value="">— Selecionar —</option>
-                          {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                        </select>
-                      </Field>
-                    )}
-                    {isOp && (
-                      <Field label="Status">
-                        <select value={modal.form.schedulingStatus} onChange={e => setForm(f => ({...f, schedulingStatus: e.target.value}))} className={INPUT}>
-                          {SCHEDULING_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
-                        </select>
-                      </Field>
-                    )}
+                    <Field label="Técnico" span={2}>
+                      <select value={modal.form.technicianId} onChange={e => setForm(f => ({...f, technicianId: e.target.value}))} className={INPUT}>
+                        <option value="">— Selecionar —</option>
+                        {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field label="Status">
+                      <select value={modal.form.schedulingStatus} onChange={e => setForm(f => ({...f, schedulingStatus: e.target.value}))} className={INPUT}>
+                        {SCHEDULING_STATUSES.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+                      </select>
+                    </Field>
                     <Field label="Data Agendamento">
                       <input type="date" value={modal.form.scheduledDate} onChange={e => setForm(f => ({...f, scheduledDate: e.target.value}))} className={INPUT} />
                     </Field>
@@ -702,14 +744,11 @@ export default function ServiceOrders() {
                     <Field label="Valor do Serviço (R$)">
                       <input type="number" value={modal.form.serviceValue} onChange={e => setForm(f => ({...f, serviceValue: e.target.value}))} className={INPUT} />
                     </Field>
-                    {isOp && (
-                      <Field label="Valor de Deslocamento (R$)">
-                        <input type="number" value={modal.form.displacementValue} onChange={e => setForm(f => ({...f, displacementValue: e.target.value}))} className={INPUT} />
-                      </Field>
-                    )}
+                    <Field label="Valor de Deslocamento (R$)">
+                      <input type="number" value={modal.form.displacementValue} onChange={e => setForm(f => ({...f, displacementValue: e.target.value}))} className={INPUT} />
+                    </Field>
                   </>
                 )}
-
                 <Field label="Observações" span={2}>
                   <textarea value={modal.form.observations} onChange={e => setForm(f => ({...f, observations: e.target.value}))} rows={2} className={INPUT} />
                 </Field>

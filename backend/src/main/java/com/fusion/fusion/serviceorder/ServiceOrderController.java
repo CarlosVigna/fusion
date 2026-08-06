@@ -66,8 +66,10 @@ public class ServiceOrderController {
     }
 
     @GetMapping("/dashboard")
-    public Map<String, Object> dashboard() {
-        return service.dashboard();
+    public Map<String, Object> dashboard(@AuthenticationPrincipal UserDetails user) {
+        boolean showAnalytics = user != null && user.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_OPERATOR"));
+        return service.dashboard(showAnalytics);
     }
 
     @GetMapping("/monthly-close")

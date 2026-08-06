@@ -1,7 +1,7 @@
 import { apiClient } from "./api/apiClient";
 
 export async function getServiceOrders() {
-  return apiClient.get("/service-orders");
+  return apiClient.get("/service-orders?includeCompleted=false");
 }
 
 export async function getCompletedServiceOrders() {

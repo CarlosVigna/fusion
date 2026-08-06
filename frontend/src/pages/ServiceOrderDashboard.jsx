@@ -2,15 +2,19 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AlertTriangle, Clock, DollarSign, Hourglass, Timer, TrendingUp, Zap } from "lucide-react";
 import { getServiceOrderDashboard } from "../services/serviceOrderService";
+import { useAuthStore } from "../store/authStore";
 
-const CARDS = [
-  { key: "abertas",           label: "Abertas",              icon: Clock,         color: "blue",   filter: "ABERTO"    },
-  { key: "emAndamento",       label: "Em Andamento",         icon: Hourglass,     color: "yellow", filter: "AGENDADO"  },
-  { key: "atrasadas",         label: "Atrasadas",            icon: AlertTriangle, color: "red",    filter: "LATE"      },
-  { key: "pendentesAprovacao",label: "Pend. Aprovação",      icon: DollarSign,    color: "orange", filter: "PEND_FIN"  },
-  { key: "slaMediaDias",      label: "SLA Médio (dias)",     icon: TrendingUp,    color: "zinc",   filter: null        },
-  { key: "tempoMedioDeila",   label: "Tempo Deila agir (h)", icon: Zap,           color: "purple", filter: null        },
-  { key: "tempoMedioResolucao",label: "Resolução Média (h)", icon: Timer,         color: "teal",   filter: null        },
+const CLICKABLE_CARDS = [
+  { key: "abertas",            label: "Abertas",           icon: Clock,         color: "blue",   filter: "ABERTO"   },
+  { key: "emAndamento",        label: "Em Andamento",      icon: Hourglass,     color: "yellow", filter: "AGENDADO" },
+  { key: "atrasadas",          label: "Atrasadas",         icon: AlertTriangle, color: "red",    filter: "LATE"     },
+  { key: "pendentesAprovacao", label: "Pend. Aprovação",   icon: DollarSign,    color: "orange", filter: "PEND_FIN" },
+];
+
+const ANALYTICS_CARDS = [
+  { key: "slaMediaDias",       label: "SLA Médio (dias)",     icon: TrendingUp, color: "zinc"   },
+  { key: "tempoMedioDeila",    label: "Tempo Deila agir (h)", icon: Zap,        color: "purple" },
+  { key: "tempoMedioResolucao",label: "Resolução Média (h)",  icon: Timer,      color: "teal"   },
 ];
 
 const colorClass = {
@@ -25,6 +29,9 @@ const colorClass = {
 
 export default function ServiceOrderDashboard() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const isAnalytics = user?.role === "ADMIN" || user?.role === "OPERATOR";
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -34,11 +41,6 @@ export default function ServiceOrderDashboard() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
-
-  function handleCardClick(filter) {
-    if (!filter) return;
-    navigate(`/service-orders?filter=${filter}`);
-  }
 
   return (
     <div className="p-6 space-y-6">
@@ -50,30 +52,53 @@ export default function ServiceOrderDashboard() {
       {loading ? (
         <p className="text-zinc-500">Carregando...</p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
-          {CARDS.map((card) => {
-            const Icon = card.icon;
-            const value = data?.[card.key] ?? 0;
-            return (
-              <button
-                key={card.key}
-                onClick={() => handleCardClick(card.filter)}
-                disabled={!card.filter}
-                className={`
-                  flex flex-col gap-3 rounded-2xl border p-5 text-left transition
-                  ${colorClass[card.color]}
-                  ${card.filter ? "cursor-pointer hover:brightness-110" : "cursor-default"}
-                `}
-              >
-                <Icon size={20} className="opacity-80" />
-                <div>
-                  <p className="text-2xl font-bold">{value}</p>
-                  <p className="text-xs opacity-70 mt-0.5">{card.label}</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {/* Clickable status cards */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {CLICKABLE_CARDS.map((card) => {
+              const Icon = card.icon;
+              return (
+                <button
+                  key={card.key}
+                  onClick={() => navigate(`/service-orders?filter=${card.filter}`)}
+                  className={`flex flex-col gap-3 rounded-2xl border p-5 text-left transition cursor-pointer hover:brightness-110 ${colorClass[card.color]}`}
+                >
+                  <Icon size={20} className="opacity-80" />
+                  <div>
+                    <p className="text-2xl font-bold">{data?.[card.key] ?? 0}</p>
+                    <p className="text-xs opacity-70 mt-0.5">{card.label}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Analytics — only for ADMIN/OPERATOR */}
+          {isAnalytics && data?.slaMediaDias != null && (
+            <div>
+              <h2 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">
+                Indicadores de Performance
+              </h2>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {ANALYTICS_CARDS.map((card) => {
+                  const Icon = card.icon;
+                  return (
+                    <div
+                      key={card.key}
+                      className={`flex items-center gap-4 rounded-2xl border p-5 ${colorClass[card.color]}`}
+                    >
+                      <Icon size={22} className="opacity-60 shrink-0" />
+                      <div>
+                        <p className="text-xl font-bold">{data?.[card.key] ?? 0}</p>
+                        <p className="text-xs opacity-60 mt-0.5">{card.label}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
