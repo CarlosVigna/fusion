@@ -26,6 +26,9 @@ public class OrsService {
     @Value("${ors.api-key:}")
     private String apiKey;
 
+    @Value("${geocode.maps.api.key:}")
+    private String geocodeApiKey;
+
     private static final double FREE_KM = 40.0;
     private static final double RATE_PER_KM = 1.20;
 
@@ -45,15 +48,15 @@ public class OrsService {
 
     private double[] geocodeQuery(String query) {
         try {
-            String url = "https://nominatim.openstreetmap.org/search?q="
+            String url = "https://geocode.maps.co/search?q="
                     + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
-                    + "&format=json&limit=1&countrycodes=br";
+                    + "&api_key=" + geocodeApiKey
+                    + "&countrycodes=br&limit=1";
 
-            log.info("[NOMINATIM] Geocodificando: {}", query);
+            log.info("[GEOCODE] Geocodificando: {}", query);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.set("User-Agent", "FusionApp/1.0");
-            headers.set("Accept-Language", "pt-BR");
+            headers.set("Accept", "application/json");
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
 
             String responseBody = response.getBody();
@@ -61,15 +64,15 @@ public class OrsService {
             if (root.isArray() && root.size() > 0) {
                 double lat = root.get(0).path("lat").asDouble();
                 double lon = root.get(0).path("lon").asDouble();
-                log.info("[NOMINATIM] Resultado: lat={}, lon={}", lat, lon);
+                log.info("[GEOCODE] Resultado: lat={}, lon={}", lat, lon);
                 return new double[]{lat, lon};
             } else {
-                log.warn("[NOMINATIM] Retornou vazio para: {} | Response: {}", query, responseBody);
+                log.warn("[GEOCODE] Retornou vazio para: {} | Response: {}", query, responseBody);
             }
         } catch (HttpClientErrorException e) {
-            log.debug("[NOMINATIM] HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
+            log.debug("[GEOCODE] HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
         } catch (Exception e) {
-            log.warn("[NOMINATIM] Falhou para '{}': {}", query, e.getMessage());
+            log.warn("[GEOCODE] Falhou para '{}': {}", query, e.getMessage());
         }
         return null;
     }
