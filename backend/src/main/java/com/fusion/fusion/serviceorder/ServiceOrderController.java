@@ -92,11 +92,15 @@ public class ServiceOrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
             @AuthenticationPrincipal UserDetails userDetails,
             Authentication authentication) {
-        log.info("[AUDIT] Endpoint chamado por: {}", authentication != null ? authentication.getName() : "null");
+        log.info("[AUDIT] userDetails={}, authorities={}",
+                userDetails != null ? userDetails.getUsername() : "NULL",
+                userDetails != null ? userDetails.getAuthorities() : "NULL");
         if (userDetails == null || userDetails.getAuthorities().stream()
                 .noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            log.warn("[AUDIT] Acesso negado");
             return ResponseEntity.status(403).build();
         }
+        log.info("[AUDIT] Acesso permitido para: {}", userDetails.getUsername());
         LocalDateTime from = dateFrom != null ? dateFrom.atStartOfDay() : null;
         LocalDateTime to   = dateTo   != null ? dateTo.atTime(23, 59, 59) : null;
         return ResponseEntity.ok(service.findAuditLog(plate, action, performedBy, from, to));
