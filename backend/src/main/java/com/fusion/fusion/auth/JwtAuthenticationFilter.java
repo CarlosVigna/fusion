@@ -44,11 +44,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String email = jwtService.extractUsername(token);
 
-        if (request.getRequestURI().contains("audit-log")) {
-            log.info("[JWT-DEBUG] Path: {} | Token presente: {} | Username extraido: {}",
-                    request.getRequestURI(), authHeader != null, email);
-        }
-
         if (email != null
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
 
