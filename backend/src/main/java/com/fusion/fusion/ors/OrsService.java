@@ -79,9 +79,15 @@ public class OrsService {
 
     // Retorna distância total (ida + volta) em km
     public Double calculateRoundTripKm(double techLat, double techLon, double clientLat, double clientLon) {
-        if (apiKey.isBlank()) return null;
+        if (apiKey.isBlank()) {
+            log.warn("[ORS-ROUTE] apiKey vazia — abortando calculo de rota");
+            return null;
+        }
         try {
             String url = "https://api.heigit.org/v2/directions/driving-car";
+            log.info("[ORS-ROUTE] Calculando rota: techLat={} techLon={} clientLat={} clientLon={}", techLat, techLon, clientLat, clientLon);
+            log.info("[ORS-ROUTE] URL: {}", url);
+
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", apiKey);
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -98,13 +104,16 @@ public class OrsService {
             ResponseEntity<String> response = restTemplate.exchange(
                     url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
 
+            log.info("[ORS-ROUTE] Response status: {}", response.getStatusCode());
+            log.info("[ORS-ROUTE] Response body: {}", response.getBody());
+
             JsonNode root = objectMapper.readTree(response.getBody());
             double meters = root.path("routes").get(0).path("summary").path("distance").asDouble();
             return Math.round(meters / 100.0) / 10.0; // km com 1 decimal
         } catch (HttpClientErrorException e) {
-            log.debug("[ORS] routing HTTP {} — deslocamento ficará em branco", e.getStatusCode());
+            log.warn("[ORS-ROUTE] HTTP {} — body: {}", e.getStatusCode(), e.getResponseBodyAsString());
         } catch (Exception e) {
-            log.warn("[ORS] routing falhou: {}", e.getMessage());
+            log.warn("[ORS-ROUTE] Falhou: {}", e.getMessage());
         }
         return null;
     }
