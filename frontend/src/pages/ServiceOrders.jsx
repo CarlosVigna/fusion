@@ -138,6 +138,8 @@ export default function ServiceOrders() {
   const [filter, setFilter]           = useState(searchParams.get("filter") || "");
   const [modal, setModal]             = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
+  const [displacementModal, setDisplacementModal] = useState(null);
+  const [displacementDetailModal, setDisplacementDetailModal] = useState(false);
   const [cepLoading, setCepLoading]         = useState(false);
   const [searchText, setSearchText]         = useState("");
   const [filterServiceType, setFilterServiceType] = useState("");
@@ -297,6 +299,24 @@ export default function ServiceOrders() {
     } catch { toast.error("Erro ao criar OS"); }
   }
 
+  async function doSave(id, schedPayload, basePayload) {
+    try {
+      if (isTech) {
+        await updateScheduling(id, schedPayload);
+      } else if (!isOp) {
+        await updateServiceOrder(id, basePayload);
+      } else {
+        await updateServiceOrder(id, basePayload);
+        await updateScheduling(id, schedPayload);
+      }
+      toast.success("OS atualizada");
+      setModal(null);
+      setSelectedOrder(null);
+      setDisplacementModal(null);
+      load();
+    } catch { toast.error("Erro ao salvar"); }
+  }
+
   async function handleSaveEdit() {
     try {
       const f = modal.form;
@@ -311,22 +331,49 @@ export default function ServiceOrders() {
 
       // Geocoding no browser — backend não chama APIs externas de geocoding
       let techLat = null, techLon = null, clientLat = null, clientLon = null;
+      let technicianAddress = null, clientAddress = null;
       if (f.technicianId && (isTech || isOp)) {
         try {
           const selectedTech = technicians.find(t => String(t.id) === String(f.technicianId));
-          if (selectedTech && !selectedTech.latitude) {
-            const addr = [selectedTech.address, selectedTech.city, selectedTech.state].filter(Boolean).join(", ");
-            if (addr) {
-              const c = await geocodeAddress(addr + ", Brasil");
-              if (c) { techLat = c.lat; techLon = c.lon; }
+          if (selectedTech) {
+            technicianAddress = [selectedTech.address, selectedTech.city, selectedTech.state].filter(Boolean).join(", ");
+            if (!selectedTech.latitude) {
+              if (technicianAddress) {
+                const c = await geocodeAddress(technicianAddress + ", Brasil");
+                if (c) { techLat = c.lat; techLon = c.lon; }
+              }
             }
           }
           const clientQuery = [f.city || f._city, f.state || f._state].filter(Boolean).join(", ");
           if (clientQuery.trim()) {
+            clientAddress = clientQuery;
             const c = await geocodeAddress(clientQuery + ", Brasil");
             if (c) { clientLat = c.lat; clientLon = c.lon; }
           }
         } catch { /* geocoding falhou — salvar sem coordenadas */ }
+      }
+
+      // Coordenadas efetivas do técnico (novas ou já salvas)
+      const selectedTech = technicians.find(t => String(t.id) === String(f.technicianId));
+      const effTechLat = techLat ?? selectedTech?.latitude;
+      const effTechLon = techLon ?? selectedTech?.longitude;
+
+      // Calcular distância e deslocamento no browser via OSRM
+      let calculatedKm = null;
+      let calculatedDisplacement = 0;
+      if (effTechLat && effTechLon && clientLat && clientLon) {
+        try {
+          const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${effTechLon},${effTechLat};${clientLon},${clientLat}?overview=false`;
+          const res = await fetch(osrmUrl);
+          const data = await res.json();
+          if (data.routes?.length > 0) {
+            const oneWayKm = data.routes[0].distance / 1000;
+            calculatedKm = Math.round(oneWayKm * 2 * 10) / 10;
+            if (calculatedKm > 40) {
+              calculatedDisplacement = Math.round((calculatedKm - 40) * 1.20 * 100) / 100;
+            }
+          }
+        } catch { /* OSRM falhou — seguir sem cálculo */ }
       }
 
       const schedPayload = {
@@ -342,19 +389,20 @@ export default function ServiceOrders() {
       if (!isTech) schedPayload.schedulingStatus = f.schedulingStatus;
       if (techLat != null) { schedPayload.techLat = techLat; schedPayload.techLon = techLon; }
       if (clientLat != null) { schedPayload.clientLat = clientLat; schedPayload.clientLon = clientLon; }
+      if (technicianAddress) schedPayload.technicianAddress = technicianAddress;
+      if (clientAddress) schedPayload.clientAddress = clientAddress;
 
-      if (isTech) {
-        await updateScheduling(modal.id, schedPayload);
-      } else if (!isOp) {
-        await updateServiceOrder(modal.id, basePayload);
-      } else {
-        await updateServiceOrder(modal.id, basePayload);
-        await updateScheduling(modal.id, schedPayload);
+      // Confirmação de taxa de deslocamento para TECH
+      if (isTech && calculatedDisplacement > 0) {
+        setDisplacementModal({
+          km: calculatedKm,
+          displacement: calculatedDisplacement,
+          onConfirm: () => doSave(modal.id, schedPayload, basePayload),
+        });
+        return;
       }
-      toast.success("OS atualizada");
-      setModal(null);
-      setSelectedOrder(null);
-      load();
+
+      await doSave(modal.id, schedPayload, basePayload);
     } catch { toast.error("Erro ao salvar"); }
   }
 
@@ -593,7 +641,15 @@ export default function ServiceOrders() {
                 {/* Col 1, Row 3: Valores */}
                 {(selectedOrder.totalValue > 0 || selectedOrder.displacementValue != null) && (
                   <DrawerSection title="Valores">
-                    <DrawerRow label="Deslocamento" value={fmt(selectedOrder.displacementValue)} />
+                    {(selectedOrder.displacementValue != null || selectedOrder.distanceKm != null) && (
+                      <div>
+                        <span className="text-[11px] text-zinc-600">Deslocamento: </span>
+                        <span className="text-[11px] text-zinc-300 font-medium">{fmt(selectedOrder.displacementValue)}</span>
+                        {selectedOrder.distanceKm != null && (
+                          <button onClick={() => setDisplacementDetailModal(true)} title="Ver detalhes" className="ml-1.5 text-zinc-500 hover:text-zinc-200 text-[11px]">🔍</button>
+                        )}
+                      </div>
+                    )}
                     <DrawerRow label="Serviço"      value={fmt(selectedOrder.serviceValue)} />
                     <DrawerRow label="Total"        value={fmt(selectedOrder.totalValue)} />
                     <DrawerRow label="Aprovação">
@@ -715,6 +771,63 @@ export default function ServiceOrders() {
               <button onClick={handleConfirmCompletion}
                 className="rounded-xl bg-yellow-600 px-5 py-2 text-sm font-semibold text-white hover:bg-yellow-500">
                 Concluir assim mesmo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal confirmação de taxa de deslocamento (TECH) */}
+      {displacementModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-yellow-500/30 bg-zinc-950 p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-yellow-400">⚠️ Taxa de Deslocamento</h2>
+            <div className="space-y-1.5 text-sm text-zinc-300">
+              <p>Distância calculada: <span className="font-semibold text-white">{displacementModal.km} km</span> (ida + volta)</p>
+              <p>Franquia gratuita: <span className="font-semibold text-white">40 km</span></p>
+              <p>Excedente: <span className="font-semibold text-white">{(displacementModal.km - 40).toFixed(1)} km × R$1,20 = <span className="text-yellow-400">R${displacementModal.displacement.toFixed(2)}</span></span></p>
+            </div>
+            <p className="text-sm text-zinc-400">Deseja confirmar o agendamento com essa taxa?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDisplacementModal(null)}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+                Cancelar
+              </button>
+              <button onClick={displacementModal.onConfirm}
+                className="rounded-xl bg-yellow-600 px-5 py-2 text-sm font-semibold text-white hover:bg-yellow-500">
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal detalhes do cálculo de deslocamento */}
+      {displacementDetailModal && selectedOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-950 p-6 space-y-3">
+            <h2 className="text-base font-bold text-white">Detalhes do Deslocamento</h2>
+            <div className="space-y-2 text-sm">
+              {selectedOrder.technicianAddress && (
+                <div><span className="text-zinc-500">Origem: </span><span className="text-zinc-200">{selectedOrder.technicianAddress}</span></div>
+              )}
+              {selectedOrder.clientAddress && (
+                <div><span className="text-zinc-500">Destino: </span><span className="text-zinc-200">{selectedOrder.clientAddress}</span></div>
+              )}
+              <div><span className="text-zinc-500">Distância total: </span><span className="text-zinc-200">{selectedOrder.distanceKm} km</span></div>
+              <div><span className="text-zinc-500">Franquia: </span><span className="text-zinc-200">40 km grátis</span></div>
+              {selectedOrder.distanceKm > 40 && (
+                <div>
+                  <span className="text-zinc-500">Excedente: </span>
+                  <span className="text-zinc-200">{(selectedOrder.distanceKm - 40).toFixed(1)} km × R$1,20 = </span>
+                  <span className="text-yellow-400 font-semibold">R${((selectedOrder.distanceKm - 40) * 1.20).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setDisplacementDetailModal(false)}
+                className="rounded-xl bg-zinc-800 px-4 py-2 text-sm hover:bg-zinc-700">
+                Fechar
               </button>
             </div>
           </div>

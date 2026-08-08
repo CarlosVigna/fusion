@@ -63,6 +63,8 @@ public class ServiceOrder {
     private String customerPhone;
 
     private Double distanceKm;
+    private String technicianAddress;
+    private String clientAddress;
     private BigDecimal displacementValue;
     private BigDecimal serviceValue;
     private BigDecimal totalValue;

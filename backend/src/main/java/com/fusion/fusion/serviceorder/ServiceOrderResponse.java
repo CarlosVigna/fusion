@@ -28,6 +28,8 @@ public record ServiceOrderResponse(
         String customerName,
         String customerPhone,
         Double distanceKm,
+        String technicianAddress,
+        String clientAddress,
         BigDecimal displacementValue,
         BigDecimal serviceValue,
         BigDecimal totalValue,

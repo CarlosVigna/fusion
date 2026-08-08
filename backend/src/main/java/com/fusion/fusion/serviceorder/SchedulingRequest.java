@@ -15,5 +15,7 @@ public record SchedulingRequest(
         Double techLat,
         Double techLon,
         Double clientLat,
-        Double clientLon
+        Double clientLon,
+        String technicianAddress,
+        String clientAddress
 ) {}

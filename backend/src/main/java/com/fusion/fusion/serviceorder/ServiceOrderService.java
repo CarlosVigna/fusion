@@ -193,6 +193,8 @@ public class ServiceOrderService {
             recalcTotal(so);
         }
         if (request.observations() != null) so.setObservations(request.observations());
+        if (request.technicianAddress() != null) so.setTechnicianAddress(request.technicianAddress());
+        if (request.clientAddress() != null) so.setClientAddress(request.clientAddress());
 
         return toResponse(repository.save(so));
     }
@@ -423,6 +425,8 @@ public class ServiceOrderService {
                 so.getCustomerName(),
                 so.getCustomerPhone(),
                 so.getDistanceKm(),
+                so.getTechnicianAddress(),
+                so.getClientAddress(),
                 so.getDisplacementValue(),
                 so.getServiceValue(),
                 so.getTotalValue(),
