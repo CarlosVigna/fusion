@@ -77,43 +77,32 @@ public class OrsService {
         return null;
     }
 
-    // Retorna distância total (ida + volta) em km
+    // Retorna distância total (ida + volta) em km via OSRM (gratuito, sem chave)
     public Double calculateRoundTripKm(double techLat, double techLon, double clientLat, double clientLon) {
-        if (apiKey.isBlank()) {
-            log.warn("[ORS-ROUTE] apiKey vazia — abortando calculo de rota");
-            return null;
-        }
         try {
-            String url = "https://api.openrouteservice.org/v2/directions/driving-car";
-            log.info("[ORS-ROUTE] Calculando rota: techLat={} techLon={} clientLat={} clientLon={}", techLat, techLon, clientLat, clientLon);
-            log.info("[ORS-ROUTE] URL: {}", url);
+            String url = "http://router.project-osrm.org/route/v1/driving/"
+                    + techLon + "," + techLat + ";"
+                    + clientLon + "," + clientLat
+                    + "?overview=false";
+
+            log.info("[OSRM] Calculando rota: techLat={} techLon={} clientLat={} clientLon={}", techLat, techLon, clientLat, clientLon);
+            log.info("[OSRM] URL: {}", url);
 
             HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", apiKey);
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Accept", "application/json");
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
 
-            // Ida e volta: técnico → cliente → técnico
-            Map<String, Object> body = Map.of(
-                    "coordinates", List.of(
-                            List.of(techLon, techLat),
-                            List.of(clientLon, clientLat),
-                            List.of(techLon, techLat)
-                    )
-            );
-
-            ResponseEntity<String> response = restTemplate.exchange(
-                    url, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
-
-            log.info("[ORS-ROUTE] Response status: {}", response.getStatusCode());
-            log.info("[ORS-ROUTE] Response body: {}", response.getBody());
+            log.info("[OSRM] Response status: {}", response.getStatusCode());
+            log.info("[OSRM] Response body: {}", response.getBody());
 
             JsonNode root = objectMapper.readTree(response.getBody());
-            double meters = root.path("routes").get(0).path("summary").path("distance").asDouble();
-            return Math.round(meters / 100.0) / 10.0; // km com 1 decimal
+            double meters = root.path("routes").get(0).path("distance").asDouble();
+            double km = (meters / 1000.0) * 2; // ida + volta
+            return Math.round(km * 10.0) / 10.0;
         } catch (HttpClientErrorException e) {
-            log.warn("[ORS-ROUTE] HTTP {} — body: {}", e.getStatusCode(), e.getResponseBodyAsString());
+            log.warn("[OSRM] HTTP {} — body: {}", e.getStatusCode(), e.getResponseBodyAsString());
         } catch (Exception e) {
-            log.warn("[ORS-ROUTE] Falhou: {}", e.getMessage());
+            log.warn("[OSRM] Falhou: {}", e.getMessage());
         }
         return null;
     }
