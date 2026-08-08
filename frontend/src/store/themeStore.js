@@ -9,7 +9,7 @@ const STORAGE_KEY = "fusion_theme";
 
 const THEME_PREFERENCE_KEY = "theme";
 
-const VALID_THEMES = ["dark", "light", "blue"];
+const VALID_THEMES = ["dark", "light", "blue", "emerald", "violet", "midnight"];
 
 function applyTheme(theme) {
 

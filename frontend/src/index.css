@@ -24,8 +24,6 @@
   --zinc-900: 24 24 27;
   --zinc-950: 9 9 11;
 
-  /* "white" = tom mais claro (texto/pill de destaque); "black" =
-     tom mais escuro (texto sobre o pill, contraste com o "white") */
   --canvas-fg: 255 255 255;
   --canvas-bg: 9 9 11;
 
@@ -33,9 +31,10 @@
 }
 
 [data-theme="light"] {
-  /* Espelha a rampa de cinza (950<->50, 900<->100, ...) — preserva a
-     mesma relacao de contraste relativo entre os tons, so invertendo
-     qual ponta da escala representa o fundo da pagina. */
+  /* Rampa invertida com hierarquia aprimorada:
+     zinc-950 = fundo da página (#fafafa),
+     zinc-900 = card (#ffffff — branco puro para contraste nítido),
+     zinc-800 = borda (#e4e4e7). */
   --zinc-50: 9 9 11;
   --zinc-100: 24 24 27;
   --zinc-200: 39 39 42;
@@ -45,7 +44,7 @@
   --zinc-600: 161 161 170;
   --zinc-700: 212 212 216;
   --zinc-800: 228 228 231;
-  --zinc-900: 244 244 245;
+  --zinc-900: 255 255 255;
   --zinc-950: 250 250 250;
 
   --canvas-fg: 24 24 27;
@@ -55,9 +54,6 @@
 }
 
 [data-theme="blue"] {
-  /* Mesma estrutura do tema escuro, com tom de azul-marinho no lugar
-     do cinza neutro — visual "corporativo" sem afetar cores de
-     status/alerta. */
   --zinc-50: 245 247 250;
   --zinc-100: 232 236 244;
   --zinc-200: 213 220 233;
@@ -72,6 +68,65 @@
 
   --canvas-fg: 255 255 255;
   --canvas-bg: 8 11 22;
+
+  color-scheme: dark;
+}
+
+[data-theme="emerald"] {
+  --zinc-50: 241 248 245;
+  --zinc-100: 220 238 231;
+  --zinc-200: 191 222 209;
+  --zinc-300: 145 197 176;
+  --zinc-400: 93 166 139;
+  --zinc-500: 57 135 109;
+  --zinc-600: 40 107 86;
+  --zinc-700: 29 80 66;
+  --zinc-800: 22 59 50;
+  --zinc-900: 14 41 35;
+  --zinc-950: 7 25 20;
+
+  --canvas-fg: 255 255 255;
+  --canvas-bg: 7 25 20;
+
+  color-scheme: dark;
+}
+
+[data-theme="violet"] {
+  --zinc-50: 246 245 250;
+  --zinc-100: 233 231 242;
+  --zinc-200: 213 210 227;
+  --zinc-300: 181 176 206;
+  --zinc-400: 145 137 177;
+  --zinc-500: 112 103 148;
+  --zinc-600: 81 73 111;
+  --zinc-700: 57 51 79;
+  --zinc-800: 39 35 57;
+  --zinc-900: 24 21 34;
+  --zinc-950: 13 11 20;
+
+  --canvas-fg: 255 255 255;
+  --canvas-bg: 13 11 20;
+
+  color-scheme: dark;
+}
+
+[data-theme="midnight"] {
+  /* Escala baseada em Tailwind slate — fundo quase preto azulado,
+     muted em azul-acinzentado, texto em branco frio. */
+  --zinc-50: 248 250 252;
+  --zinc-100: 241 245 249;
+  --zinc-200: 226 232 240;
+  --zinc-300: 203 213 225;
+  --zinc-400: 148 163 184;
+  --zinc-500: 100 116 139;
+  --zinc-600: 27 36 48;
+  --zinc-700: 17 25 40;
+  --zinc-800: 13 17 23;
+  --zinc-900: 8 11 16;
+  --zinc-950: 5 7 10;
+
+  --canvas-fg: 248 250 252;
+  --canvas-bg: 5 7 10;
 
   color-scheme: dark;
 }

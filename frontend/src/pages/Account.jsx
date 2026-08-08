@@ -30,8 +30,23 @@ const THEMES = [
   },
   {
     key: "blue",
-    label: "Azul corporativo",
+    label: "Azul",
     swatch: ["#080b16", "#0f1426", "#ffffff"],
+  },
+  {
+    key: "emerald",
+    label: "Esmeralda",
+    swatch: ["#071914", "#0e2923", "#5da68b"],
+  },
+  {
+    key: "violet",
+    label: "Violeta",
+    swatch: ["#0d0b14", "#181522", "#9189b1"],
+  },
+  {
+    key: "midnight",
+    label: "Midnight",
+    swatch: ["#05070a", "#0d1117", "#f8fafc"],
   },
 ];
 
@@ -458,7 +473,7 @@ export default function Account() {
           alertas continuam as mesmas em qualquer tema.
         </p>
 
-        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+        <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
 
           {THEMES.map((option) => {
 
