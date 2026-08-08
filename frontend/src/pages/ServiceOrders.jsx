@@ -170,7 +170,8 @@ export default function ServiceOrders() {
       });
       setAuditLogs(data);
     } catch (e) {
-      toast.error("Erro ao carregar auditoria");
+      console.error("Erro ao carregar auditoria:", e.message, e);
+      toast.error("Erro ao carregar auditoria: " + e.message);
     } finally {
       setAuditLoading(false);
     }
