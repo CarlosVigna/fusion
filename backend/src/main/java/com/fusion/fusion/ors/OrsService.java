@@ -84,7 +84,7 @@ public class OrsService {
             return null;
         }
         try {
-            String url = "https://api.heigit.org/v2/directions/driving-car";
+            String url = "https://api.openrouteservice.org/v2/directions/driving-car";
             log.info("[ORS-ROUTE] Calculando rota: techLat={} techLon={} clientLat={} clientLon={}", techLat, techLon, clientLat, clientLon);
             log.info("[ORS-ROUTE] URL: {}", url);
 
