@@ -139,31 +139,25 @@ public class ServiceOrderService {
             so.setTechnician(tech);
 
             if (techChanged) {
-                if (tech.getLatitude() == null && tech.getAddress() != null) {
-                    log.info("[OS] Tecnico sem coordenadas, geocodificando em tempo real: {}, {}", tech.getAddress(), tech.getCity());
-                    technicianService.geocodeIfMissing(tech);
+                // Coordenadas do técnico enviadas pelo frontend (geocoding feito no browser)
+                if (request.techLat() != null && request.techLon() != null) {
+                    technicianService.updateCoords(tech, request.techLat(), request.techLon());
                 }
 
-                if (tech.getLatitude() != null && so.getAddress() != null && so.getCity() != null) {
-                    log.info("[OS] Calculando deslocamento para OS={}, tecnico={}, endereco='{}, {}'",
-                            id, request.technicianId(), so.getAddress(), so.getCity());
-                    double[] clientCoords = orsService.geocode(so.getAddress(), so.getCity(), so.getState() != null ? so.getState() : "");
-                    if (clientCoords != null) {
-                        Double km = orsService.calculateRoundTripKm(tech.getLatitude(), tech.getLongitude(), clientCoords[0], clientCoords[1]);
-                        if (km != null) {
-                            so.setDistanceKm(km);
-                            so.setDisplacementValue(orsService.calculateDisplacement(km));
-                            recalcTotal(so);
-                            log.info("[OS] Deslocamento calculado: {}km, R${}", km, so.getDisplacementValue());
-                        } else {
-                            log.warn("[OS] ORS retornou null para rota OS={}", id);
-                        }
+                // Calcular deslocamento usando coords do cliente enviadas pelo frontend
+                if (tech.getLatitude() != null && request.clientLat() != null && request.clientLon() != null) {
+                    log.info("[OS] Calculando deslocamento via coords frontend, OS={}, tecnico={}", id, request.technicianId());
+                    Double km = orsService.calculateRoundTripKm(tech.getLatitude(), tech.getLongitude(), request.clientLat(), request.clientLon());
+                    if (km != null) {
+                        so.setDistanceKm(km);
+                        so.setDisplacementValue(orsService.calculateDisplacement(km));
+                        recalcTotal(so);
+                        log.info("[OS] Deslocamento calculado: {}km, R${}", km, so.getDisplacementValue());
                     } else {
-                        log.warn("[OS] Geocoding sem resultado para OS={} endereco='{}'", id, so.getAddress());
+                        log.warn("[OS] ORS retornou null para rota OS={}", id);
                     }
                 } else {
-                    log.info("[OS] Deslocamento nao calculado: techLat={}, address={}, city={}",
-                            tech.getLatitude(), so.getAddress(), so.getCity());
+                    log.info("[OS] Deslocamento nao calculado: techLat={}, clientLat={}", tech.getLatitude(), request.clientLat());
                 }
             }
         }

@@ -79,6 +79,14 @@ public class TechnicianService {
         }
     }
 
+    @Transactional
+    public void updateCoords(Technician t, double lat, double lon) {
+        t.setLatitude(lat);
+        t.setLongitude(lon);
+        repository.save(t);
+        log.info("[TECNICO] Coordenadas atualizadas para {} (lat={}, lon={})", t.getName(), lat, lon);
+    }
+
     private void geocode(Technician t) {
         if (t.getAddress() == null || t.getCity() == null) return;
         double[] coords = orsService.geocode(t.getAddress(), t.getCity(), t.getState());

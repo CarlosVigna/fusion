@@ -11,5 +11,9 @@ public record SchedulingRequest(
         String scheduledTime,
         BigDecimal serviceValue,
         BigDecimal displacementValue,
-        String observations
+        String observations,
+        Double techLat,
+        Double techLon,
+        Double clientLat,
+        Double clientLon
 ) {}

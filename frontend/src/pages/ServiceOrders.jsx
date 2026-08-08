@@ -103,6 +103,16 @@ async function fetchCep(cep) {
   } catch { return null; }
 }
 
+const GEOCODE_KEY = '6a767720c9a23759209230ybg19c2d3';
+
+async function geocodeAddress(query) {
+  const url = `https://geocode.maps.co/search?q=${encodeURIComponent(query)}&api_key=${GEOCODE_KEY}&countrycodes=br&limit=1`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+  return null;
+}
+
 function isScheduledPassed(o) {
   if (!o?.scheduledDate) return false;
   const todayUtc = new Date().toISOString().slice(0, 10);
@@ -298,6 +308,27 @@ export default function ServiceOrders() {
         customerName: f.customerName, customerPhone: f.customerPhone,
         observations: f.observations,
       };
+
+      // Geocoding no browser — backend não chama APIs externas de geocoding
+      let techLat = null, techLon = null, clientLat = null, clientLon = null;
+      if (f.technicianId && (isTech || isOp)) {
+        try {
+          const selectedTech = technicians.find(t => String(t.id) === String(f.technicianId));
+          if (selectedTech && !selectedTech.latitude) {
+            const addr = [selectedTech.address, selectedTech.city, selectedTech.state].filter(Boolean).join(", ");
+            if (addr) {
+              const c = await geocodeAddress(addr + ", Brasil");
+              if (c) { techLat = c.lat; techLon = c.lon; }
+            }
+          }
+          const clientQuery = [f.city || f._city, f.state || f._state].filter(Boolean).join(", ");
+          if (clientQuery.trim()) {
+            const c = await geocodeAddress(clientQuery + ", Brasil");
+            if (c) { clientLat = c.lat; clientLon = c.lon; }
+          }
+        } catch { /* geocoding falhou — salvar sem coordenadas */ }
+      }
+
       const schedPayload = {
         scheduledDate:     f.scheduledDate    || null,
         scheduledTime:     f.scheduledTime    || null,
@@ -309,6 +340,8 @@ export default function ServiceOrders() {
       // TECH não envia status — o backend define AGENDADO automaticamente
       // OP/ADMIN envia explicitamente para poder sobrescrever quando necessário
       if (!isTech) schedPayload.schedulingStatus = f.schedulingStatus;
+      if (techLat != null) { schedPayload.techLat = techLat; schedPayload.techLon = techLon; }
+      if (clientLat != null) { schedPayload.clientLat = clientLat; schedPayload.clientLon = clientLon; }
 
       if (isTech) {
         await updateScheduling(modal.id, schedPayload);
