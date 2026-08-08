@@ -147,16 +147,6 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(
-                                (request, response, authException) ->
-                                        response.sendError(
-                                                jakarta.servlet.http.HttpServletResponse.SC_UNAUTHORIZED,
-                                                "Unauthorized"
-                                        )
-                        )
-                )
-
                 .addFilterBefore(
                         filter,
                         UsernamePasswordAuthenticationFilter.class
