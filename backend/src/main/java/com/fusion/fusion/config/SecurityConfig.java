@@ -88,6 +88,10 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
+                                "/service-orders/audit-log"
+                        ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
+
+                        .requestMatchers(
                                 "/service-orders/**"
                         ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
 
