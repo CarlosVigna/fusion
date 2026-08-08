@@ -2,12 +2,16 @@ package com.fusion.fusion.serviceorder;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -75,6 +79,19 @@ public class ServiceOrderController {
         boolean showAnalytics = user != null && user.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ROLE_OPERATOR"));
         return service.dashboard(showAnalytics);
+    }
+
+    @GetMapping("/audit-log")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<ServiceOrderAuditLog> auditLog(
+            @RequestParam(required = false) String plate,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String performedBy,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+        LocalDateTime from = dateFrom != null ? dateFrom.atStartOfDay() : null;
+        LocalDateTime to   = dateTo   != null ? dateTo.atTime(23, 59, 59) : null;
+        return service.findAuditLog(plate, action, performedBy, from, to);
     }
 
     @GetMapping("/monthly-close")

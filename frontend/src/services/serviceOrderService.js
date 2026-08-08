@@ -51,3 +51,11 @@ export function getMonthlyCloseExcelUrl(month) {
 export function getMonthlyClosePdfUrl(month) {
   return `/service-orders/monthly-close/pdf?month=${month}`;
 }
+
+export async function getServiceOrderAuditLog(params = {}) {
+  const qs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null && v !== "")
+    .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
+    .join("&");
+  return apiClient.get(`/service-orders/audit-log${qs ? "?" + qs : ""}`);
+}
