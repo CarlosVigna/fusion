@@ -391,7 +391,7 @@ export default function ServiceOrders() {
       let calculatedDisplacement = 0;
       if (effTechLat && effTechLon && clientLat && clientLon) {
         try {
-          const osrmUrl = `http://router.project-osrm.org/route/v1/driving/${effTechLon},${effTechLat};${clientLon},${clientLat}?overview=false`;
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${effTechLon},${effTechLat};${clientLon},${clientLat}?overview=false`;
           const res = await fetch(osrmUrl);
           const data = await res.json();
           if (data.routes?.length > 0) {
