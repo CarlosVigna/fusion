@@ -68,11 +68,14 @@ public class WhatsAppService {
         String text = String.format(
                 "*INSTALAÇÃO NOVA:*\n" +
                 "*NOME:* %s\n" +
-                "*ENDEREÇO:* %s | *BAIRRO:* %s - %s/%s\n" +
+                "*ENDEREÇO:* %s\n" +
+                "*BAIRRO:* %s\n" +
+                "*CIDADE/UF:* %s/%s\n" +
                 "*CEP:* %s\n" +
                 "*TELEFONE:* %s\n" +
                 "*PLACA:* %s\n" +
-                "*MODELO:* %s",
+                "*MODELO:* %s\n" +
+                "*CHASSI:* Não informado",
                 nullSafe(inst.getCustomerName()),
                 nullSafe(inst.getAddress()),
                 nullSafe(inst.getNeighborhood()),
@@ -80,8 +83,8 @@ public class WhatsAppService {
                 nullSafe(inst.getState()),
                 nullSafe(inst.getZipCode()),
                 nullSafe(inst.getPhone()),
-                nullSafe(inst.getPlate()),
-                nullSafe(inst.getModel())
+                inst.getPlate()  != null ? inst.getPlate()  : "—",
+                inst.getModel()  != null ? inst.getModel()  : "—"
         );
 
         sendText(number, text);

@@ -166,6 +166,7 @@ public class InstallationSyncService {
                         installation.getPortalCreatedAt()
                 );
 
+                whatsAppService.sendInstallationAlert(installation);
 
             }
 
