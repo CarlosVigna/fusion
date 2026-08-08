@@ -168,7 +168,8 @@ export default function ServiceOrders() {
         dateFrom: auditDateFrom || undefined,
         dateTo: auditDateTo || undefined,
       });
-      setAuditLogs(data);
+      const logs = Array.isArray(data) ? data : (data?.content || data?.data || []);
+      setAuditLogs(logs);
     } catch (e) {
       console.error("Erro ao carregar auditoria:", e.message, e);
       toast.error("Erro ao carregar auditoria: " + e.message);
