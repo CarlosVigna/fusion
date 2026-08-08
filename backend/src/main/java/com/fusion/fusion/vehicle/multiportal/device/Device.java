@@ -37,6 +37,9 @@ public class Device {
 
     private Boolean active;
 
+    @Column(name = "serial_chip1")
+    private String serialChip1;
+
     @ManyToOne
     private Vehicle vehicle;
 

@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 
 import { FileSpreadsheet } from "lucide-react";
 
-import { getMultiportalSheet } from "../services/reportsService";
+import { getMultiportalSheet, downloadDeviceReport } from "../services/reportsService";
 
 import { todayForFilename } from "../utils/exportXlsx";
 
@@ -290,6 +290,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(null);
   const [pending, setPending] = useState(null);
+  const [deviceLoading, setDeviceLoading] = useState(false);
 
   async function finalizeGeneration(blocks, snapshot) {
     const workbook = await buildWorkbook(blocks);
@@ -358,39 +359,81 @@ export default function Reports() {
     setPending(null);
   }
 
+  async function handleDeviceReport() {
+    setDeviceLoading(true);
+    try {
+      await downloadDeviceReport();
+      toast.success("Relatório de Dispositivos gerado com sucesso");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao gerar relatório: " + error.message);
+    } finally {
+      setDeviceLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
 
-      {/* Card principal */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+      {/* Cards de relatórios */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
-        <div className="border-b border-zinc-800 p-6">
-          <div className="flex items-center gap-3">
-            <FileSpreadsheet size={20} className="text-zinc-400" />
-            <div>
-              <h2 className="text-lg font-semibold">Planilha MULTIPORTAL</h2>
-              <p className="mt-0.5 text-sm text-zinc-500">
-                Gera e baixa automaticamente a planilha com os dados atuais
-                do banco — separada em blocos de Operacionais, KAKO, Testes
-                e Verificação.
-              </p>
+        {/* Planilha MULTIPORTAL */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+          <div className="border-b border-zinc-800 p-6">
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet size={20} className="text-zinc-400" />
+              <div>
+                <h2 className="text-base font-semibold">Planilha MULTIPORTAL</h2>
+                <p className="mt-0.5 text-sm text-zinc-500">
+                  Operacionais, KAKO, Testes e Verificação — apólice, dispositivo, posição.
+                </p>
+              </div>
             </div>
+          </div>
+          <div className="p-6">
+            <button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="
+                w-full rounded-xl bg-white py-3
+                text-sm font-semibold text-black
+                transition hover:bg-zinc-200
+                disabled:cursor-not-allowed disabled:opacity-40
+              "
+            >
+              {loading ? "Gerando..." : "📊 Relatório Multiportal"}
+            </button>
           </div>
         </div>
 
-        <div className="p-6">
-          <button
-            onClick={handleGenerate}
-            disabled={loading}
-            className="
-              w-full rounded-xl bg-white py-3
-              text-sm font-semibold text-black
-              transition hover:bg-zinc-200
-              disabled:cursor-not-allowed disabled:opacity-40
-            "
-          >
-            {loading ? "Gerando..." : "Gerar e Baixar Planilha MULTIPORTAL"}
-          </button>
+        {/* Relatório de Dispositivos */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+          <div className="border-b border-zinc-800 p-6">
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet size={20} className="text-zinc-400" />
+              <div>
+                <h2 className="text-base font-semibold">Relatório de Dispositivos</h2>
+                <p className="mt-0.5 text-sm text-zinc-500">
+                  Placa, segurado, número, Serial Chip 1, operadora e linha — por bloco.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <button
+              onClick={handleDeviceReport}
+              disabled={deviceLoading}
+              className="
+                w-full rounded-xl bg-blue-600 py-3
+                text-sm font-semibold text-white
+                transition hover:bg-blue-700
+                disabled:cursor-not-allowed disabled:opacity-40
+              "
+            >
+              {deviceLoading ? "Gerando..." : "🔌 Relatório de Dispositivos"}
+            </button>
+          </div>
         </div>
 
       </div>

@@ -74,6 +74,7 @@ public class DeviceImportService {
             Sheet sheet = workbook.getSheetAt(0);
 
             int headerRow = findHeaderRow(sheet, "Número");
+            int serialChip1Col = findColumnIndex(sheet, headerRow, "Serial Chip 1");
 
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
@@ -133,6 +134,13 @@ public class DeviceImportService {
 
                 if (imei != null && !imei.isBlank()) {
                     device.setImei(imei);
+                }
+
+                if (serialChip1Col >= 0) {
+                    String serialChip1 = getCellValue(row.getCell(serialChip1Col));
+                    if (serialChip1 != null && !serialChip1.isBlank()) {
+                        device.setSerialChip1(serialChip1);
+                    }
                 }
 
                 device.setNumber(
@@ -304,6 +312,18 @@ public class DeviceImportService {
 
         setter.accept(newValue);
 
+    }
+
+    private int findColumnIndex(Sheet sheet, int headerRowIndex, String columnHeader) {
+        Row row = sheet.getRow(headerRowIndex);
+        if (row == null) return -1;
+        for (int i = 0; i <= row.getLastCellNum(); i++) {
+            String val = getCellValue(row.getCell(i));
+            if (columnHeader.equalsIgnoreCase(val == null ? null : val.trim())) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private int findHeaderRow(Sheet sheet, String expectedFirstColumn) {
