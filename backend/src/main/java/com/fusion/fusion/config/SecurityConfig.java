@@ -90,7 +90,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/service-orders/audit-log"
-                        ).hasRole("ADMIN")
+                        ).hasAuthority("ROLE_ADMIN")
 
                         .requestMatchers(
                                 "/service-orders/**"
