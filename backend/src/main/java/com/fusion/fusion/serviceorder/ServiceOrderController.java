@@ -84,17 +84,22 @@ public class ServiceOrderController {
     }
 
     @GetMapping("/audit-log")
-    public List<ServiceOrderAuditLog> auditLog(
+    public ResponseEntity<?> auditLog(
             @RequestParam(required = false) String plate,
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String performedBy,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @AuthenticationPrincipal UserDetails userDetails,
             Authentication authentication) {
         log.info("[AUDIT] Endpoint chamado por: {}", authentication != null ? authentication.getName() : "null");
+        if (userDetails == null || userDetails.getAuthorities().stream()
+                .noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return ResponseEntity.status(403).build();
+        }
         LocalDateTime from = dateFrom != null ? dateFrom.atStartOfDay() : null;
         LocalDateTime to   = dateTo   != null ? dateTo.atTime(23, 59, 59) : null;
-        return service.findAuditLog(plate, action, performedBy, from, to);
+        return ResponseEntity.ok(service.findAuditLog(plate, action, performedBy, from, to));
     }
 
     @GetMapping("/monthly-close")

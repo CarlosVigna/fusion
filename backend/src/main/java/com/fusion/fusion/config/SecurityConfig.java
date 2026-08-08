@@ -88,11 +88,6 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
-                                HttpMethod.GET,
-                                "/service-orders/audit-log"
-                        ).hasAuthority("ROLE_ADMIN")
-
-                        .requestMatchers(
                                 "/service-orders/**"
                         ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
 
