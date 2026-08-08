@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -82,7 +81,6 @@ public class ServiceOrderController {
     }
 
     @GetMapping("/audit-log")
-    @PreAuthorize("hasRole('ADMIN')")
     public List<ServiceOrderAuditLog> auditLog(
             @RequestParam(required = false) String plate,
             @RequestParam(required = false) String action,
