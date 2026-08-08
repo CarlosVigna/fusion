@@ -1,9 +1,11 @@
 package com.fusion.fusion.serviceorder;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/service-orders")
 @RequiredArgsConstructor
@@ -86,7 +89,9 @@ public class ServiceOrderController {
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String performedBy,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            Authentication authentication) {
+        log.info("[AUDIT] Endpoint chamado por: {}", authentication != null ? authentication.getName() : "null");
         LocalDateTime from = dateFrom != null ? dateFrom.atStartOfDay() : null;
         LocalDateTime to   = dateTo   != null ? dateTo.atTime(23, 59, 59) : null;
         return service.findAuditLog(plate, action, performedBy, from, to);
