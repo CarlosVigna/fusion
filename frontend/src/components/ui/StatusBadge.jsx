@@ -1,18 +1,18 @@
 const statusStyles = {
   ONLINE:
-    "bg-green-500/15 text-green-400",
+    "bg-green-200 text-green-800 dark:bg-green-500/15 dark:text-green-400",
 
   OFFLINE:
-    "bg-red-500/15 text-red-400",
+    "bg-red-200 text-red-800 dark:bg-red-500/15 dark:text-red-400",
 
   STALE:
-    "bg-red-500/15 text-red-400",
+    "bg-red-200 text-red-800 dark:bg-red-500/15 dark:text-red-400",
 
   LOW_BATTERY:
-    "bg-yellow-500/15 text-yellow-400",
+    "bg-yellow-200 text-yellow-800 dark:bg-yellow-500/15 dark:text-yellow-400",
 
   MAINTENANCE:
-    "bg-blue-500/15 text-blue-400",
+    "bg-blue-200 text-blue-800 dark:bg-blue-500/15 dark:text-blue-400",
 };
 
 export default function StatusBadge({
@@ -20,7 +20,7 @@ export default function StatusBadge({
 }) {
   const style =
     statusStyles[status] ||
-    "bg-zinc-500/15 text-zinc-400";
+    "bg-gray-100 text-gray-600 dark:bg-zinc-500/15 dark:text-zinc-400";
 
   return (
     <span

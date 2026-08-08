@@ -15,13 +15,19 @@ function applyTheme(theme) {
 
   document.documentElement.setAttribute("data-theme", theme);
 
+  document.documentElement.classList.toggle("dark", theme !== "light");
+
   localStorage.setItem(STORAGE_KEY, theme);
 
 }
 
+// Apply immediately on module load so dark: classes take effect before React mounts
+const _initialTheme = localStorage.getItem(STORAGE_KEY) || "dark";
+applyTheme(_initialTheme);
+
 export const useThemeStore = create((set) => ({
 
-  theme: localStorage.getItem(STORAGE_KEY) || "dark",
+  theme: _initialTheme,
 
   loaded: false,
 

@@ -25,9 +25,9 @@ const STATUS_COLOR = {
   CONCLUIDO: "bg-green-200 text-green-900 border-green-300 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30",
 };
 const FIN_COLOR = {
-  PENDENTE:  "bg-zinc-800 text-zinc-400",
-  APROVADO:  "bg-green-500/10 text-green-400",
-  REPROVADO: "bg-red-500/10 text-red-400",
+  PENDENTE:  "bg-yellow-200 text-yellow-800 dark:bg-zinc-800 dark:text-zinc-400",
+  APROVADO:  "bg-green-200 text-green-800 dark:bg-green-500/10 dark:text-green-400",
+  REPROVADO: "bg-red-200 text-red-800 dark:bg-red-500/10 dark:text-red-400",
 };
 const SERVICE_TYPES       = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 const SCHEDULING_STATUSES = ["ABERTO", "AGENDADO", "CONCLUIDO"];
@@ -48,7 +48,7 @@ function Badge({ label, colorClass }) {
 
 function SlaChip({ days, isLate }) {
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isLate ? "bg-red-200 text-red-900 dark:bg-red-500/10 dark:text-red-400" : "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400"}`}>
+    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isLate ? "bg-red-200 text-red-900 dark:bg-red-500/10 dark:text-red-400" : "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400"}`}>
       {days}d{isLate ? " ⚠" : ""}
     </span>
   );
@@ -805,7 +805,7 @@ export default function ServiceOrders() {
                       {(() => {
                         const isAutoApproved = selectedOrder.financialApprovalStatus === "APROVADO" && !(selectedOrder.displacementValue > 0);
                         return (
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isAutoApproved ? "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400" : FIN_COLOR[selectedOrder.financialApprovalStatus]}`}>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${isAutoApproved ? "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400" : FIN_COLOR[selectedOrder.financialApprovalStatus]}`}>
                             {isAutoApproved ? "Valor Padrão" : FINANCIAL_LABEL[selectedOrder.financialApprovalStatus]}
                           </span>
                         );
@@ -853,11 +853,11 @@ export default function ServiceOrders() {
               {isOp && selectedOrder.financialApprovalStatus === "PENDENTE" && (selectedOrder.displacementValue ?? 0) > 0 && (
                 <>
                   <button onClick={() => handleFinancial(selectedOrder.id, "APROVADO")}
-                    className="rounded-xl px-4 py-2 text-sm bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20">
+                    className="rounded-xl px-4 py-2 text-sm bg-green-200 text-green-800 border border-green-300 hover:bg-green-300 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30 dark:hover:bg-green-500/20">
                     ✓ Aprovar Desl.
                   </button>
                   <button onClick={() => handleFinancial(selectedOrder.id, "REPROVADO")}
-                    className="rounded-xl px-4 py-2 text-sm bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20">
+                    className="rounded-xl px-4 py-2 text-sm bg-red-200 text-red-800 border border-red-300 hover:bg-red-300 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/30 dark:hover:bg-red-500/20">
                     ✗ Reprovar
                   </button>
                 </>
@@ -866,7 +866,7 @@ export default function ServiceOrders() {
               {/* ADMIN, OPERATOR, FIELD: Concluir quando prazo passou */}
               {canConcluir(selectedOrder) && !selectedOrder.completionConfirmed && (
                 <button onClick={() => handleConcluir(selectedOrder.id)}
-                  className="rounded-xl px-4 py-2 text-sm bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20">
+                  className="rounded-xl px-4 py-2 text-sm bg-teal-200 text-teal-800 border border-teal-300 hover:bg-teal-300 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30 dark:hover:bg-teal-500/20">
                   Concluir
                 </button>
               )}
@@ -874,7 +874,7 @@ export default function ServiceOrders() {
               {/* Delete (any role with permission) */}
               {canDelete(selectedOrder) && (
                 <button onClick={() => handleDelete(selectedOrder)}
-                  className="rounded-lg p-2 text-red-400 hover:bg-red-500/10 ml-auto">
+                  className="rounded-lg p-2 text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10 ml-auto">
                   <Trash2 size={14} />
                 </button>
               )}
