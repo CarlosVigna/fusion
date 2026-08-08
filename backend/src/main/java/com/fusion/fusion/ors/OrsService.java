@@ -80,7 +80,7 @@ public class OrsService {
     // Retorna distância total (ida + volta) em km via OSRM (gratuito, sem chave)
     public Double calculateRoundTripKm(double techLat, double techLon, double clientLat, double clientLon) {
         try {
-            String url = "http://router.project-osrm.org/route/v1/driving/"
+            String url = "https://router.project-osrm.org/route/v1/driving/"
                     + techLon + "," + techLat + ";"
                     + clientLon + "," + clientLat
                     + "?overview=false";

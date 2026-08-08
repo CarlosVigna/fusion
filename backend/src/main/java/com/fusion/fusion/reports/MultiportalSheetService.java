@@ -117,6 +117,7 @@ public class MultiportalSheetService {
                 testVehicles.stream().map(Vehicle::getPlate).toList());
 
         List<Vehicle> verificationVehicles = activeVehicles.stream()
+                .filter(vehicle -> vehicle.getVehicleGroup() != VehicleGroup.TEST)
                 .filter(vehicle -> {
                     OperationalSnapshot snapshot = snapshotByVehicleId.get(vehicle.getId());
                     boolean noCommunication = snapshot == null || snapshot.getLastCommunicationAt() == null;
@@ -249,6 +250,7 @@ public class MultiportalSheetService {
                 .sorted(Comparator.comparing(Vehicle::getPlate))
                 .toList();
         List<Vehicle> verification = activeVehicles.stream()
+                .filter(v -> v.getVehicleGroup() != VehicleGroup.TEST)
                 .filter(v -> {
                     OperationalSnapshot s = snapshotByVehicleId.get(v.getId());
                     boolean noCommunication = s == null || s.getLastCommunicationAt() == null;

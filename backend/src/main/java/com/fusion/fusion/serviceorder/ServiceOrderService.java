@@ -54,6 +54,10 @@ public class ServiceOrderService {
 
     @Transactional
     public ServiceOrderResponse create(ServiceOrderRequest request, String createdBy) {
+        boolean isManual = !"PORTAL".equals(createdBy) && !"SISTEMA".equals(createdBy);
+        if (isManual && (request.customerName() == null || request.customerName().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nome do cliente é obrigatório");
+        }
         ServiceOrder so = ServiceOrder.builder()
                 .requestedBy(request.requestedBy() != null ? request.requestedBy() : createdBy)
                 .requestedAt(request.requestedAt() != null ? request.requestedAt() : LocalDateTime.now(ZoneOffset.UTC))
@@ -144,6 +148,13 @@ public class ServiceOrderService {
     public ServiceOrderResponse updateScheduling(UUID id, SchedulingRequest request) {
         ServiceOrder so = find(id);
 
+        // Captura valores anteriores para auditoria campo a campo
+        String auditOldTech         = so.getTechnician()        != null ? so.getTechnician().getName()              : null;
+        String auditOldDate         = so.getScheduledDate()     != null ? so.getScheduledDate().toString()          : null;
+        String auditOldStatus       = so.getSchedulingStatus()  != null ? so.getSchedulingStatus().name()           : null;
+        String auditOldService      = so.getServiceValue()      != null ? so.getServiceValue().toPlainString()      : null;
+        String auditOldDisplacement = so.getDisplacementValue() != null ? so.getDisplacementValue().toPlainString() : null;
+
         Technician prevTech = so.getTechnician();
         boolean techChanged = request.technicianId() != null
                 && (prevTech == null || !prevTech.getId().equals(request.technicianId()));
@@ -209,6 +220,26 @@ public class ServiceOrderService {
         if (request.observations() != null) so.setObservations(request.observations());
         if (request.technicianAddress() != null) so.setTechnicianAddress(request.technicianAddress());
         if (request.clientAddress() != null) so.setClientAddress(request.clientAddress());
+
+        // Audit campo a campo — registra apenas o que realmente mudou
+        if (request.technicianId() != null) {
+            auditIfChanged(id, so.getPlate(), "technician", auditOldTech,
+                    so.getTechnician() != null ? so.getTechnician().getName() : null);
+        }
+        auditIfChanged(id, so.getPlate(), "scheduledDate", auditOldDate,
+                so.getScheduledDate() != null ? so.getScheduledDate().toString() : null);
+        if (request.schedulingStatus() != null) {
+            auditIfChanged(id, so.getPlate(), "schedulingStatus", auditOldStatus,
+                    so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null);
+        }
+        if (request.serviceValue() != null) {
+            auditIfChanged(id, so.getPlate(), "serviceValue", auditOldService,
+                    so.getServiceValue() != null ? so.getServiceValue().toPlainString() : null);
+        }
+        if (request.displacementValue() != null) {
+            auditIfChanged(id, so.getPlate(), "displacementValue", auditOldDisplacement,
+                    so.getDisplacementValue() != null ? so.getDisplacementValue().toPlainString() : null);
+        }
 
         ServiceOrder saved = repository.save(so);
         audit(saved.getId(), saved.getPlate(), "AGENDADA", null, null, null);

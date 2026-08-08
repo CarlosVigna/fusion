@@ -32,6 +32,8 @@ const FIN_COLOR = {
 const SERVICE_TYPES       = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 const SCHEDULING_STATUSES = ["ABERTO", "AGENDADO", "CONCLUIDO"];
 
+const ITEMS_PER_PAGE = 20;
+
 const EMPTY_ORDER = {
   requestedBy: "", plate: "", chassis: "", equipment: "LUMINI",
   serviceType: "INSTALACAO", zipCode: "", address: "", neighborhood: "",
@@ -147,6 +149,7 @@ export default function ServiceOrders() {
   const [filterServiceType, setFilterServiceType] = useState("");
   const [filterTechnicianId, setFilterTechnicianId] = useState("");
   const [selectedIds, setSelectedIds]       = useState(new Set());
+  const [displayPage, setDisplayPage]       = useState(0);
 
   const [tab, setTab]                       = useState("os");
   const [auditLogs, setAuditLogs]           = useState([]);
@@ -158,6 +161,7 @@ export default function ServiceOrders() {
   const [auditDateTo, setAuditDateTo]       = useState("");
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setDisplayPage(0); }, [filter, searchText, filterServiceType, filterTechnicianId]);
 
   async function loadAuditLog() {
     setAuditLoading(true);
@@ -240,6 +244,8 @@ export default function ServiceOrders() {
   }
 
   const visible = applyFilter(orders);
+  const totalPages = Math.ceil(visible.length / ITEMS_PER_PAGE);
+  const pagedVisible = visible.slice(displayPage * ITEMS_PER_PAGE, (displayPage + 1) * ITEMS_PER_PAGE);
   const allSelected = visible.length > 0 && visible.every(o => selectedIds.has(o.id));
 
   function toggleSelect(id) {
@@ -322,12 +328,20 @@ export default function ServiceOrders() {
   }
 
   async function handleSaveCreate() {
+    if (!modal.form.serviceType) {
+      toast.error("Tipo de serviço é obrigatório");
+      return;
+    }
+    if (!modal.form.customerName?.trim()) {
+      toast.error("Nome do cliente é obrigatório");
+      return;
+    }
     try {
       await createServiceOrder(modal.form);
       toast.success("OS criada");
       setModal(null);
       load();
-    } catch { toast.error("Erro ao criar OS"); }
+    } catch (e) { toast.error("Erro ao criar OS: " + (e?.message || "")); }
   }
 
   async function doSave(id, schedPayload, basePayload) {
@@ -640,7 +654,7 @@ export default function ServiceOrders() {
           <tbody>
             {loading && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
             {!loading && visible.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS encontrada</td></tr>}
-            {visible.map((o) => (
+            {pagedVisible.map((o) => (
               <tr key={o.id}
                 onClick={() => setSelectedOrder(o)}
                 className="border-b border-zinc-900 transition-colors hover:bg-zinc-900/40 cursor-pointer">
@@ -674,6 +688,30 @@ export default function ServiceOrders() {
             ))}
           </tbody>
         </table>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-3">
+            <span className="text-xs text-zinc-500">
+              {visible.length} resultado(s) · página {displayPage + 1} de {totalPages}
+            </span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setDisplayPage(p => Math.max(0, p - 1))}
+                disabled={displayPage === 0}
+                className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                ‹ Anterior
+              </button>
+              <button
+                onClick={() => setDisplayPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={displayPage >= totalPages - 1}
+                className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                Próxima ›
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       )}
 

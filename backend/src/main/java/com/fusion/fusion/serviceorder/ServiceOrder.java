@@ -24,6 +24,7 @@ public class ServiceOrder {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    @Column(unique = true)
     private String externalInstallationId;
 
     private String requestedBy;
