@@ -8,6 +8,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -34,47 +35,46 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-
             filterChain.doFilter(request, response);
             return;
-
         }
 
-        final String token = authHeader.substring(7);
+        try {
+            final String token = authHeader.substring(7);
+            final String email = jwtService.extractUsername(token);
 
-        final String email = jwtService.extractUsername(token);
+            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-        if (email != null
-                && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-            UserDetails userDetails =
-                    userDetailsService.loadUserByUsername(email);
+                if (jwtService.isValid(token, email)) {
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(
+                                    userDetails,
+                                    null,
+                                    userDetails.getAuthorities()
+                            );
+                    authentication.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
 
-            if (jwtService.isValid(token, email)) {
+                    // Spring Security 6.x: criar contexto novo antes de setar autenticacao
+                    SecurityContext context = SecurityContextHolder.createEmptyContext();
+                    context.setAuthentication(authentication);
+                    SecurityContextHolder.setContext(context);
 
-                log.info("[JWT] Usuario: {} | Authorities: {}", userDetails.getUsername(), userDetails.getAuthorities());
-
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
-
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource()
-                                .buildDetails(request)
-                );
-
-                SecurityContextHolder.getContext()
-                        .setAuthentication(authentication);
-
+                    log.debug("[JWT] Auth OK: {} | roles: {} | path: {}",
+                            email, userDetails.getAuthorities(), request.getRequestURI());
+                } else {
+                    log.warn("[JWT] Token invalido para email={} path={}", email, request.getRequestURI());
+                }
             }
-
+        } catch (Exception e) {
+            log.warn("[JWT] Falha ao processar token: {} - {} | path={}",
+                    e.getClass().getSimpleName(), e.getMessage(), request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);
-
     }
 
 }
