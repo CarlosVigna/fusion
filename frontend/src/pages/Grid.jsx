@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Columns3,
   FlaskConical,
+  MapPin,
   RefreshCw,
   Settings,
 } from "lucide-react";
@@ -369,6 +370,11 @@ export default function Grid() {
     useState(false);
 
   const showTestRef = useRef(false);
+
+  const [showTracknMe, setShowTracknMe] =
+    useState(false);
+
+  const showTracknMeRef = useRef(false);
 
   const [noLinkageVehicles, setNoLinkageVehicles] =
     useState([]);
@@ -756,7 +762,7 @@ export default function Grid() {
 
           showKakoRef.current = true;
 
-          loadGrid({ includeKako: true });
+          loadGrid({ includeKako: true, includeTracknMe: showTracknMeRef.current });
 
         }
 
@@ -780,7 +786,7 @@ export default function Grid() {
 
     showKakoRef.current = next;
 
-    await loadGrid({ includeKako: next, includeTest: showTestRef.current });
+    await loadGrid({ includeKako: next, includeTest: showTestRef.current, includeTracknMe: showTracknMeRef.current });
 
     savePreference("show_kako", String(next)).catch(console.error);
 
@@ -802,7 +808,7 @@ export default function Grid() {
 
           showTestRef.current = true;
 
-          loadGrid({ includeKako: showKakoRef.current, includeTest: true });
+          loadGrid({ includeKako: showKakoRef.current, includeTest: true, includeTracknMe: showTracknMeRef.current });
 
         }
 
@@ -826,11 +832,58 @@ export default function Grid() {
 
     showTestRef.current = next;
 
-    await loadGrid({ includeKako: showKakoRef.current, includeTest: next });
+    await loadGrid({ includeKako: showKakoRef.current, includeTest: next, includeTracknMe: showTracknMeRef.current });
 
     savePreference("show_test", String(next)).catch(console.error);
 
   }
+
+  async function handleTracknMeToggle() {
+
+    const next = !showTracknMe;
+
+    setShowTracknMe(next);
+
+    showTracknMeRef.current = next;
+
+    // TracknMe é mutuamente exclusivo com Multiportal — backend filtra automaticamente
+    await loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: next });
+
+    savePreference("show_tracknme", String(next)).catch(console.error);
+
+  }
+
+  useEffect(() => {
+
+    async function loadTracknMePreference() {
+
+      try {
+
+        const val = await getPreference("show_tracknme");
+
+        const on = val === "true" || val === true;
+
+        if (on) {
+
+          setShowTracknMe(true);
+
+          showTracknMeRef.current = true;
+
+          loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: true });
+
+        }
+
+      } catch (error) {
+
+        console.error(error);
+
+      }
+
+    }
+
+    loadTracknMePreference();
+
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
 
@@ -854,7 +907,7 @@ export default function Grid() {
 
       if (event?.type === "GRID_UPDATED") {
 
-        loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current });
+        loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: showTracknMeRef.current });
 
       }
 
@@ -876,7 +929,7 @@ export default function Grid() {
 
     try {
 
-      await loadGrid();
+      await loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: showTracknMeRef.current });
 
     } catch (error) {
 
@@ -1299,6 +1352,23 @@ export default function Grid() {
           >
             <FlaskConical size={16} />
             Testes
+          </button>
+
+          <button
+            onClick={handleTracknMeToggle}
+            title={showTracknMe ? "Voltar para grid Multiportal" : "Ver veículos TracknMe"}
+            className={`
+              flex items-center gap-2
+              rounded-2xl border px-5 py-3
+              text-sm font-semibold transition
+              ${showTracknMe
+                ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"
+                : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
+              }
+            `}
+          >
+            <MapPin size={16} />
+            TracknMe
           </button>
 
           <button

@@ -61,6 +61,8 @@ public class Vehicle {
     @Enumerated(EnumType.STRING)
     private VehicleGroup vehicleGroup = VehicleGroup.OPERATIONAL;
 
+    private String tracknmeDeviceId;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

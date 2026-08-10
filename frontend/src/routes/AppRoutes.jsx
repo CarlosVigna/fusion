@@ -49,6 +49,7 @@ import ServiceOrders from "../pages/ServiceOrders";
 import Technicians from "../pages/Technicians";
 import ServiceOrdersReports from "../pages/ServiceOrdersReports";
 
+import TracknMePending from "../pages/TracknMePending";
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
@@ -119,6 +120,7 @@ export default function AppRoutes() {
                     <Route path="sinistro"         element={<AnaliseSinistro />} />
                     <Route path="users"            element={<Users />} />
                     <Route path="shift-handover"   element={<ShiftHandover />} />
+                    <Route path="tracknme/pending" element={<TracknMePending />} />
                 </Route>
             </Route>
 

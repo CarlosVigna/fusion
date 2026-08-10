@@ -37,7 +37,7 @@ public class VehicleGridService {
 
     private final PolicyRepository policyRepository;
 
-    public List<GridVehicleResponse> getGrid(boolean includeKako, boolean includeTest) {
+    public List<GridVehicleResponse> getGrid(boolean includeKako, boolean includeTest, boolean includeTracknMe) {
 
         // Pre-carrega tudo de uma vez em vez de 2 queries por veículo
         // (era o N+1 que fazia /vehicles/grid demorar ~20s para 245+
@@ -82,6 +82,11 @@ public class VehicleGridService {
                 .stream()
                 .filter(vehicle -> {
                         if (vehicle.getDeletedAt() != null) return false;
+                        boolean isTracknMe = vehicle.getVehicleGroup() == VehicleGroup.TRACKNME;
+                        // Modo TracknMe: mostra apenas veículos TRACKNME
+                        if (includeTracknMe) return isTracknMe;
+                        // Modo Multiportal: exclui veículos TRACKNME
+                        if (isTracknMe) return false;
                         boolean isTest = vehicle.getVehicleGroup() == VehicleGroup.TEST;
                         boolean isKako = vehicle.getVehicleGroup() == VehicleGroup.KAKO;
                         if (isTest && !includeTest) return false;
@@ -124,6 +129,7 @@ public class VehicleGridService {
                 .filter(v -> v.getDeletedAt() == null
                         && v.getVehicleGroup() != VehicleGroup.TEST
                         && v.getVehicleGroup() != VehicleGroup.KAKO
+                        && v.getVehicleGroup() != VehicleGroup.TRACKNME
                         && !linkedVehicleIds.contains(v.getId()))
                 .map(v -> new NoLinkageVehicleResponse(v.getPlate(), v.getInsuredName(), v.getVehicleGroup()))
                 .sorted(java.util.Comparator.comparing(NoLinkageVehicleResponse::plate))

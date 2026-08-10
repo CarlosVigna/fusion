@@ -81,10 +81,11 @@ public class VehicleController {
     @GetMapping("/grid")
     public List<GridVehicleResponse> grid(
             @RequestParam(defaultValue = "false") boolean includeKako,
-            @RequestParam(defaultValue = "false") boolean includeTest
+            @RequestParam(defaultValue = "false") boolean includeTest,
+            @RequestParam(defaultValue = "false") boolean includeTracknMe
     ) {
 
-        return gridService.getGrid(includeKako, includeTest);
+        return gridService.getGrid(includeKako, includeTest, includeTracknMe);
 
     }
 

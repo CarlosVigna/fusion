@@ -11,6 +11,7 @@ import com.fusion.fusion.vehicle.multiportal.operational.MultiportalOperationalS
 import com.fusion.fusion.vehicle.multiportal.operational.OperationalListImportService;
 import com.fusion.fusion.vehicle.multiportal.operational.OperationalUpdateRequest;
 import com.fusion.fusion.vehicle.multiportal.operational.OperationalUpdateResponse;
+import com.fusion.fusion.vehicle.tracknme.TracknMeSyncService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +55,8 @@ public class ImportStatusController {
 
     private final ImportDiffLogRepository diffLogRepository;
 
+    private final TracknMeSyncService tracknMeSyncService;
+
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
 
@@ -94,6 +97,22 @@ public class ImportStatusController {
     ) {
 
         try {
+
+            if (type == ImportType.TRACKNME_POSITION) {
+                tracknMeSyncService.syncPositions();
+                return ResponseEntity.ok(Map.of(
+                        "status", "SUCCESS",
+                        "message", "Sync de posições TracknMe concluído"
+                ));
+            }
+
+            if (type == ImportType.TRACKNME) {
+                tracknMeSyncService.syncDevices();
+                return ResponseEntity.ok(Map.of(
+                        "status", "SUCCESS",
+                        "message", "Sync de dispositivos TracknMe concluído"
+                ));
+            }
 
             if (type != null) {
                 etlTriggerService.request(type);
@@ -193,6 +212,10 @@ public class ImportStatusController {
 
                 case TRACKNME -> throw new IllegalArgumentException(
                         "Tipo TRACKNME não suporta upload manual"
+                );
+
+                case TRACKNME_POSITION -> throw new IllegalArgumentException(
+                        "Tipo TRACKNME_POSITION não suporta upload manual"
                 );
 
                 case INSTALACOES -> throw new IllegalArgumentException(

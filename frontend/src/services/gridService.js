@@ -43,6 +43,15 @@ export async function getOperationalGrid(
 
   }
 
+  if (filters.includeTracknMe) {
+
+    params.append(
+      "includeTracknMe",
+      "true"
+    );
+
+  }
+
   const query =
     params.toString();
 

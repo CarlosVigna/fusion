@@ -1,11 +1,15 @@
 package com.fusion.fusion.vehicle.tracknme;
 
 import com.fusion.fusion.importation.preview.ImportPreviewResponse;
+import com.fusion.fusion.vehicle.VehicleGroup;
+import com.fusion.fusion.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import com.fusion.fusion.importation.confirm.ImportConfirmRequest;
 import com.fusion.fusion.importation.confirm.ImportConfirmResponse;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/tracknme")
@@ -15,6 +19,7 @@ public class TracknMeController {
     private final TracknMeImportService service;
     private final TracknMePreviewService previewService;
     private final TracknMeConfirmService confirmService;
+    private final VehicleRepository vehicleRepository;
 
     @PostMapping("/import")
     public TracknMeImportResponse importFile(
@@ -41,6 +46,23 @@ public class TracknMeController {
 
         return confirmService.confirm(request);
 
+    }
+
+    @GetMapping("/pending")
+    public List<TracknMePendingResponse> pending() {
+        return vehicleRepository.findAll().stream()
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.TRACKNME
+                        && v.getDeletedAt() == null
+                        && (v.getInsuredName() == null || v.getInsuredName().isBlank()))
+                .map(v -> new TracknMePendingResponse(
+                        v.getPlate(),
+                        v.getTracknmeDeviceId(),
+                        v.getCreatedAt()
+                ))
+                .sorted(java.util.Comparator.comparing(
+                        TracknMePendingResponse::plate
+                ))
+                .toList();
     }
 
 }

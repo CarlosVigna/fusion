@@ -2,6 +2,7 @@ package com.fusion.fusion.setup;
 
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
+import com.fusion.fusion.vehicle.tracknme.TracknMeSyncService;
 import com.fusion.fusion.installation.InstallationStatus;
 import com.fusion.fusion.letter.LetterRecord;
 import com.fusion.fusion.letter.LetterRecordRepository;
@@ -61,6 +62,7 @@ public class SetupController {
     private final SignalControlService signalControlService;
     private final InstallationRepository installationRepository;
     private final ServiceOrderService serviceOrderService;
+    private final TracknMeSyncService tracknMeSyncService;
 
     private static final Set<String> MULTIPORTAL_PLATES = Set.of(
         "FXZ9249", "QXX8I71", "FWQ9D54", "QWY7149", "QYJ4B61", "RXZ5F74", "SIE4D31", "TAP2C19", "PDH5I98", "TQU9E05",
@@ -134,16 +136,28 @@ public class SetupController {
             "000555", "ADMILBRASILIA0101", "USE"
     );
 
-    @PostMapping("/fix-vehicle-groups")
-    public Map<String, Object> fixVehicleGroups() {
-
-        // Expande o check constraint para aceitar TEST
+    @GetMapping("/fix-vehicle-group-constraint")
+    public Map<String, Object> fixVehicleGroupConstraint() {
         jdbcTemplate.getJdbcTemplate().execute(
                 "ALTER TABLE vehicles DROP CONSTRAINT IF EXISTS vehicles_vehicle_group_check"
         );
         jdbcTemplate.getJdbcTemplate().execute(
                 "ALTER TABLE vehicles ADD CONSTRAINT vehicles_vehicle_group_check " +
-                "CHECK (vehicle_group IN ('OPERATIONAL','KAKO','TEST'))"
+                "CHECK (vehicle_group IN ('OPERATIONAL','KAKO','TEST','TRACKNME'))"
+        );
+        return Map.of("status", "ok", "message", "Constraint atualizada para incluir TRACKNME");
+    }
+
+    @PostMapping("/fix-vehicle-groups")
+    public Map<String, Object> fixVehicleGroups() {
+
+        // Expande o check constraint para aceitar TEST e TRACKNME
+        jdbcTemplate.getJdbcTemplate().execute(
+                "ALTER TABLE vehicles DROP CONSTRAINT IF EXISTS vehicles_vehicle_group_check"
+        );
+        jdbcTemplate.getJdbcTemplate().execute(
+                "ALTER TABLE vehicles ADD CONSTRAINT vehicles_vehicle_group_check " +
+                "CHECK (vehicle_group IN ('OPERATIONAL','KAKO','TEST','TRACKNME'))"
         );
 
         int testUpdated = jdbcTemplate.update(
@@ -829,6 +843,13 @@ public class SetupController {
                     return row;
                 })
                 .toList();
+    }
+
+    @GetMapping("/sync-tracknme")
+    public Map<String, Object> syncTracknMe() {
+        tracknMeSyncService.syncDevices();
+        tracknMeSyncService.syncPositions();
+        return Map.of("status", "ok", "message", "Sync TracknMe concluído (dispositivos + posições)");
     }
 
     @GetMapping("/fix-scheduling-status")
