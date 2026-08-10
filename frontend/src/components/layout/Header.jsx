@@ -13,7 +13,12 @@ import {
   getActiveSignalReturnAlerts,
 } from "../../services/signalReturnAlertService";
 
-import { dismissPolicyAlert, getPolicyAlerts } from "../../services/policyService";
+import {
+  dismissImportDiff,
+  getRecentImportDiffs,
+} from "../../services/importStatusService";
+
+import { dismissAllPolicyAlerts, dismissPolicyAlert, getPolicyAlerts } from "../../services/policyService";
 
 import { formatDelay } from "../../utils/formatDelay";
 
@@ -90,17 +95,28 @@ export default function Header() {
   const [dismissingPolicyId, setDismissingPolicyId] =
     useState(null);
 
+  const [dismissingAllPolicy, setDismissingAllPolicy] =
+    useState(false);
+
+  const [importDiffs, setImportDiffs] =
+    useState([]);
+
+  const [dismissingDiffId, setDismissingDiffId] =
+    useState(null);
+
   const alertsRef = useRef(null);
 
   async function loadAlerts() {
     if (isFieldOrTech) return;
     try {
-      const [signalResult, polResult] = await Promise.allSettled([
+      const [signalResult, polResult, diffsResult] = await Promise.allSettled([
         getActiveSignalReturnAlerts(),
         getPolicyAlerts(),
+        getRecentImportDiffs(),
       ]);
       setAlerts(signalResult.status === "fulfilled" ? (signalResult.value || []) : []);
       setPolicyAlerts(polResult.status === "fulfilled" && Array.isArray(polResult.value) ? polResult.value : []);
+      setImportDiffs(diffsResult.status === "fulfilled" && Array.isArray(diffsResult.value) ? diffsResult.value : []);
     } catch (error) {
       console.error(error);
     }
@@ -188,6 +204,56 @@ export default function Header() {
     } finally {
 
       setDismissingPolicyId(null);
+
+    }
+
+  }
+
+  async function handleDismissDiff(id) {
+
+    setDismissingDiffId(id);
+
+    try {
+
+      await dismissImportDiff(id);
+
+      setImportDiffs((current) =>
+        current.filter((d) => d.id !== id)
+      );
+
+    } catch (error) {
+
+      console.error(error);
+
+    } finally {
+
+      setDismissingDiffId(null);
+
+    }
+
+  }
+
+  async function handleDismissAllPolicy() {
+
+    setDismissingAllPolicy(true);
+
+    try {
+
+      await dismissAllPolicyAlerts();
+
+      setPolicyAlerts([]);
+
+      toast.success("Alertas de apólice dispensados");
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao dispensar alertas de apólice");
+
+    } finally {
+
+      setDismissingAllPolicy(false);
 
     }
 
@@ -281,7 +347,7 @@ export default function Header() {
           >
             <Bell size={18} />
 
-            {(alerts.length + policyAlerts.length) > 0 && (
+            {(alerts.length + policyAlerts.length + importDiffs.length) > 0 && (
               <span
                 className="
                   absolute -right-1 -top-1
@@ -290,7 +356,7 @@ export default function Header() {
                   text-xs font-bold text-white
                 "
               >
-                {alerts.length + policyAlerts.length}
+                {alerts.length + policyAlerts.length + importDiffs.length}
               </span>
             )}
           </button>
@@ -308,9 +374,16 @@ export default function Header() {
 
               {policyAlerts.length > 0 && (
                 <div className="mb-2">
-                  <p className="mb-1 px-2 text-xs font-semibold text-zinc-500">
-                    APÓLICES
-                  </p>
+                  <div className="flex items-center justify-between px-2 mb-1">
+                    <p className="text-xs font-semibold text-zinc-500">APÓLICES</p>
+                    <button
+                      onClick={handleDismissAllPolicy}
+                      disabled={dismissingAllPolicy}
+                      className="text-xs font-semibold text-zinc-400 transition hover:text-white disabled:opacity-50"
+                    >
+                      Dispensar todas
+                    </button>
+                  </div>
                   <div className="space-y-1">
                     {policyAlerts.slice(0, 5).map((pa) => (
                       <div
@@ -383,7 +456,43 @@ export default function Header() {
 
               </div>
 
-              {alerts.length === 0 && policyAlerts.length === 0 ? (
+              {importDiffs.length > 0 && (
+                <div className="mb-2">
+                  <p className="mb-1 px-2 text-xs font-semibold text-zinc-500">IMPORTAÇÕES</p>
+                  <div className="space-y-1">
+                    {importDiffs.map((diff) => (
+                      <div
+                        key={diff.id}
+                        className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-zinc-300">
+                            {diff.importType === "MULTIPORTAL_DEVICE" ? "Dispositivos" : "Vínculos"}
+                          </span>
+                          <button
+                            onClick={() => handleDismissDiff(diff.id)}
+                            disabled={dismissingDiffId === diff.id}
+                            title="Dispensar"
+                            className="text-zinc-500 hover:text-white disabled:opacity-40 transition leading-none"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        <p className="mt-0.5 text-xs text-zinc-400">
+                          {[
+                            diff.added   > 0 && `${diff.added} entraram`,
+                            diff.removed > 0 && `${diff.removed} saíram`,
+                            diff.changed > 0 && `${diff.changed} alterados`,
+                          ].filter(Boolean).join(", ") || "Sem alterações"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="my-2 border-t border-zinc-800" />
+                </div>
+              )}
+
+              {alerts.length === 0 && policyAlerts.length === 0 && importDiffs.length === 0 ? (
 
                 <p className="px-2 py-4 text-center text-sm text-zinc-500">
                   Nenhum alerta ativo

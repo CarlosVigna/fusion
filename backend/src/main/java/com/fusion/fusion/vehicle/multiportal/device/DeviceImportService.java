@@ -1,5 +1,7 @@
 package com.fusion.fusion.vehicle.multiportal.device;
 
+import com.fusion.fusion.importation.ImportDiffLog;
+import com.fusion.fusion.importation.ImportDiffLogRepository;
 import com.fusion.fusion.importation.ImportHistoryService;
 import com.fusion.fusion.importation.ImportStatus;
 import com.fusion.fusion.importation.ImportType;
@@ -23,6 +25,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -42,6 +47,7 @@ public class DeviceImportService {
     private final ImportBackupService backupService;
     private final ImportFileNamingService namingService;
     private final ImportHistoryService importHistoryService;
+    private final ImportDiffLogRepository diffLogRepository;
 
     public DeviceImportResponse importFile(
             MultipartFile file
@@ -49,6 +55,7 @@ public class DeviceImportService {
 
         int imported = 0;
         int linked = 0;
+        int changed = 0;
 
         Path tempFile = null;
         Path processingFile = null;
@@ -155,6 +162,12 @@ public class DeviceImportService {
                 boolean requiresApproval =
                         !isNewDevice && hasValidPlate;
 
+                // Captura estado anterior para detectar alterações
+                String prevOperator     = device.getOperator();
+                String prevLineNumber   = device.getLineNumber();
+                String prevManufacturer = device.getManufacturer();
+                String prevModel        = device.getModel();
+
                 applySensitiveField(
                         device::getOperator,
                         device::setOperator,
@@ -190,6 +203,14 @@ public class DeviceImportService {
                         "model",
                         requiresApproval
                 );
+
+                if (!isNewDevice && (
+                        !Objects.equals(device.getOperator(),     prevOperator)
+                     || !Objects.equals(device.getLineNumber(),   prevLineNumber)
+                     || !Objects.equals(device.getManufacturer(), prevManufacturer)
+                     || !Objects.equals(device.getModel(),        prevModel))) {
+                    changed++;
+                }
 
                 device.setActive(
                         "Ativado".equalsIgnoreCase(
@@ -259,6 +280,15 @@ public class DeviceImportService {
                     backupName,
                     imported
             );
+
+            diffLogRepository.save(ImportDiffLog.builder()
+                    .importType(ImportType.MULTIPORTAL_DEVICE)
+                    .added(imported)
+                    .removed(0)
+                    .changed(changed)
+                    .dismissed(false)
+                    .createdAt(LocalDateTime.now(ZoneOffset.UTC))
+                    .build());
 
         } catch (Exception e) {
 

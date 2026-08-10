@@ -65,6 +65,11 @@ public class PolicyController {
         service.dismissAlert(id);
     }
 
+    @PostMapping("/dismiss-all-alerts")
+    public void dismissAllAlerts() {
+        service.dismissAllAlerts();
+    }
+
     @PostMapping("/fetch")
     public EtlPolicyResult fetchFromPortal(
             @RequestParam String plate

@@ -56,6 +56,10 @@ export async function dismissPolicyAlert(id) {
   return apiClient.post(`/policies/${id}/dismiss-alert`);
 }
 
+export async function dismissAllPolicyAlerts() {
+  return apiClient.post("/policies/dismiss-all-alerts");
+}
+
 export async function getPolicyReport(type) {
   return apiClient.get(`/policies/report?type=${type}`);
 }

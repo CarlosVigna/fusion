@@ -1,6 +1,8 @@
 package com.fusion.fusion.importation;
 
 import com.fusion.fusion.etl.EtlTriggerService;
+import com.fusion.fusion.importation.ImportDiffLog;
+import com.fusion.fusion.importation.ImportDiffLogRepository;
 import com.fusion.fusion.importation.orchestrator.ImportOrchestratorService;
 import com.fusion.fusion.operational.engine.EngineAsyncService;
 import com.fusion.fusion.vehicle.multiportal.device.DeviceImportService;
@@ -20,9 +22,13 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -45,6 +51,8 @@ public class ImportStatusController {
     private final EtlTriggerService etlTriggerService;
 
     private final EngineAsyncService engineAsyncService;
+
+    private final ImportDiffLogRepository diffLogRepository;
 
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
@@ -221,6 +229,21 @@ public class ImportStatusController {
 
         }
 
+    }
+
+    @GetMapping("/diff/recent")
+    public List<ImportDiffLog> recentDiffs() {
+        return diffLogRepository.findByDismissedFalseOrderByCreatedAtDesc();
+    }
+
+    @PostMapping("/diff/{id}/dismiss")
+    public ResponseEntity<Void> dismissDiff(@PathVariable UUID id) {
+        return diffLogRepository.findById(id).map(diff -> {
+            diff.setDismissed(true);
+            diff.setDismissedAt(LocalDateTime.now(ZoneOffset.UTC));
+            diffLogRepository.save(diff);
+            return ResponseEntity.ok().<Void>build();
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/paste/ultima-posicao")

@@ -1,5 +1,7 @@
 package com.fusion.fusion.vehicle.multiportal.linkage;
 
+import com.fusion.fusion.importation.ImportDiffLog;
+import com.fusion.fusion.importation.ImportDiffLogRepository;
 import com.fusion.fusion.importation.ImportHistoryService;
 import com.fusion.fusion.importation.ImportStatus;
 import com.fusion.fusion.importation.ImportType;
@@ -46,6 +48,7 @@ public class LinkageImportService {
     private final ImportBackupService backupService;
     private final ImportFileNamingService namingService;
     private final ImportHistoryService importHistoryService;
+    private final ImportDiffLogRepository diffLogRepository;
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
@@ -57,6 +60,9 @@ public class LinkageImportService {
         int imported = 0;
         int active = 0;
         int linkedVehicles = 0;
+        int vehiclesAdded = 0;
+        int vehiclesRemoved = 0;
+        int linksChanged = 0;
 
         Path tempFile = null;
         Path processingFile = null;
@@ -122,10 +128,12 @@ public class LinkageImportService {
                     // Só desativar/soft-deletar se a placa não tem nenhum
                     // vínculo "Aberto" em outra linha da mesma planilha.
                     if (!placasComVinculoAberto.contains(plate)) {
-                        deactivateVehicleIfOrphaned(plate);
+                        if (deactivateVehicleIfOrphaned(plate)) vehiclesRemoved++;
                     }
                     continue;
                 }
+
+                boolean vehicleExisted = vehicleRepository.findByPlate(plate).isPresent();
 
                 Vehicle vehicle =
                         vehicleRepository.findByPlate(plate)
@@ -145,6 +153,9 @@ public class LinkageImportService {
                     vehicle.setActive(true);
                     vehicle.setDeletedAt(null);
                     vehicleRepository.save(vehicle);
+                    vehiclesAdded++;
+                } else if (!vehicleExisted) {
+                    vehiclesAdded++;
                 }
 
                 linkedVehicles++;
@@ -196,6 +207,8 @@ public class LinkageImportService {
                                 device
                         );
 
+                boolean isExistingLinkage = existingLinkage.isPresent();
+
                 DeviceLinkage linkage =
                         existingLinkage.orElseGet(() ->
                                 DeviceLinkage.builder()
@@ -204,6 +217,8 @@ public class LinkageImportService {
                                         .active(true)
                                         .build()
                         );
+
+                if (isExistingLinkage) linksChanged++;
 
                 // Já pode existir um vínculo criado pelo import de
                 // Dispositivos (sem datas) — aqui completamos/atualizamos
@@ -247,6 +262,15 @@ public class LinkageImportService {
                     imported
             );
 
+            diffLogRepository.save(ImportDiffLog.builder()
+                    .importType(ImportType.MULTIPORTAL_LINKAGE)
+                    .added(vehiclesAdded)
+                    .removed(vehiclesRemoved)
+                    .changed(linksChanged)
+                    .dismissed(false)
+                    .createdAt(LocalDateTime.now(ZoneOffset.UTC))
+                    .build());
+
         } catch (Exception e) {
 
             if (processingFile != null) {
@@ -277,7 +301,10 @@ public class LinkageImportService {
     // Chamado quando a planilha de vínculo traz status != "Aberto" para uma
     // placa. Desativa o device_linkage ativo (se existir) e, em seguida,
     // soft-deleta o veículo caso não reste nenhum dispositivo ativo vinculado.
-    private void deactivateVehicleIfOrphaned(String plate) {
+    // Retorna true se o veículo foi efetivamente desativado.
+    private boolean deactivateVehicleIfOrphaned(String plate) {
+
+        final boolean[] deactivated = {false};
 
         vehicleRepository.findByPlate(plate).ifPresent(vehicle -> {
 
@@ -299,9 +326,12 @@ public class LinkageImportService {
                 vehicle.setActive(false);
                 vehicle.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
                 vehicleRepository.save(vehicle);
+                deactivated[0] = true;
             }
 
         });
+
+        return deactivated[0];
 
     }
 

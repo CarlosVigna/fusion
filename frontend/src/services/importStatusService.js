@@ -1,5 +1,13 @@
 import { apiClient } from "./api/apiClient";
 
+export async function getRecentImportDiffs() {
+  return apiClient.get("/imports/diff/recent");
+}
+
+export async function dismissImportDiff(id) {
+  return apiClient.post(`/imports/diff/${id}/dismiss`);
+}
+
 export async function getLastSync(type) {
 
   const query = type ? `?type=${type}` : "";

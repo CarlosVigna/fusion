@@ -472,6 +472,27 @@ public class PolicyService {
 
     }
 
+    public void dismissAllAlerts() {
+
+        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+        LocalDate limit = today.plusDays(30);
+
+        List<Policy> toUpdate = policyRepository.findAll().stream()
+                .filter(p -> {
+                    if (today.equals(p.getAlertDismissedAt())) return false;
+                    PolicyStatus s = PolicyResponse.computeStatus(p);
+                    if (s == PolicyStatus.EXPIRED) return true;
+                    return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
+                            && p.getEndDate() != null
+                            && !p.getEndDate().isAfter(limit);
+                })
+                .collect(Collectors.toList());
+
+        toUpdate.forEach(p -> p.setAlertDismissedAt(today));
+        policyRepository.saveAll(toUpdate);
+
+    }
+
     public List<PolicyAlertResponse> getAlerts() {
 
         LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
