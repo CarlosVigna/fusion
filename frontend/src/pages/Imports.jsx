@@ -1,3 +1,4 @@
+// v2 - EtlTriggersCard adicionado
 import TracknMeCard from "../components/imports/TracknMeCard";
 
 import MultiportalDeviceCard from "../components/imports/MultiportalDeviceCard";
