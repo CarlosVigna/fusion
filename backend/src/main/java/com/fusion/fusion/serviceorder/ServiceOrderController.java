@@ -1,13 +1,14 @@
 package com.fusion.fusion.serviceorder;
 
+import com.fusion.fusion.auth.JwtService;
+import com.fusion.fusion.user.UserDetailsServiceImpl;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.*;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
@@ -25,6 +26,8 @@ import java.util.UUID;
 public class ServiceOrderController {
 
     private final ServiceOrderService service;
+    private final JwtService jwtService;
+    private final UserDetailsServiceImpl userDetailsService;
 
     @GetMapping
     public List<ServiceOrderResponse> listAll(
@@ -86,15 +89,24 @@ public class ServiceOrderController {
 
     @GetMapping("/audit-log")
     public ResponseEntity<?> auditLog(
+            HttpServletRequest request,
             @RequestParam(required = false) String plate,
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String performedBy,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean isAdmin = auth != null && auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
-        if (!isAdmin) {
+        String header = request.getHeader("Authorization");
+        if (header == null || !header.startsWith("Bearer ")) {
+            return ResponseEntity.status(403).build();
+        }
+        try {
+            String token = header.substring(7);
+            String email = jwtService.extractUsername(token);
+            UserDetails user = userDetailsService.loadUserByUsername(email);
+            boolean isAdmin = user.getAuthorities().stream()
+                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            if (!isAdmin) return ResponseEntity.status(403).build();
+        } catch (Exception e) {
             return ResponseEntity.status(403).build();
         }
         LocalDateTime from = dateFrom != null ? dateFrom.atStartOfDay() : null;
