@@ -1,4 +1,3 @@
-// v2 - audit-log fix
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react";
@@ -12,7 +11,6 @@ import {
   confirmCompletion,
   getVehicleSignal,
   deleteServiceOrder,
-  getServiceOrderAuditLog,
 } from "../services/serviceOrderService";
 import { getTechnicians } from "../services/technicianService";
 import { useAuthStore } from "../store/authStore";
@@ -151,37 +149,8 @@ export default function ServiceOrders() {
   const [selectedIds, setSelectedIds]       = useState(new Set());
   const [displayPage, setDisplayPage]       = useState(0);
 
-  const [tab, setTab]                       = useState("os");
-  const [auditLogs, setAuditLogs]           = useState([]);
-  const [auditLoading, setAuditLoading]     = useState(false);
-  const [auditPlate, setAuditPlate]         = useState("");
-  const [auditAction, setAuditAction]       = useState("");
-  const [auditUser, setAuditUser]           = useState("");
-  const [auditDateFrom, setAuditDateFrom]   = useState("");
-  const [auditDateTo, setAuditDateTo]       = useState("");
-
   useEffect(() => { load(); }, []);
   useEffect(() => { setDisplayPage(0); }, [filter, searchText, filterServiceType, filterTechnicianId]);
-
-  async function loadAuditLog() {
-    setAuditLoading(true);
-    try {
-      const data = await getServiceOrderAuditLog({
-        plate: auditPlate || undefined,
-        action: auditAction || undefined,
-        performedBy: auditUser || undefined,
-        dateFrom: auditDateFrom || undefined,
-        dateTo: auditDateTo || undefined,
-      });
-      const logs = Array.isArray(data) ? data : (data?.content || data?.data || []);
-      setAuditLogs(logs);
-    } catch (e) {
-      console.error("Erro ao carregar auditoria:", e.message, e);
-      toast.error("Erro ao carregar auditoria: " + e.message);
-    } finally {
-      setAuditLoading(false);
-    }
-  }
 
   async function load() {
     setLoading(true);
@@ -520,18 +489,6 @@ export default function ServiceOrders() {
             )}
           </div>
         </div>
-        {isAdmin && (
-          <div className="flex gap-1 border-b border-zinc-800">
-            {[{ key: "os", label: "Ordens de Serviço" }, { key: "audit", label: "Auditoria" }].map(({ key, label }) => (
-              <button key={key} onClick={() => { setTab(key); if (key === "audit") loadAuditLog(); }}
-                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${tab === key ? "border-white text-white" : "border-transparent text-zinc-500 hover:text-zinc-300"}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {tab === "os" && (
         <div className="flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
@@ -564,76 +521,8 @@ export default function ServiceOrders() {
             {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
-        )}
       </div>
 
-      {tab === "audit" && isAdmin && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 flex-wrap">
-            <input value={auditPlate} onChange={e => setAuditPlate(e.target.value)} placeholder="Placa"
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none w-32" />
-            <select value={auditAction} onChange={e => setAuditAction(e.target.value)}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
-              <option value="">Todas as ações</option>
-              {["CRIADA","EDITADA","AGENDADA","APROVADA","REPROVADA","CONCLUIDA","EXCLUIDA"].map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-            <input value={auditUser} onChange={e => setAuditUser(e.target.value)} placeholder="Usuário"
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none w-40" />
-            <input type="date" value={auditDateFrom} onChange={e => setAuditDateFrom(e.target.value)}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
-            <input type="date" value={auditDateTo} onChange={e => setAuditDateTo(e.target.value)}
-              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
-            <button onClick={loadAuditLog}
-              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200">
-              Buscar
-            </button>
-          </div>
-          <div className="overflow-x-auto rounded-2xl border border-zinc-800">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Data/Hora</th>
-                  <th className="px-4 py-3">Placa</th>
-                  <th className="px-4 py-3">Ação</th>
-                  <th className="px-4 py-3">Campo</th>
-                  <th className="px-4 py-3">Valor Anterior</th>
-                  <th className="px-4 py-3">Valor Novo</th>
-                  <th className="px-4 py-3">Usuário</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditLoading && <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
-                {!auditLoading && auditLogs.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Nenhum registro encontrado</td></tr>}
-                {auditLogs.map(l => (
-                  <tr key={l.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
-                    <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
-                      {l.performedAt ? new Date(l.performedAt).toLocaleString("pt-BR") : "—"}
-                    </td>
-                    <td className="px-4 py-3 font-mono font-semibold">{l.plate || "—"}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                        l.action === "CRIADA"   ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
-                        l.action === "EXCLUIDA" ? "bg-red-500/10 text-red-400 border-red-500/30" :
-                        l.action === "CONCLUIDA"? "bg-green-500/10 text-green-400 border-green-500/30" :
-                        l.action === "REPROVADA"? "bg-red-500/10 text-red-400 border-red-500/30" :
-                        "bg-zinc-800 text-zinc-400 border-zinc-700"
-                      }`}>{l.action}</span>
-                    </td>
-                    <td className="px-4 py-3 text-zinc-500">{l.field || "—"}</td>
-                    <td className="px-4 py-3 text-zinc-500 max-w-[160px] truncate" title={l.oldValue}>{l.oldValue || "—"}</td>
-                    <td className="px-4 py-3 text-zinc-300 max-w-[160px] truncate" title={l.newValue}>{l.newValue || "—"}</td>
-                    <td className="px-4 py-3 text-zinc-400">{l.performedBy || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === "os" && (
       <div className="overflow-x-auto rounded-2xl border border-zinc-800">
         <table className="w-full text-sm">
           <thead>
@@ -713,7 +602,6 @@ export default function ServiceOrders() {
           </div>
         )}
       </div>
-      )}
 
       {/* ====== DRAWER LATERAL ====== */}
       {selectedOrder && (

@@ -89,10 +89,6 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers(
-                                "/service-orders/audit-log"
-                        ).permitAll()
-
-                        .requestMatchers(
                                 "/service-orders/**"
                         ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
 

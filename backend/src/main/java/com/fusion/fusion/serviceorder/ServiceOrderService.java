@@ -11,8 +11,6 @@ import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -34,7 +32,6 @@ public class ServiceOrderService {
     private final OrsService orsService;
     private final VehicleRepository vehicleRepository;
     private final VehicleOperationalStateRepository operationalStateRepository;
-    private final ServiceOrderAuditLogRepository auditLogRepository;
 
     public List<ServiceOrderResponse> listAll(boolean includeCompleted) {
         return repository.findAll().stream()
@@ -75,9 +72,7 @@ public class ServiceOrderService {
                 .observations(request.observations())
                 .createdBy(createdBy)
                 .build();
-        ServiceOrder saved = repository.save(so);
-        audit(saved.getId(), saved.getPlate(), "CRIADA", null, null, null);
-        return toResponse(saved);
+        return toResponse(repository.save(so));
     }
 
     @Transactional
@@ -120,12 +115,6 @@ public class ServiceOrderService {
     public ServiceOrderResponse update(UUID id, ServiceOrderRequest request) {
         ServiceOrder so = find(id);
 
-        auditIfChanged(id, so.getPlate(), "plate",         so.getPlate(),                                  request.plate());
-        auditIfChanged(id, so.getPlate(), "city",          so.getCity(),                                   request.city());
-        auditIfChanged(id, so.getPlate(), "customerName",  so.getCustomerName(),                           request.customerName());
-        auditIfChanged(id, so.getPlate(), "serviceType",   so.getServiceType() != null ? so.getServiceType().name() : null,
-                                                           request.serviceType() != null ? request.serviceType().name() : null);
-
         so.setPlate(request.plate());
         so.setChassis(request.chassis());
         if (request.equipment() != null) so.setEquipment(request.equipment());
@@ -140,20 +129,12 @@ public class ServiceOrderService {
         if (request.requestedBy() != null) so.setRequestedBy(request.requestedBy());
         if (request.observations() != null) so.setObservations(request.observations());
 
-        audit(id, request.plate() != null ? request.plate() : so.getPlate(), "EDITADA", null, null, null);
         return toResponse(repository.save(so));
     }
 
     @Transactional
     public ServiceOrderResponse updateScheduling(UUID id, SchedulingRequest request) {
         ServiceOrder so = find(id);
-
-        // Captura valores anteriores para auditoria campo a campo
-        String auditOldTech         = so.getTechnician()        != null ? so.getTechnician().getName()              : null;
-        String auditOldDate         = so.getScheduledDate()     != null ? so.getScheduledDate().toString()          : null;
-        String auditOldStatus       = so.getSchedulingStatus()  != null ? so.getSchedulingStatus().name()           : null;
-        String auditOldService      = so.getServiceValue()      != null ? so.getServiceValue().toPlainString()      : null;
-        String auditOldDisplacement = so.getDisplacementValue() != null ? so.getDisplacementValue().toPlainString() : null;
 
         Technician prevTech = so.getTechnician();
         boolean techChanged = request.technicianId() != null
@@ -221,40 +202,14 @@ public class ServiceOrderService {
         if (request.technicianAddress() != null) so.setTechnicianAddress(request.technicianAddress());
         if (request.clientAddress() != null) so.setClientAddress(request.clientAddress());
 
-        // Audit campo a campo — registra apenas o que realmente mudou
-        if (request.technicianId() != null) {
-            auditIfChanged(id, so.getPlate(), "technician", auditOldTech,
-                    so.getTechnician() != null ? so.getTechnician().getName() : null);
-        }
-        auditIfChanged(id, so.getPlate(), "scheduledDate", auditOldDate,
-                so.getScheduledDate() != null ? so.getScheduledDate().toString() : null);
-        if (request.schedulingStatus() != null) {
-            auditIfChanged(id, so.getPlate(), "schedulingStatus", auditOldStatus,
-                    so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null);
-        }
-        if (request.serviceValue() != null) {
-            auditIfChanged(id, so.getPlate(), "serviceValue", auditOldService,
-                    so.getServiceValue() != null ? so.getServiceValue().toPlainString() : null);
-        }
-        if (request.displacementValue() != null) {
-            auditIfChanged(id, so.getPlate(), "displacementValue", auditOldDisplacement,
-                    so.getDisplacementValue() != null ? so.getDisplacementValue().toPlainString() : null);
-        }
-
-        ServiceOrder saved = repository.save(so);
-        audit(saved.getId(), saved.getPlate(), "AGENDADA", null, null, null);
-        return toResponse(saved);
+        return toResponse(repository.save(so));
     }
 
     @Transactional
     public ServiceOrderResponse updateFinancialApproval(UUID id, FinancialApprovalRequest request) {
         ServiceOrder so = find(id);
         so.setFinancialApprovalStatus(request.financialApprovalStatus());
-        ServiceOrder saved = repository.save(so);
-        String action = request.financialApprovalStatus() == FinancialApprovalStatus.APROVADO ? "APROVADA" : "REPROVADA";
-        audit(saved.getId(), saved.getPlate(), action, "financialApprovalStatus",
-                so.getFinancialApprovalStatus().name(), request.financialApprovalStatus().name());
-        return toResponse(saved);
+        return toResponse(repository.save(so));
     }
 
     @Transactional
@@ -279,9 +234,7 @@ public class ServiceOrderService {
         so.setCompletionConfirmed(true);
         so.setSchedulingStatus(SchedulingStatus.CONCLUIDO);
         if (so.getClosedAt() == null) so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
-        ServiceOrder saved = repository.save(so);
-        audit(saved.getId(), saved.getPlate(), "CONCLUIDA", null, null, null);
-        return toResponse(saved);
+        return toResponse(repository.save(so));
     }
 
     public Map<String, Object> dashboard(boolean showAnalytics) {
@@ -395,10 +348,8 @@ public class ServiceOrderService {
 
     @Transactional
     public void delete(UUID id) {
-        ServiceOrder so = find(id);
-        String plate = so.getPlate();
+        find(id);
         repository.deleteById(id);
-        audit(id, plate, "EXCLUIDA", null, null, null);
     }
 
     @Transactional
@@ -500,34 +451,4 @@ public class ServiceOrderService {
         );
     }
 
-    private void audit(UUID soId, String plate, String action, String field, String oldVal, String newVal) {
-        String user = "SISTEMA";
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
-            user = auth.getName();
-        }
-        auditLogRepository.save(ServiceOrderAuditLog.builder()
-                .serviceOrderId(soId)
-                .plate(plate)
-                .action(action)
-                .field(field)
-                .oldValue(oldVal)
-                .newValue(newVal)
-                .performedBy(user)
-                .performedByName(user)
-                .performedAt(LocalDateTime.now(ZoneOffset.UTC))
-                .build());
-    }
-
-    private void auditIfChanged(UUID soId, String plate, String field, String oldVal, String newVal) {
-        if (!java.util.Objects.equals(oldVal, newVal)) {
-            audit(soId, plate, "EDITADA", field, oldVal, newVal);
-        }
-    }
-
-    public List<ServiceOrderAuditLog> findAuditLog(
-            String plate, String action, String performedBy,
-            LocalDateTime dateFrom, LocalDateTime dateTo) {
-        return auditLogRepository.findFiltered(plate, action, performedBy, dateFrom, dateTo);
-    }
 }
