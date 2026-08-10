@@ -23,8 +23,6 @@ import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -211,9 +209,6 @@ public class SignalControlService {
                     vehicle.getPlate().toUpperCase()
             );
 
-            // Cancelada ou vencida há > 30 dias — fora do escopo operacional ativo
-            if (policyDisqualifies(activePolicy)) continue;
-
             result.add(
                     build(
                             vehicle,
@@ -240,17 +235,6 @@ public class SignalControlService {
 
         return result;
 
-    }
-
-    private boolean policyDisqualifies(Policy policy) {
-        if (policy == null) return false;
-        PolicyStatus s = PolicyResponse.computeStatus(policy);
-        if (s == PolicyStatus.CANCELLED) return true;
-        if (s == PolicyStatus.EXPIRED && policy.getEndDate() != null) {
-            LocalDate cutoff = LocalDate.now(ZoneId.of("America/Sao_Paulo")).minusDays(30);
-            return policy.getEndDate().isBefore(cutoff);
-        }
-        return false;
     }
 
     private Map<String, Policy> buildActivePolicyByPlate() {
