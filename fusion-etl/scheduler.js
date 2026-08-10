@@ -47,16 +47,16 @@ function scheduleWithRetry(cronExpression, fn, name, type, nextRunOffsetMs) {
 
 }
 
-const THIRTY_MINUTES_MS = 30 * 60 * 1000;
+const ONE_HOUR_MS = 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
-// Última posição: a cada 30 minutos
+// Última posição: 1x por hora (no início de cada hora)
 scheduleWithRetry(
-    '*/30 * * * *',
+    '0 * * * *',
     runUltimaPosicao,
     'Última posição',
     'MULTIPORTAL_ULTIMA_POSICAO',
-    THIRTY_MINUTES_MS
+    ONE_HOUR_MS
 );
 
 // Dispositivos: 04:00 UTC = 01:00 Brasília
@@ -80,6 +80,6 @@ scheduleWithRetry(
 // Instalações: gerenciado pelo InstallationSyncService no backend (@Scheduled a cada 15 min)
 
 log('[CRON] Agendador iniciado.');
-log('[CRON] Última posição: a cada 30 minutos.');
+log('[CRON] Última posição: 1x por hora (início de cada hora).');
 log('[CRON] Dispositivos: diariamente às 04:00 UTC (01:00 Brasília).');
 log('[CRON] Vínculo: diariamente às 05:00 UTC (02:00 Brasília).');

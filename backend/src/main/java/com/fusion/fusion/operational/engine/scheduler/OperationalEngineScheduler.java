@@ -19,7 +19,7 @@ public class OperationalEngineScheduler {
     private final OperationalStateEngineService
             engineService;
 
-    @Scheduled(fixedDelay = 300000)
+    @Scheduled(cron = "0 0 * * * *")
     public void execute() {
 
         log.info(

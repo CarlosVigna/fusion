@@ -13,7 +13,6 @@ import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -34,17 +33,13 @@ public class TracknMeSyncService {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    // Dispositivos: 03:00 UTC diariamente
-    @Scheduled(cron = "0 0 3 * * *")
     public void syncDevicesScheduled() {
-        log.info("[TracknMe] Sync de dispositivos iniciado (agendado)");
+        log.info("[TracknMe] Sync de dispositivos iniciado (manual)");
         syncDevices();
     }
 
-    // Posições: a cada 30 minutos
-    @Scheduled(cron = "0 */30 * * * *")
     public void syncPositionsScheduled() {
-        log.info("[TracknMe] Sync de posições iniciado (agendado)");
+        log.info("[TracknMe] Sync de posições iniciado (manual)");
         syncPositions();
     }
 

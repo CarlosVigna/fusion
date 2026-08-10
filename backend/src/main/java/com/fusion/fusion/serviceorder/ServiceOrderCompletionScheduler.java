@@ -24,7 +24,7 @@ public class ServiceOrderCompletionScheduler {
     private final VehicleRepository vehicleRepository;
     private final DeviceLinkageRepository linkageRepository;
 
-    @Scheduled(fixedDelay = 300000)
+    @Scheduled(cron = "0 0 * * * *")
     public void checkInstallationCompletions() {
 
         List<ServiceOrder> pending = serviceOrderService.findPendingInstallations();
