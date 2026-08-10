@@ -21,6 +21,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 @Slf4j
@@ -170,6 +171,20 @@ public class SecurityConfig {
 
         return config.getAuthenticationManager();
 
+    }
+
+    // Impede que o Spring Boot registre o filtro JWT no servlet container
+    // (fora do FilterChainProxy). Sem isso, OncePerRequestFilter detecta
+    // que ja rodou na primeira passagem e pula dentro do FilterChainProxy,
+    // deixando o SecurityContext vazio e causando 403.
+    @Bean
+    public FilterRegistrationBean<JwtAuthenticationFilter> jwtFilterRegistration(
+            JwtAuthenticationFilter jwtFilter
+    ) {
+        FilterRegistrationBean<JwtAuthenticationFilter> registration =
+                new FilterRegistrationBean<>(jwtFilter);
+        registration.setEnabled(false);
+        return registration;
     }
 
 }
