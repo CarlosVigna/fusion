@@ -1,5 +1,6 @@
 package com.fusion.fusion.importation;
 
+import com.fasterxml.jackson.annotation.JsonRawValue;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -30,6 +31,10 @@ public class ImportDiffLog {
 
     // Registros alterados nesta atualização
     private int changed;
+
+    @JsonRawValue
+    @Column(columnDefinition = "TEXT")
+    private String detailsJson;
 
     private boolean dismissed;
 

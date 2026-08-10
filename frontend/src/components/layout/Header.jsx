@@ -104,6 +104,9 @@ export default function Header() {
   const [dismissingDiffId, setDismissingDiffId] =
     useState(null);
 
+  const [diffModalData, setDiffModalData] =
+    useState(null);
+
   const alertsRef = useRef(null);
 
   async function loadAlerts() {
@@ -463,14 +466,15 @@ export default function Header() {
                     {importDiffs.map((diff) => (
                       <div
                         key={diff.id}
-                        className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm"
+                        className="cursor-pointer rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm transition hover:border-zinc-700"
+                        onClick={() => { setAlertsOpen(false); setDiffModalData(diff); }}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-semibold text-zinc-300">
                             {diff.importType === "MULTIPORTAL_DEVICE" ? "Dispositivos" : "Vínculos"}
                           </span>
                           <button
-                            onClick={() => handleDismissDiff(diff.id)}
+                            onClick={(e) => { e.stopPropagation(); handleDismissDiff(diff.id); }}
                             disabled={dismissingDiffId === diff.id}
                             title="Dispensar"
                             className="text-zinc-500 hover:text-white disabled:opacity-40 transition leading-none"
@@ -612,6 +616,90 @@ export default function Header() {
           <LogOut size={18} />
         </button>
       </div>
+
+      {diffModalData && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+          onClick={() => setDiffModalData(null)}
+        >
+          <div
+            className="w-[520px] max-h-[80vh] overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+              {diffModalData.importType === "MULTIPORTAL_LINKAGE"
+                ? "Atualização de Vínculos"
+                : "Atualização de Dispositivos"}
+            </p>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              {new Date(diffModalData.createdAt).toLocaleString("pt-BR")}
+            </p>
+
+            {(() => {
+              const details = diffModalData.detailsJson || {};
+              const added   = details.added   || [];
+              const removed = details.removed || [];
+              const changed = details.changed || [];
+              return (
+                <>
+                  {added.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm font-semibold text-green-400">✅ Entraram ({added.length})</p>
+                      <ul className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                        {added.map((item, i) => (
+                          <li key={i} className="text-xs text-zinc-300">
+                            <span className="font-mono">{item.plate}</span>
+                            {item.name ? ` — ${item.name}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {removed.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm font-semibold text-red-400">❌ Saíram ({removed.length})</p>
+                      <ul className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                        {removed.map((item, i) => (
+                          <li key={i} className="text-xs text-zinc-300">
+                            <span className="font-mono">{item.plate}</span>
+                            {item.name ? ` — ${item.name}` : ""}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {changed.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-sm font-semibold text-yellow-400">🔄 Alterados ({changed.length})</p>
+                      <ul className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                        {changed.map((item, i) => (
+                          <li key={i} className="text-xs text-zinc-300">
+                            <span className="font-mono">{item.plate}</span>
+                            {" — "}{item.field}:{" "}
+                            <span className="text-zinc-500">"{item.from}"</span>
+                            {" → "}
+                            <span className="text-white">"{item.to}"</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {added.length === 0 && removed.length === 0 && changed.length === 0 && (
+                    <p className="mt-4 text-sm text-zinc-500">Sem alterações registradas neste diff.</p>
+                  )}
+                </>
+              );
+            })()}
+
+            <button
+              onClick={() => setDiffModalData(null)}
+              className="mt-6 w-full rounded-xl bg-zinc-800 py-2 text-sm font-semibold transition hover:bg-zinc-700"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

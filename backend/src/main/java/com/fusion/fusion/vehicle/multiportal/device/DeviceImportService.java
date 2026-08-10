@@ -27,6 +27,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -56,6 +61,9 @@ public class DeviceImportService {
         int imported = 0;
         int linked = 0;
         int changed = 0;
+
+        List<Map<String, String>> addedDetails   = new ArrayList<>();
+        List<Map<String, Object>> changedDetails  = new ArrayList<>();
 
         Path tempFile = null;
         Path processingFile = null;
@@ -204,12 +212,36 @@ public class DeviceImportService {
                         requiresApproval
                 );
 
-                if (!isNewDevice && (
-                        !Objects.equals(device.getOperator(),     prevOperator)
-                     || !Objects.equals(device.getLineNumber(),   prevLineNumber)
-                     || !Objects.equals(device.getManufacturer(), prevManufacturer)
-                     || !Objects.equals(device.getModel(),        prevModel))) {
-                    changed++;
+                if (!isNewDevice) {
+                    String changedField = null;
+                    String fromVal = "";
+                    String toVal   = "";
+                    if (!Objects.equals(device.getOperator(), prevOperator)) {
+                        changedField = "operador";
+                        fromVal = prevOperator != null ? prevOperator : "";
+                        toVal   = device.getOperator() != null ? device.getOperator() : "";
+                    } else if (!Objects.equals(device.getLineNumber(), prevLineNumber)) {
+                        changedField = "linha";
+                        fromVal = prevLineNumber != null ? prevLineNumber : "";
+                        toVal   = device.getLineNumber() != null ? device.getLineNumber() : "";
+                    } else if (!Objects.equals(device.getManufacturer(), prevManufacturer)) {
+                        changedField = "fabricante";
+                        fromVal = prevManufacturer != null ? prevManufacturer : "";
+                        toVal   = device.getManufacturer() != null ? device.getManufacturer() : "";
+                    } else if (!Objects.equals(device.getModel(), prevModel)) {
+                        changedField = "modelo";
+                        fromVal = prevModel != null ? prevModel : "";
+                        toVal   = device.getModel() != null ? device.getModel() : "";
+                    }
+                    if (changedField != null) {
+                        changed++;
+                        Map<String, Object> d = new HashMap<>();
+                        d.put("plate", plate);
+                        d.put("field", changedField);
+                        d.put("from",  fromVal);
+                        d.put("to",    toVal);
+                        changedDetails.add(d);
+                    }
                 }
 
                 device.setActive(
@@ -234,6 +266,13 @@ public class DeviceImportService {
                         deviceRepository.save(device);
 
                         linked++;
+
+                        if (isNewDevice) {
+                            Map<String, String> d = new HashMap<>();
+                            d.put("plate", plate);
+                            d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
+                            addedDetails.add(d);
+                        }
 
                         if (linkageRepository
                                 .findByVehicleAndDeviceAndActiveTrue(
@@ -281,11 +320,23 @@ public class DeviceImportService {
                     imported
             );
 
+            Map<String, Object> diffDetails = new HashMap<>();
+            diffDetails.put("added",   addedDetails);
+            diffDetails.put("removed", new ArrayList<>());
+            diffDetails.put("changed", changedDetails);
+            String detailsJson;
+            try {
+                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
+            } catch (Exception ex) {
+                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
+            }
+
             diffLogRepository.save(ImportDiffLog.builder()
                     .importType(ImportType.MULTIPORTAL_DEVICE)
                     .added(imported)
                     .removed(0)
                     .changed(changed)
+                    .detailsJson(detailsJson)
                     .dismissed(false)
                     .createdAt(LocalDateTime.now(ZoneOffset.UTC))
                     .build());

@@ -29,7 +29,13 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -63,6 +69,10 @@ public class LinkageImportService {
         int vehiclesAdded = 0;
         int vehiclesRemoved = 0;
         int linksChanged = 0;
+
+        List<Map<String, String>> addedDetails   = new ArrayList<>();
+        List<Map<String, String>> removedDetails  = new ArrayList<>();
+        List<Map<String, Object>> changedDetails  = new ArrayList<>();
 
         Path tempFile = null;
         Path processingFile = null;
@@ -128,7 +138,14 @@ public class LinkageImportService {
                     // Só desativar/soft-deletar se a placa não tem nenhum
                     // vínculo "Aberto" em outra linha da mesma planilha.
                     if (!placasComVinculoAberto.contains(plate)) {
-                        if (deactivateVehicleIfOrphaned(plate)) vehiclesRemoved++;
+                        Optional<Vehicle> vOpt = vehicleRepository.findByPlate(plate);
+                        if (deactivateVehicleIfOrphaned(plate)) {
+                            vehiclesRemoved++;
+                            Map<String, String> d = new HashMap<>();
+                            d.put("plate", plate);
+                            d.put("name", vOpt.map(v -> v.getInsuredName() != null ? v.getInsuredName() : "").orElse(""));
+                            removedDetails.add(d);
+                        }
                     }
                     continue;
                 }
@@ -154,8 +171,16 @@ public class LinkageImportService {
                     vehicle.setDeletedAt(null);
                     vehicleRepository.save(vehicle);
                     vehiclesAdded++;
+                    Map<String, String> d = new HashMap<>();
+                    d.put("plate", plate);
+                    d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
+                    addedDetails.add(d);
                 } else if (!vehicleExisted) {
                     vehiclesAdded++;
+                    Map<String, String> d = new HashMap<>();
+                    d.put("plate", plate);
+                    d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
+                    addedDetails.add(d);
                 }
 
                 linkedVehicles++;
@@ -218,24 +243,45 @@ public class LinkageImportService {
                                         .build()
                         );
 
-                if (isExistingLinkage) linksChanged++;
+                // Captura estado anterior para detectar mudanças reais
+                String prevManuf        = isExistingLinkage ? linkage.getManufacturer() : null;
+                LocalDateTime prevStart = isExistingLinkage ? linkage.getStartAt()      : null;
+                LocalDateTime prevEnd   = isExistingLinkage ? linkage.getEndAt()        : null;
+
+                String newManuf        = getCellValue(row.getCell(6));
+                LocalDateTime newStart = parseDate(getCellValue(row.getCell(0)));
+                LocalDateTime newEnd   = parseDate(getCellValue(row.getCell(1)));
 
                 // Já pode existir um vínculo criado pelo import de
                 // Dispositivos (sem datas) — aqui completamos/atualizamos
                 // as datas reais, sem nunca duplicar o registro.
-                linkage.setManufacturer(
-                        getCellValue(row.getCell(6))
-                );
-
-                linkage.setStartAt(
-                        parseDate(getCellValue(row.getCell(0)))
-                );
-
-                linkage.setEndAt(
-                        parseDate(getCellValue(row.getCell(1)))
-                );
+                linkage.setManufacturer(newManuf);
+                linkage.setStartAt(newStart);
+                linkage.setEndAt(newEnd);
 
                 repository.save(linkage);
+
+                if (isExistingLinkage) {
+                    boolean manufChanged = !Objects.equals(newManuf,  prevManuf);
+                    boolean startChanged = !Objects.equals(newStart,  prevStart);
+                    boolean endChanged   = !Objects.equals(newEnd,    prevEnd);
+                    if (manufChanged || startChanged || endChanged) {
+                        linksChanged++;
+                        String changedField = manufChanged ? "fabricante" : startChanged ? "data_inicio" : "data_fim";
+                        String fromVal = manufChanged ? (prevManuf  != null ? prevManuf          : "")
+                                       : startChanged ? (prevStart  != null ? prevStart.toString() : "")
+                                       :               (prevEnd    != null ? prevEnd.toString()   : "");
+                        String toVal   = manufChanged ? (newManuf   != null ? newManuf           : "")
+                                       : startChanged ? (newStart   != null ? newStart.toString()  : "")
+                                       :               (newEnd     != null ? newEnd.toString()    : "");
+                        Map<String, Object> d = new HashMap<>();
+                        d.put("plate", plate);
+                        d.put("field", changedField);
+                        d.put("from",  fromVal);
+                        d.put("to",    toVal);
+                        changedDetails.add(d);
+                    }
+                }
 
                 active++;
                 imported++;
@@ -262,11 +308,23 @@ public class LinkageImportService {
                     imported
             );
 
+            Map<String, Object> diffDetails = new HashMap<>();
+            diffDetails.put("added",   addedDetails);
+            diffDetails.put("removed", removedDetails);
+            diffDetails.put("changed", changedDetails);
+            String detailsJson;
+            try {
+                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
+            } catch (Exception ex) {
+                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
+            }
+
             diffLogRepository.save(ImportDiffLog.builder()
                     .importType(ImportType.MULTIPORTAL_LINKAGE)
                     .added(vehiclesAdded)
                     .removed(vehiclesRemoved)
                     .changed(linksChanged)
+                    .detailsJson(detailsJson)
                     .dismissed(false)
                     .createdAt(LocalDateTime.now(ZoneOffset.UTC))
                     .build());
