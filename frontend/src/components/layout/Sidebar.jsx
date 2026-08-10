@@ -17,6 +17,7 @@ import {
     Send,
     Settings,
     Shield,
+    Upload,
     UserCog,
     Users,
     Wrench,
@@ -95,6 +96,7 @@ const GROUPS = [
         adminOnly: true,
         items: [
             { label: "Veículos",          icon: Car,      path: "/vehicles" },
+            { label: "Import Center",     icon: Upload,   path: "/imports" },
             { label: "Monitor ETL",       icon: Activity, path: "/etl" },
             { label: "Usuários",          icon: Users,    path: "/users" },
             { label: "Passagem de Turno", icon: Send,     path: "/shift-handover" },
