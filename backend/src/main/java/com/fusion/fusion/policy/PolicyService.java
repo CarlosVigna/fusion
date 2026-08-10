@@ -49,7 +49,7 @@ public class PolicyService {
 
     public List<PolicyResponse> findAll(String plate, String statusStr) {
 
-        return policyRepository.findAll()
+        return policyRepository.findAllActive()
                 .stream()
                 .filter(p -> {
                     if (plate == null || plate.isBlank()) return true;
@@ -70,7 +70,7 @@ public class PolicyService {
 
     public List<PendingVehicleResponse> findPendingVehicles() {
 
-        Set<String> platesWithAnyPolicy = policyRepository.findAll()
+        Set<String> platesWithAnyPolicy = policyRepository.findAllActive()
                 .stream()
                 .map(Policy::getPlate)
                 .filter(Objects::nonNull)
@@ -112,7 +112,7 @@ public class PolicyService {
         LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
         LocalDate limit = today.plusDays(days);
 
-        return policyRepository.findAll()
+        return policyRepository.findAllActive()
                 .stream()
                 .filter(p -> {
                     PolicyStatus s = PolicyResponse.computeStatus(p);
@@ -127,7 +127,7 @@ public class PolicyService {
 
     public List<PolicyResponse> findExpired() {
 
-        return policyRepository.findAll()
+        return policyRepository.findAllActive()
                 .stream()
                 .filter(p -> PolicyResponse.computeStatus(p) == PolicyStatus.EXPIRED)
                 .map(PolicyResponse::from)
@@ -137,7 +137,7 @@ public class PolicyService {
 
     public List<PolicyResponse> findInactive() {
 
-        return policyRepository.findAll()
+        return policyRepository.findAllActive()
                 .stream()
                 .filter(p -> {
                     PolicyStatus s = PolicyResponse.computeStatus(p);
@@ -154,7 +154,7 @@ public class PolicyService {
 
     public PolicyBadgeCountsResponse getBadgeCounts() {
 
-        List<Policy> allPolicies = policyRepository.findAll();
+        List<Policy> allPolicies = policyRepository.findAllActive();
 
         Set<String> activePlates = allPolicies.stream()
                 .filter(p -> {
@@ -477,7 +477,7 @@ public class PolicyService {
         LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
         LocalDate limit = today.plusDays(30);
 
-        List<Policy> toUpdate = policyRepository.findAll().stream()
+        List<Policy> toUpdate = policyRepository.findAllActive().stream()
                 .filter(p -> {
                     if (today.equals(p.getAlertDismissedAt())) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
@@ -499,7 +499,7 @@ public class PolicyService {
         LocalDate fimSemana = today.with(DayOfWeek.SUNDAY);
         LocalDate limit = today.plusDays(30);
 
-        return policyRepository.findAll().stream()
+        return policyRepository.findAllActive().stream()
                 .filter(p -> {
                     if (today.equals(p.getAlertDismissedAt())) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
@@ -541,7 +541,7 @@ public class PolicyService {
         LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
 
         if (type == PolicyReportType.NO_POLICY) {
-            Set<String> platesWithActive = policyRepository.findAll().stream()
+            Set<String> platesWithActive = policyRepository.findAllActive().stream()
                     .filter(p -> {
                         PolicyStatus s = PolicyResponse.computeStatus(p);
                         return s == PolicyStatus.ACTIVE
@@ -568,7 +568,7 @@ public class PolicyService {
                     .toList();
         }
 
-        return policyRepository.findAll().stream()
+        return policyRepository.findAllActive().stream()
                 .filter(p -> matchesReportType(p, type, today))
                 .sorted(Comparator.comparing(
                         p -> p.getEndDate() != null ? p.getEndDate() : LocalDate.MAX
@@ -616,7 +616,7 @@ public class PolicyService {
 
         try {
 
-            List<Policy> allPolicies = policyRepository.findAll();
+            List<Policy> allPolicies = policyRepository.findAllActive();
 
             // Fase 1: apólices vigentes — mais recente por placa
             Map<String, Policy> activePoliciesByPlate = allPolicies.stream()
