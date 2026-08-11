@@ -63,6 +63,16 @@ public class Vehicle {
 
     private String tracknmeDeviceId;
 
+    private String tracknmeImei;
+
+    private String tracknmeModel;
+
+    private String tracknmeOperator;
+
+    private String tracknmeSimCard;
+
+    private String tracknmeNumber;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime updatedAt;

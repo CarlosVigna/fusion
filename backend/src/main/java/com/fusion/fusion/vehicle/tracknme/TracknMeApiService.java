@@ -117,8 +117,23 @@ public class TracknMeApiService {
                             ? fetchLicensePlate(token, carNode.asText())
                             : null;
 
+                    // "identifier" e "imei" costumam vir com o mesmo
+                    // valor no payload real — usa identifier como
+                    // preferencial e cai pra imei se ausente.
+                    String imei = d.path("identifier").asText(null);
+                    if (imei == null) imei = d.path("imei").asText(null);
+
                     if (id != null && label != null && !label.isBlank()) {
-                        devices.add(new TracknMeDeviceItem(id, label, true));
+                        devices.add(new TracknMeDeviceItem(
+                                id,
+                                label,
+                                true,
+                                imei,
+                                d.path("model").asText(null),
+                                d.path("operator").asText(null),
+                                d.path("simCard").asText(null),
+                                d.path("number").asText(null)
+                        ));
                     }
 
                 }

@@ -89,6 +89,29 @@ public class TracknMeSyncService {
                         changed = true;
                     }
 
+                    // Atualiza os demais dados do dispositivo sempre que
+                    // mudarem — troca de chip/operadora/rastreador etc.
+                    if (!Objects.equals(d.imei(), v.getTracknmeImei())) {
+                        v.setTracknmeImei(d.imei());
+                        changed = true;
+                    }
+                    if (!Objects.equals(d.model(), v.getTracknmeModel())) {
+                        v.setTracknmeModel(d.model());
+                        changed = true;
+                    }
+                    if (!Objects.equals(d.operator(), v.getTracknmeOperator())) {
+                        v.setTracknmeOperator(d.operator());
+                        changed = true;
+                    }
+                    if (!Objects.equals(d.simCard(), v.getTracknmeSimCard())) {
+                        v.setTracknmeSimCard(d.simCard());
+                        changed = true;
+                    }
+                    if (!Objects.equals(d.number(), v.getTracknmeNumber())) {
+                        v.setTracknmeNumber(d.number());
+                        changed = true;
+                    }
+
                     // Reativa se estava soft-deleted
                     if (v.getDeletedAt() != null) {
                         v.setDeletedAt(null);
@@ -108,6 +131,11 @@ public class TracknMeSyncService {
                             .platform(VehiclePlatform.TRACKNME)
                             .vehicleGroup(VehicleGroup.TRACKNME)
                             .tracknmeDeviceId(d.id())
+                            .tracknmeImei(d.imei())
+                            .tracknmeModel(d.model())
+                            .tracknmeOperator(d.operator())
+                            .tracknmeSimCard(d.simCard())
+                            .tracknmeNumber(d.number())
                             .build();
                     vehicleRepository.save(v);
                     added++;
