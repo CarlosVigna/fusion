@@ -31,20 +31,31 @@ public class TracknMeApiService {
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // Endpoint e formato do body confirmados direto contra a API de
+    // producao (a doc/URL antiga "/api/v2/login" nao existe — 404 da
+    // WordPress do site institucional, que responde em www.tracknme.com.br
+    // pra qualquer rota que a API real nao reconheca). O SessionService do
+    // proprio ERP (bundle JS servido publicamente em /erp/) usa
+    // POST {serverURL}/sessions?essential com esse body exato.
     public String authenticate() {
-        String url = apiUrl + "/api/v2/login";
+        String url = apiUrl + "/api/sessions?essential";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        Map<String, String> body = Map.of("login", apiLogin, "password", apiPassword);
-        HttpEntity<Map<String, String>> request = new HttpEntity<>(body, headers);
+        Map<String, Object> body = Map.of(
+                "login", apiLogin,
+                "password", apiPassword,
+                "persistent", false,
+                "type", "DEFAULT"
+        );
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
         ResponseEntity<JsonNode> response = restTemplate.exchange(url, HttpMethod.POST, request, JsonNode.class);
         JsonNode root = response.getBody();
         if (root == null) throw new RuntimeException("TracknMe auth: resposta vazia");
-        // { "token": "..." } ou { "user": { "token": "..." } }
-        JsonNode tokenNode = root.path("token");
-        if (tokenNode.isMissingNode()) tokenNode = root.path("user").path("token");
+        // accessToken ja vem com o prefixo "Bearer " incluso no valor —
+        // usar direto no header Authorization, sem prefixar de novo.
+        JsonNode tokenNode = root.path("accessToken");
         if (tokenNode.isMissingNode() || tokenNode.isNull()) {
-            throw new RuntimeException("TracknMe auth: token não encontrado na resposta");
+            throw new RuntimeException("TracknMe auth: accessToken não encontrado na resposta");
         }
         return tokenNode.asText();
     }
@@ -124,7 +135,10 @@ public class TracknMeApiService {
     private HttpHeaders buildHeaders(String token) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("token", token);
+        // Header real e' Authorization (confirmado: chamada sem ele
+        // devolve 401 "Header Authorization não informado"), nao um
+        // header customizado "token" como estava antes.
+        headers.set(HttpHeaders.AUTHORIZATION, token);
         return headers;
     }
 
