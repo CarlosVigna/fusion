@@ -800,38 +800,6 @@ export default function Grid() {
 
   }
 
-  useEffect(() => {
-
-    async function loadKakoPreference() {
-
-      try {
-
-        const val = await getPreference("show_kako");
-
-        const kakoOn = val === "true" || val === true;
-
-        if (kakoOn) {
-
-          setShowKako(true);
-
-          showKakoRef.current = true;
-
-          loadGrid({ includeKako: true, includeTracknMe: showTracknMeRef.current });
-
-        }
-
-      } catch (error) {
-
-        console.error(error);
-
-      }
-
-    }
-
-    loadKakoPreference();
-
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   async function handleKakoToggle() {
 
     const next = !showKako;
@@ -845,38 +813,6 @@ export default function Grid() {
     savePreference("show_kako", String(next)).catch(console.error);
 
   }
-
-  useEffect(() => {
-
-    async function loadTestPreference() {
-
-      try {
-
-        const val = await getPreference("show_test");
-
-        const testOn = val === "true" || val === true;
-
-        if (testOn) {
-
-          setShowTest(true);
-
-          showTestRef.current = true;
-
-          loadGrid({ includeKako: showKakoRef.current, includeTest: true, includeTracknMe: showTracknMeRef.current });
-
-        }
-
-      } catch (error) {
-
-        console.error(error);
-
-      }
-
-    }
-
-    loadTestPreference();
-
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleTestToggle() {
 
@@ -907,37 +843,6 @@ export default function Grid() {
 
   }
 
-  useEffect(() => {
-
-    async function loadTracknMePreference() {
-
-      try {
-
-        const val = await getPreference("show_tracknme");
-
-        const on = val === "true" || val === true;
-
-        if (on) {
-
-          setShowTracknMe(true);
-
-          showTracknMeRef.current = true;
-
-          loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: true });
-
-        }
-
-      } catch (error) {
-
-        console.error(error);
-
-      }
-
-    }
-
-    loadTracknMePreference();
-
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
 
@@ -949,10 +854,45 @@ export default function Grid() {
 
   useEffect(() => {
 
-    // Só recarrega da API se o cache estiver vazio ou tiver mais de
-    // 30 minutos — navegar entre páginas e voltar para o Grid não
-    // deve disparar uma nova requisição.
-    useGridStore.getState().loadGridIfStale();
+    // Resolve os 3 toggles persistidos (kako/test/tracknme) ANTES de
+    // buscar o grid, numa única chamada combinada. Antes disso, cada
+    // toggle tinha seu próprio efeito que chamava loadGrid() assim que
+    // sua preferência resolvia — e havia ainda uma chamada solta sem
+    // filtro nenhum (loadGridIfStale()) aqui. Como as 3 preferências
+    // resolvem em paralelo e cada loadGrid() sobrescreve o mesmo estado
+    // sem ordem garantida, a última resposta a chegar "vencia": uma
+    // chamada sem includeTracknMe podia responder depois da correta e
+    // apagar o resultado certo — toggle TracknMe ligado, grid mostrando
+    // Multiportal.
+    async function loadFiltersAndGrid() {
+
+      const [kakoVal, testVal, tracknMeVal] = await Promise.all([
+        getPreference("show_kako").catch(() => null),
+        getPreference("show_test").catch(() => null),
+        getPreference("show_tracknme").catch(() => null),
+      ]);
+
+      const kakoOn = kakoVal === "true" || kakoVal === true;
+      const testOn = testVal === "true" || testVal === true;
+      const tracknMeOn = tracknMeVal === "true" || tracknMeVal === true;
+
+      setShowKako(kakoOn);
+      showKakoRef.current = kakoOn;
+
+      setShowTest(testOn);
+      showTestRef.current = testOn;
+
+      setShowTracknMe(tracknMeOn);
+      showTracknMeRef.current = tracknMeOn;
+
+      // loadGrid direto (não loadGridIfStale) — o cache do store não
+      // sabe com quais filtros os dados foram buscados, então "não
+      // stale" não implica "filtros certos".
+      await loadGrid({ includeKako: kakoOn, includeTest: testOn, includeTracknMe: tracknMeOn });
+
+    }
+
+    loadFiltersAndGrid();
 
     // Quando o ETL termina um import de última posição, o backend avisa
     // via WebSocket (/topic/dashboard, type GRID_UPDATED) — o Grid se

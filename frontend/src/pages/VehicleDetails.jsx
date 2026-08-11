@@ -23,6 +23,7 @@ import ObservationModal from "../components/observations/ObservationModal";
 
 import {
   getVehicleDetail,
+  updateVehicle,
 } from "../services/vehicleService";
 
 import {
@@ -30,7 +31,7 @@ import {
   getObservationHistory,
 } from "../services/observationService";
 
-import { getPolicies } from "../services/policyService";
+import { getPolicies, createPolicy } from "../services/policyService";
 
 import { formatDelay } from "../utils/formatDelay";
 
@@ -159,6 +160,16 @@ export default function VehicleDetails() {
   const [checkingId, setCheckingId] =
     useState(null);
 
+  const [tracknmeForm, setTracknmeForm] = useState({
+    insuredName: "",
+    cpfCnpj: "",
+    policyNumber: "",
+    startDate: "",
+    endDate: "",
+  });
+
+  const [savingTracknme, setSavingTracknme] = useState(false);
+
   async function load() {
 
     setLoading(true);
@@ -196,6 +207,81 @@ export default function VehicleDetails() {
     load();
 
   }, [plate]);
+
+  // Preenche o formulário com o que já existe (segurado + apólice
+  // vigente, se houver) sempre que os dados recarregam — não a cada
+  // render, senão apagaria o que o usuário está digitando.
+  useEffect(() => {
+
+    if (!detail) return;
+
+    const active = vehiclePolicies.find(
+      (p) => p.status === "ACTIVE" || p.status === "EXPIRING" || p.status === "FUTURE"
+    );
+
+    setTracknmeForm({
+      insuredName: detail.insuredName || "",
+      cpfCnpj: active?.cpfCnpj || "",
+      policyNumber: active?.policyNumber || "",
+      startDate: active?.startDate || "",
+      endDate: active?.endDate || "",
+    });
+
+  }, [detail, vehiclePolicies]);
+
+  async function handleSaveTracknMeInfo() {
+
+    setSavingTracknme(true);
+
+    try {
+
+      // Payload completo (menos notes/maintenanceNotes, que esta tela
+      // nem carrega) — o backend agora trata campo ausente como "nao
+      // mexer", entao so o insuredName muda de fato aqui.
+      await updateVehicle(plate, {
+        insuredName: tracknmeForm.insuredName || null,
+        platform: detail.platform,
+        partnership: detail.partnership,
+        policy: detail.policy,
+        broker: detail.broker,
+        inMaintenance: detail.inMaintenance,
+        maintenanceOperator: detail.maintenanceOperator,
+      });
+
+      const hasPolicyData =
+        tracknmeForm.policyNumber || tracknmeForm.startDate ||
+        tracknmeForm.endDate || tracknmeForm.cpfCnpj;
+
+      if (hasPolicyData) {
+
+        await createPolicy({
+          plate,
+          policyNumber: tracknmeForm.policyNumber || null,
+          startDate: tracknmeForm.startDate || null,
+          endDate: tracknmeForm.endDate || null,
+          insuredName: tracknmeForm.insuredName || null,
+          cpfCnpj: tracknmeForm.cpfCnpj || null,
+        });
+
+      }
+
+      toast.success("Dados salvos com sucesso");
+
+      await load();
+
+    } catch (error) {
+
+      console.error(error);
+
+      toast.error("Erro ao salvar dados: " + error.message);
+
+    } finally {
+
+      setSavingTracknme(false);
+
+    }
+
+  }
 
   const timeline = useMemo(() => {
 
@@ -396,6 +482,100 @@ export default function VehicleDetails() {
         </SectionCard>
 
       </div>
+
+      {detail.platform === "TRACKNME" && (
+
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5 print:hidden">
+
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-zinc-300">
+            <FileText size={16} className="text-zinc-500" />
+            Segurado e Apólice — TracknMe
+          </h2>
+
+          <p className="mb-4 text-xs text-zinc-500">
+            Veículos TracknMe não têm segurado/apólice cadastrados automaticamente — preencha aqui os dados faltantes.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Nome do Segurado
+              </label>
+              <input
+                type="text"
+                value={tracknmeForm.insuredName}
+                onChange={(e) => setTracknmeForm((f) => ({ ...f, insuredName: e.target.value }))}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                CPF/CNPJ
+              </label>
+              <input
+                type="text"
+                value={tracknmeForm.cpfCnpj}
+                onChange={(e) => setTracknmeForm((f) => ({ ...f, cpfCnpj: e.target.value }))}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Número da Apólice
+              </label>
+              <input
+                type="text"
+                value={tracknmeForm.policyNumber}
+                onChange={(e) => setTracknmeForm((f) => ({ ...f, policyNumber: e.target.value }))}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Vigência Início
+              </label>
+              <input
+                type="date"
+                value={tracknmeForm.startDate}
+                onChange={(e) => setTracknmeForm((f) => ({ ...f, startDate: e.target.value }))}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Vigência Fim
+              </label>
+              <input
+                type="date"
+                value={tracknmeForm.endDate}
+                onChange={(e) => setTracknmeForm((f) => ({ ...f, endDate: e.target.value }))}
+                className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-500"
+              />
+            </div>
+
+          </div>
+
+          <button
+            onClick={handleSaveTracknMeInfo}
+            disabled={savingTracknme}
+            className="
+              mt-4 rounded-xl bg-blue-600 px-6 py-2.5
+              text-sm font-semibold text-white
+              transition hover:bg-blue-700
+              disabled:cursor-not-allowed disabled:opacity-40
+            "
+          >
+            {savingTracknme ? "Salvando..." : "Salvar"}
+          </button>
+
+        </div>
+
+      )}
 
       {(detail.activeLetter || detail.activeMaintenance) && (
 

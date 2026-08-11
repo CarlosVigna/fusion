@@ -22,6 +22,16 @@ export async function getVehicleDetail(
   );
 }
 
+export async function updateVehicle(
+  plate,
+  data
+) {
+  return apiClient.put(
+    `/vehicles/${plate}`,
+    data
+  );
+}
+
 export async function getOperationalGrid(
   filters = {}
 ) {

@@ -46,26 +46,6 @@ export const useGridStore =
 
     },
 
-    loadGridIfStale(
-      filters = {},
-      maxAgeMs = 30 * 60 * 1000
-    ) {
-
-      const { lastLoadedAt, loadGrid } =
-        useGridStore.getState();
-
-      const isStale =
-        !lastLoadedAt ||
-        Date.now() - lastLoadedAt > maxAgeMs;
-
-      if (isStale) {
-        return loadGrid(filters);
-      }
-
-      return Promise.resolve();
-
-    },
-
     setVehicles(
       vehicles
     ) {

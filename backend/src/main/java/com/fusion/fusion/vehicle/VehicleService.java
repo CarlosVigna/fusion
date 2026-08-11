@@ -181,7 +181,16 @@ public class VehicleService {
                                 )
                         );
 
-        if (!equals(
+        // Update parcial: campo ausente (null) no request significa "nao
+        // mexer", nao "apagar". Antes este metodo sobrescrevia
+        // incondicionalmente platform/partnership/policy/broker/
+        // maintenanceNotes/maintenanceOperator com o que viesse no
+        // request — um caller que so quisesse editar insuredName (ex:
+        // tela de detalhe do veiculo, cujo VehicleDetailResponse nem
+        // devolve notes/maintenanceNotes pra montar de volta) apagaria
+        // esses campos sem querer. Sem chamador nenhum no frontend ainda
+        // usando esse PUT, entao seguro redefinir a semantica agora.
+        if (request.insuredName() != null && !equals(
                 vehicle.getInsuredName(),
                 request.insuredName()
         )) {
@@ -206,7 +215,7 @@ public class VehicleService {
 
         }
 
-        if (!equals(
+        if (request.notes() != null && !equals(
                 vehicle.getNotes(),
                 request.notes()
         )) {
@@ -231,7 +240,7 @@ public class VehicleService {
 
         }
 
-        if (!equals(
+        if (request.inMaintenance() != null && !equals(
 
                 vehicle.getInMaintenance(),
 
@@ -263,29 +272,41 @@ public class VehicleService {
 
         }
 
-        vehicle.setMaintenanceNotes(
-                request.maintenanceNotes()
-        );
+        if (request.maintenanceNotes() != null) {
+            vehicle.setMaintenanceNotes(
+                    request.maintenanceNotes()
+            );
+        }
 
-        vehicle.setMaintenanceOperator(
-                request.maintenanceOperator()
-        );
+        if (request.maintenanceOperator() != null) {
+            vehicle.setMaintenanceOperator(
+                    request.maintenanceOperator()
+            );
+        }
 
-        vehicle.setPlatform(
-                request.platform()
-        );
+        if (request.platform() != null) {
+            vehicle.setPlatform(
+                    request.platform()
+            );
+        }
 
-        vehicle.setPartnership(
-                request.partnership()
-        );
+        if (request.partnership() != null) {
+            vehicle.setPartnership(
+                    request.partnership()
+            );
+        }
 
-        vehicle.setPolicy(
-                request.policy()
-        );
+        if (request.policy() != null) {
+            vehicle.setPolicy(
+                    request.policy()
+            );
+        }
 
-        vehicle.setBroker(
-                request.broker()
-        );
+        if (request.broker() != null) {
+            vehicle.setBroker(
+                    request.broker()
+            );
+        }
 
         repository.save(vehicle);
 

@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 
 import { FileSpreadsheet } from "lucide-react";
 
-import { getMultiportalSheet, downloadDeviceReport } from "../services/reportsService";
+import { getMultiportalSheet, downloadDeviceReport, downloadTracknMeReport } from "../services/reportsService";
 
 import { todayForFilename } from "../utils/exportXlsx";
 
@@ -291,6 +291,7 @@ export default function Reports() {
   const [summary, setSummary] = useState(null);
   const [pending, setPending] = useState(null);
   const [deviceLoading, setDeviceLoading] = useState(false);
+  const [tracknmeLoading, setTracknmeLoading] = useState(false);
 
   async function finalizeGeneration(blocks, snapshot) {
     const workbook = await buildWorkbook(blocks);
@@ -372,6 +373,19 @@ export default function Reports() {
     }
   }
 
+  async function handleTracknMeReport() {
+    setTracknmeLoading(true);
+    try {
+      await downloadTracknMeReport();
+      toast.success("Relatório TracknMe gerado com sucesso");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao gerar relatório: " + error.message);
+    } finally {
+      setTracknmeLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
 
@@ -432,6 +446,35 @@ export default function Reports() {
               "
             >
               {deviceLoading ? "Gerando..." : "🔌 Relatório de Dispositivos"}
+            </button>
+          </div>
+        </div>
+
+        {/* Relatório TracknMe */}
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+          <div className="border-b border-zinc-800 p-6">
+            <div className="flex items-center gap-3">
+              <FileSpreadsheet size={20} className="text-zinc-400" />
+              <div>
+                <h2 className="text-base font-semibold">Relatório TracknMe</h2>
+                <p className="mt-0.5 text-sm text-zinc-500">
+                  Placa, última posição, segurado, apólice, fim de vigência e CPF/CNPJ.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6">
+            <button
+              onClick={handleTracknMeReport}
+              disabled={tracknmeLoading}
+              className="
+                w-full rounded-xl bg-blue-600 py-3
+                text-sm font-semibold text-white
+                transition hover:bg-blue-700
+                disabled:cursor-not-allowed disabled:opacity-40
+              "
+            >
+              {tracknmeLoading ? "Gerando..." : "📡 Relatório TracknMe"}
             </button>
           </div>
         </div>

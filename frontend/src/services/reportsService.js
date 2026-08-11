@@ -31,3 +31,29 @@ export async function downloadDeviceReport() {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+export async function downloadTracknMeReport() {
+  const token = localStorage.getItem("fusion_token");
+  const response = await fetch(`${API_BASE}/reports/tracknme-report/excel`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem("fusion_token");
+    localStorage.removeItem("fusion_user");
+    window.location.href = "/login";
+    return;
+  }
+
+  if (!response.ok) {
+    throw new Error("Erro ao gerar relatório TracknMe");
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `relatorio-tracknme-${new Date().toISOString().slice(0, 10)}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
