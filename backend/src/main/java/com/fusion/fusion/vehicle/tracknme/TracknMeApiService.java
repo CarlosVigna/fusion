@@ -165,34 +165,76 @@ public class TracknMeApiService {
         }
     }
 
+    // Confirmado direto contra a API de producao: este endpoint NAO
+    // aceita lote (varios deviceId separados por virgula na URL, como o
+    // codigo antigo assumia) — sempre devolve so 1 posicao (limit=1 fixo
+    // no servidor, ignora ?limit= mesmo passando varios ids no path). O
+    // proprio ERP nem usa esse endpoint pra posicao ao vivo — usa MQTT —
+    // entao isso aqui e' um fallback de polling raramente exercitado.
+    // Alem disso a resposta vem paginada no formato custom antigo
+    // ({content:[...], page, elements, ...}, igual brands/tree), nao um
+    // array solto como o codigo assumia — por isso "última comunicação"
+    // sempre saia vazia. Campos reais: gpsDateTime (quando o GPS gerou o
+    // ponto) e receivedDateTime (quando o servidor recebeu) — sem
+    // "dateTime"/"online" nenhum. Usa receivedDateTime (mais fiel a
+    // "ultima comunicacao") e deriva online pela recencia, ja que a API
+    // nao devolve esse flag.
     public List<TracknMePositionItem> fetchPositions(String token, List<String> deviceIds) {
-        if (deviceIds.isEmpty()) return List.of();
-        String ids = String.join(",", deviceIds);
-        String url = apiUrl + "/api/v2/last/positions/devices/" + ids + "?tz=America/Sao_Paulo";
-        HttpHeaders headers = buildHeaders(token);
-        HttpEntity<Void> request = new HttpEntity<>(headers);
-        try {
-            ResponseEntity<JsonNode> response = restTemplate.exchange(url, HttpMethod.GET, request, JsonNode.class);
-            JsonNode root = response.getBody();
-            if (root == null || !root.isArray()) return List.of();
-            List<TracknMePositionItem> positions = new ArrayList<>();
-            for (JsonNode p : root) {
-                String deviceId = p.path("deviceId").asText(null);
-                if (deviceId == null) deviceId = p.path("device_id").asText(null);
-                Double lat = p.path("latitude").isNull() ? null : p.path("latitude").asDouble();
-                Double lon = p.path("longitude").isNull() ? null : p.path("longitude").asDouble();
-                String dateTime = p.path("dateTime").asText(null);
-                if (dateTime == null) dateTime = p.path("date_time").asText(null);
-                boolean online = p.path("online").asBoolean(false);
-                if (deviceId != null) {
-                    positions.add(new TracknMePositionItem(deviceId, lat, lon, dateTime, online));
-                }
+
+        List<TracknMePositionItem> positions = new ArrayList<>();
+
+        for (String deviceId : deviceIds) {
+
+            try {
+
+                String url = apiUrl + "/api/v2/last/positions/devices/" + deviceId + "?tz=America/Sao_Paulo";
+                HttpHeaders headers = buildHeaders(token);
+                HttpEntity<Void> request = new HttpEntity<>(headers);
+
+                ResponseEntity<JsonNode> response = restTemplate.exchange(url, HttpMethod.GET, request, JsonNode.class);
+                JsonNode root = response.getBody();
+
+                if (root == null) continue;
+
+                JsonNode content = root.path("content");
+                if (!content.isArray() || content.isEmpty()) continue;
+
+                JsonNode p = content.get(0);
+
+                Double lat = p.path("latitude").isMissingNode() || p.path("latitude").isNull()
+                        ? null : p.path("latitude").asDouble();
+                Double lon = p.path("longitude").isMissingNode() || p.path("longitude").isNull()
+                        ? null : p.path("longitude").asDouble();
+
+                String dateTime = p.path("receivedDateTime").asText(null);
+                if (dateTime == null) dateTime = p.path("gpsDateTime").asText(null);
+
+                boolean online = isRecentlyOnline(dateTime);
+
+                positions.add(new TracknMePositionItem(deviceId, lat, lon, dateTime, online));
+
+            } catch (Exception e) {
+                log.warn("[TracknMe] Falha ao buscar posição do device {}: {}", deviceId, e.getMessage());
             }
-            return positions;
-        } catch (Exception e) {
-            log.error("Erro ao buscar posições TracknMe: {}", e.getMessage());
-            return List.of();
+
         }
+
+        return positions;
+
+    }
+
+    private boolean isRecentlyOnline(String isoOffsetDateTime) {
+
+        if (isoOffsetDateTime == null) return false;
+
+        try {
+            java.time.OffsetDateTime parsed = java.time.OffsetDateTime.parse(isoOffsetDateTime);
+            long minutes = java.time.Duration.between(parsed, java.time.OffsetDateTime.now()).toMinutes();
+            return minutes <= 30;
+        } catch (Exception e) {
+            return false;
+        }
+
     }
 
     public JsonNode fetchSimCardLine(String token, String iccid) {

@@ -256,6 +256,19 @@ public class TracknMeSyncService {
 
     private LocalDateTime parseDateTime(String raw) {
         if (raw == null || raw.isBlank()) return null;
+
+        // Formato real da API (confirmado): ISO com offset explicito,
+        // ex "2026-08-10T22:56:52-03:00" — nenhum dos formatters ingenuos
+        // abaixo da conta desse formato (LocalDateTime.parse rejeita o
+        // "-03:00" no final), por isso "última comunicação" nunca era
+        // preenchida. Converte pra UTC, igual todo o resto do sistema
+        // guarda LocalDateTime.
+        try {
+            return java.time.OffsetDateTime.parse(raw)
+                    .withOffsetSameInstant(ZoneOffset.UTC)
+                    .toLocalDateTime();
+        } catch (DateTimeParseException ignored) {}
+
         List<DateTimeFormatter> formatters = List.of(
                 DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
                 DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"),
