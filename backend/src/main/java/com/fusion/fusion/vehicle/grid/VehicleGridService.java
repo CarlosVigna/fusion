@@ -276,7 +276,17 @@ public class VehicleGridService {
 
                 activePolicy != null ? activePolicy.getEndDate() : null,
 
-                activePolicy != null ? PolicyResponse.computeStatus(activePolicy).name() : null
+                activePolicy != null ? PolicyResponse.computeStatus(activePolicy).name() : null,
+
+                vehicle.getTracknmeImei(),
+
+                vehicle.getTracknmeModel(),
+
+                vehicle.getTracknmeOperator(),
+
+                vehicle.getTracknmeSimCard(),
+
+                vehicle.getTracknmeNumber()
 
         );
 

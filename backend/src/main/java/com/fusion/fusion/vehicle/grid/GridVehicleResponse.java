@@ -57,7 +57,17 @@ public record GridVehicleResponse(
 
         LocalDate policyEndDate,
 
-        String policyStatus
+        String policyStatus,
+
+        String tracknmeImei,
+
+        String tracknmeModel,
+
+        String tracknmeOperator,
+
+        String tracknmeSimCard,
+
+        String tracknmeNumber
 
 ) {
 }

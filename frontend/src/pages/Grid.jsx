@@ -170,6 +170,56 @@ const OPTIONAL_COLUMNS = ALL_COLUMNS.filter(
   (c) => c.optional
 );
 
+// Modo TracknMe mostra um conjunto fixo de colunas — os dados desses
+// veículos vêm do cadastro de dispositivo TracknMe (imei/model/operator/
+// simCard/number), não do vínculo de equipamento Multiportal (que nem
+// existe para esse grupo). Fixo de propósito: não passa pelo sistema de
+// ordenação/visibilidade persistido (ALL_COLUMNS), que é só pro modo
+// Multiportal.
+const TRACKNME_COLUMNS = [
+  {
+    key: "plate",
+    label: "Placa",
+    sticky: true,
+    sortValue: (v) => v.plate ?? "",
+  },
+  {
+    key: "tracknmeModel",
+    label: "Modelo",
+    sortValue: (v) => v.tracknmeModel ?? "",
+  },
+  {
+    key: "tracknmeImei",
+    label: "IMEI",
+    sortValue: (v) => v.tracknmeImei ?? "",
+  },
+  {
+    key: "tracknmeOperator",
+    label: "Operadora",
+    sortValue: (v) => v.tracknmeOperator ?? "",
+  },
+  {
+    key: "tracknmeSimCard",
+    label: "SIM Card",
+    sortValue: (v) => v.tracknmeSimCard ?? "",
+  },
+  {
+    key: "tracknmeNumber",
+    label: "Linha",
+    sortValue: (v) => v.tracknmeNumber ?? "",
+  },
+  {
+    key: "position",
+    label: "Última Comunicação",
+    sortValue: (v) => v.lastCommunicationAt ?? "",
+  },
+  {
+    key: "status",
+    label: "Status",
+    sortValue: (v) => v.status ?? "",
+  },
+];
+
 const DEFAULT_VISIBLE_COLUMNS = {
   status: true,
   batteryLevel: true,
@@ -627,13 +677,17 @@ export default function Grid() {
 
   const columns = useMemo(() => {
 
+    if (showTracknMe) {
+      return TRACKNME_COLUMNS;
+    }
+
     return columnOrder
       .map((key) => columnsByKey[key])
       .filter(
         (col) => col && (!col.optional || visibleColumns[col.key])
       );
 
-  }, [visibleColumns, columnOrder, columnsByKey]);
+  }, [visibleColumns, columnOrder, columnsByKey, showTracknMe]);
 
   function setColumnFilter(field, value) {
 
@@ -1037,6 +1091,21 @@ export default function Grid() {
       case "model":
         return vehicle.model || "--";
 
+      case "tracknmeModel":
+        return vehicle.tracknmeModel || "--";
+
+      case "tracknmeImei":
+        return vehicle.tracknmeImei || "--";
+
+      case "tracknmeOperator":
+        return vehicle.tracknmeOperator || "--";
+
+      case "tracknmeSimCard":
+        return vehicle.tracknmeSimCard || "--";
+
+      case "tracknmeNumber":
+        return vehicle.tracknmeNumber || "--";
+
       case "inMaintenance":
         return vehicle.inMaintenance ? "Sim" : "Não";
 
@@ -1238,87 +1307,95 @@ export default function Grid() {
 
         <div className="flex items-center gap-3">
 
-          <div
-            ref={columnMenuRef}
-            className="relative"
-          >
-
-            <button
-              onClick={() =>
-                setColumnMenuOpen((open) => !open)
-              }
-              className="
-                flex items-center gap-2
-                rounded-2xl border
-                border-zinc-700
-                bg-zinc-950 px-5 py-3
-                text-sm font-semibold
-                transition
-                hover:bg-zinc-800
-              "
-            >
-              <Columns3 size={16} />
-              Colunas
-            </button>
-
-            {columnMenuOpen && (
+          {/* Colunas do modo TracknMe sao fixas — o sistema de
+              ordenar/mostrar-ocultar colunas e' so pro modo Multiportal */}
+          {!showTracknMe && (
+            <>
 
               <div
-                className="
-                  absolute right-0 top-full z-30
-                  mt-2 w-56 rounded-2xl
-                  border border-zinc-800
-                  bg-zinc-950 p-3
-                  shadow-xl
-                "
+                ref={columnMenuRef}
+                className="relative"
               >
 
-                {OPTIONAL_COLUMNS.map((col) => (
+                <button
+                  onClick={() =>
+                    setColumnMenuOpen((open) => !open)
+                  }
+                  className="
+                    flex items-center gap-2
+                    rounded-2xl border
+                    border-zinc-700
+                    bg-zinc-950 px-5 py-3
+                    text-sm font-semibold
+                    transition
+                    hover:bg-zinc-800
+                  "
+                >
+                  <Columns3 size={16} />
+                  Colunas
+                </button>
 
-                  <label
-                    key={col.key}
+                {columnMenuOpen && (
+
+                  <div
                     className="
-                      flex items-center gap-2
-                      rounded-lg px-2 py-2
-                      text-sm
-                      transition hover:bg-zinc-900
+                      absolute right-0 top-full z-30
+                      mt-2 w-56 rounded-2xl
+                      border border-zinc-800
+                      bg-zinc-950 p-3
+                      shadow-xl
                     "
                   >
 
-                    <input
-                      type="checkbox"
-                      checked={!!visibleColumns[col.key]}
-                      onChange={() => toggleColumn(col.key)}
-                      className="rounded border-zinc-700"
-                    />
+                    {OPTIONAL_COLUMNS.map((col) => (
 
-                    {col.label}
+                      <label
+                        key={col.key}
+                        className="
+                          flex items-center gap-2
+                          rounded-lg px-2 py-2
+                          text-sm
+                          transition hover:bg-zinc-900
+                        "
+                      >
 
-                  </label>
+                        <input
+                          type="checkbox"
+                          checked={!!visibleColumns[col.key]}
+                          onChange={() => toggleColumn(col.key)}
+                          className="rounded border-zinc-700"
+                        />
 
-                ))}
+                        {col.label}
+
+                      </label>
+
+                    ))}
+
+                  </div>
+
+                )}
 
               </div>
 
-            )}
+              <button
+                onClick={() => setColumnSettingsOpen(true)}
+                className="
+                  flex items-center gap-2
+                  rounded-2xl border
+                  border-zinc-700
+                  bg-zinc-950 px-5 py-3
+                  text-sm font-semibold
+                  transition
+                  hover:bg-zinc-800
+                "
+              >
+                <Settings size={16} />
+                Configurar colunas
+              </button>
 
-          </div>
-
-          <button
-            onClick={() => setColumnSettingsOpen(true)}
-            className="
-              flex items-center gap-2
-              rounded-2xl border
-              border-zinc-700
-              bg-zinc-950 px-5 py-3
-              text-sm font-semibold
-              transition
-              hover:bg-zinc-800
-            "
-          >
-            <Settings size={16} />
-            Configurar colunas
-          </button>
+            </>
+          )}
 
           <button
             onClick={handleKakoToggle}
