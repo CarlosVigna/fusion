@@ -852,6 +852,33 @@ public class SetupController {
         return Map.of("status", "ok", "message", "Sync TracknMe concluído (dispositivos + posições)");
     }
 
+    // Diagnostico temporario — confirmar que syncPositions() esta
+    // preenchendo lastCommunicationAt de verdade apos o fix de
+    // fetchPositions()/parseDateTime().
+    @GetMapping("/check-tracknme")
+    public List<Map<String, Object>> checkTracknMe() {
+
+        return vehicleRepository.findAll().stream()
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.TRACKNME && v.getDeletedAt() == null)
+                .map(v -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("plate", v.getPlate());
+                    row.put("tracknmeDeviceId", v.getTracknmeDeviceId());
+                    row.put("tracknmeModel", v.getTracknmeModel());
+                    row.put("tracknmeImei", v.getTracknmeImei());
+                    operationalSnapshotRepository.findFirstByVehicle(v).ifPresentOrElse(
+                            snapshot -> {
+                                row.put("lastCommunicationAt", snapshot.getLastCommunicationAt());
+                                row.put("online", snapshot.getOnline());
+                            },
+                            () -> row.put("snapshot", "nenhum")
+                    );
+                    return row;
+                })
+                .toList();
+
+    }
+
     @GetMapping("/fix-scheduling-status")
     public Map<String, Object> fixSchedulingStatus() {
         int updated = jdbcTemplate.getJdbcTemplate().update(
