@@ -96,6 +96,13 @@ async function pollOnce(runners) {
 
         }
 
+        // Esvazia a fila imediatamente sem esperar o próximo tick do
+        // setInterval (15s). Se DEVICE + LINKAGE + ULTIMA_POSICAO
+        // chegaram juntos, processa um, termina, e já busca o próximo
+        // em vez de aguardar 15s parado. Se a fila estiver vazia, o
+        // poll retorna sem fazer nada e o setInterval assume de novo.
+        setTimeout(() => pollOnce(runners), 500);
+
         return;
 
     }
@@ -126,6 +133,9 @@ async function pollOnce(runners) {
             running = false;
 
         }
+
+        // Idem: esvazia a fila em vez de aguardar o próximo tick.
+        setTimeout(() => pollOnce(runners), 500);
 
     }
 
