@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
@@ -11,6 +11,8 @@ import {
   confirmCompletion,
   getVehicleSignal,
   deleteServiceOrder,
+  getServiceOrderAuditLog,
+  getFullAuditLog,
 } from "../services/serviceOrderService";
 import { getTechnicians } from "../services/technicianService";
 import { useAuthStore } from "../store/authStore";
@@ -27,6 +29,20 @@ const FIN_COLOR = {
   APROVADO:  "bg-green-200 text-green-800 dark:bg-green-500/10 dark:text-green-400",
   REPROVADO: "bg-red-200 text-red-800 dark:bg-red-500/10 dark:text-red-400",
 };
+const ACTION_LABEL = {
+  CRIADA: "Criada", EDITADA: "Editada", AGENDADA: "Agendada",
+  APROVADA: "Aprovada", REPROVADA: "Reprovada", CONCLUIDA: "Concluída", EXCLUIDA: "Excluída",
+};
+const ACTION_COLOR = {
+  CRIADA:   "bg-blue-500/10 text-blue-400",
+  EDITADA:  "bg-zinc-700 text-zinc-300",
+  AGENDADA: "bg-yellow-500/10 text-yellow-400",
+  APROVADA: "bg-green-500/10 text-green-400",
+  REPROVADA:"bg-red-500/10 text-red-400",
+  CONCLUIDA:"bg-teal-500/10 text-teal-400",
+  EXCLUIDA: "bg-red-500/10 text-red-400",
+};
+const AUDIT_ACTIONS = ["CRIADA", "EDITADA", "AGENDADA", "APROVADA", "REPROVADA", "CONCLUIDA", "EXCLUIDA"];
 const SERVICE_TYPES       = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 const SCHEDULING_STATUSES = ["ABERTO", "AGENDADO", "CONCLUIDO"];
 
@@ -74,7 +90,6 @@ function ReadField({ label, value }) {
 
 const INPUT = "w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none";
 
-// Drawer section component — flat vertical list for side-by-side columns
 function DrawerSection({ title, children }) {
   return (
     <div>
@@ -119,7 +134,6 @@ function isScheduledPassed(o) {
   if (!o?.scheduledDate) return false;
   const todayUtc = new Date().toISOString().slice(0, 10);
   if (!o.scheduledTime) return o.scheduledDate <= todayUtc;
-  // scheduledTime is stored as Brazil local time (UTC-3); convert to UTC by adding 3h
   const scheduledUtc = new Date(`${o.scheduledDate}T${o.scheduledTime}:00-03:00`);
   return scheduledUtc < new Date();
 }
@@ -148,19 +162,80 @@ export default function ServiceOrders() {
   const [filterTechnicianId, setFilterTechnicianId] = useState("");
   const [selectedIds, setSelectedIds]       = useState(new Set());
   const [displayPage, setDisplayPage]       = useState(0);
+  const [activeTab, setActiveTab]           = useState("ordens");
+
+  // Drawer: histórico de auditoria por OS
+  const [orderAuditLog, setOrderAuditLog]   = useState([]);
+  const [auditLogLoading, setAuditLogLoading] = useState(false);
+
+  // Tab Auditoria
+  const [auditLogs, setAuditLogs]           = useState([]);
+  const [auditLoading, setAuditLoading]     = useState(false);
+  const [auditPlate, setAuditPlate]         = useState("");
+  const [auditAction, setAuditAction]       = useState("");
+  const [auditUser, setAuditUser]           = useState("");
+  const [auditDateFrom, setAuditDateFrom]   = useState("");
+  const [auditDateTo, setAuditDateTo]       = useState("");
+
+  // NOTIFICAÇÃO: rastrear OS em pend. aprovação já vistas (TECH)
+  const seenPendingIds = useRef(null);
 
   useEffect(() => { load(); }, []);
   useEffect(() => { setDisplayPage(0); }, [filter, searchText, filterServiceType, filterTechnicianId]);
+
+  useEffect(() => {
+    if (activeTab === "auditoria" && isAdmin) loadAuditLog();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!selectedOrder) { setOrderAuditLog([]); return; }
+    setAuditLogLoading(true);
+    getServiceOrderAuditLog(selectedOrder.id)
+      .then(data => setOrderAuditLog(data))
+      .catch(() => {})
+      .finally(() => setAuditLogLoading(false));
+  }, [selectedOrder?.id]);
 
   async function load() {
     setLoading(true);
     try {
       const [osResult, techsResult] = await Promise.allSettled([getServiceOrders(), getTechnicians()]);
-      if (osResult.status === "fulfilled") setOrders(osResult.value);
-      else console.error("[ServiceOrders] falha ao carregar ordens:", osResult.reason);
+      if (osResult.status === "fulfilled") {
+        const newOrders = osResult.value;
+        setOrders(newOrders);
+        if (isTech) {
+          const pending = newOrders.filter(o => (o.displacementValue ?? 0) > 0 && o.financialApprovalStatus === "PENDENTE");
+          if (seenPendingIds.current === null) {
+            seenPendingIds.current = new Set(pending.map(o => o.id));
+          } else {
+            const newOnes = pending.filter(o => !seenPendingIds.current.has(o.id));
+            newOnes.forEach(o => {
+              toast(`OS ${o.plate || "?"} aguarda aprovação de deslocamento`, { icon: "💰" });
+              seenPendingIds.current.add(o.id);
+            });
+          }
+        }
+      } else {
+        console.error("[ServiceOrders] falha ao carregar ordens:", osResult.reason);
+      }
       if (techsResult.status === "fulfilled") setTechnicians(techsResult.value);
       else console.error("[ServiceOrders] falha ao carregar tecnicos:", techsResult.reason);
     } finally { setLoading(false); }
+  }
+
+  async function loadAuditLog() {
+    setAuditLoading(true);
+    try {
+      const data = await getFullAuditLog({
+        plate: auditPlate || undefined,
+        action: auditAction || undefined,
+        performedBy: auditUser || undefined,
+        dateFrom: auditDateFrom || undefined,
+        dateTo: auditDateTo || undefined,
+      });
+      setAuditLogs(data);
+    } catch { toast.error("Erro ao carregar auditoria"); }
+    finally { setAuditLoading(false); }
   }
 
   function applyFilter(list) {
@@ -170,7 +245,8 @@ export default function ServiceOrders() {
       case "AGENDADO":  result = result.filter(o => o.schedulingStatus === "AGENDADO"); break;
       case "CONCLUIDO": result = result.filter(o => o.schedulingStatus === "CONCLUIDO"); break;
       case "LATE":      result = result.filter(o => o.late); break;
-      case "PEND_FIN":  result = result.filter(o => o.schedulingStatus !== "CONCLUIDO" && o.financialApprovalStatus === "PENDENTE"); break;
+      // BUG 1: apenas OS com deslocamento > 0 e aprovação pendente
+      case "PEND_FIN":  result = result.filter(o => (o.displacementValue ?? 0) > 0 && o.financialApprovalStatus === "PENDENTE"); break;
       case "PEND_CONCLUSAO": {
         const today = new Date().toISOString().slice(0, 10);
         result = result.filter(o => o.technician && o.scheduledDate && o.scheduledDate <= today && o.serviceValue && o.schedulingStatus === "AGENDADO");
@@ -236,6 +312,14 @@ export default function ServiceOrders() {
     return isScheduledPassed(o);
   }
 
+  // BUG 4: Regra de edição por role e schedulingStatus
+  function canEdit(o) {
+    if (isTech || !isField) return false;
+    if (o.schedulingStatus === "CONCLUIDO") return false;
+    if (isAdmin) return true;
+    return o.schedulingStatus === "ABERTO";
+  }
+
   async function handleConcluir(orderId) {
     try {
       const { hasSignal } = await getVehicleSignal(orderId);
@@ -283,7 +367,6 @@ export default function ServiceOrders() {
         scheduledTime:     o.scheduledTime     || "",
         serviceValue:      o.serviceValue      != null ? String(o.serviceValue)      : "",
         displacementValue: o.displacementValue != null ? String(o.displacementValue) : "",
-        // originals for tech read-only panel
         _plate:         o.plate,
         _chassis:       o.chassis,
         _equipment:     o.equipment,
@@ -343,7 +426,6 @@ export default function ServiceOrders() {
         observations: f.observations,
       };
 
-      // Geocoding no browser — backend não chama APIs externas de geocoding
       let techLat = null, techLon = null, clientLat = null, clientLon = null;
       let technicianAddress = null, clientAddress = null;
       if (f.technicianId && (isTech || isOp)) {
@@ -364,15 +446,13 @@ export default function ServiceOrders() {
             const c = await geocodeAddress(clientQuery + ", Brasil");
             if (c) { clientLat = c.lat; clientLon = c.lon; }
           }
-        } catch { /* geocoding falhou — salvar sem coordenadas */ }
+        } catch { /* geocoding falhou */ }
       }
 
-      // Coordenadas efetivas do técnico (novas ou já salvas)
       const selectedTech = technicians.find(t => String(t.id) === String(f.technicianId));
       const effTechLat = techLat ?? selectedTech?.latitude;
       const effTechLon = techLon ?? selectedTech?.longitude;
 
-      // Calcular distância e deslocamento no browser via OSRM
       let calculatedKm = null;
       let calculatedDisplacement = 0;
       if (effTechLat && effTechLon && clientLat && clientLon) {
@@ -387,7 +467,7 @@ export default function ServiceOrders() {
               calculatedDisplacement = Math.round((calculatedKm - 40) * 1.20 * 100) / 100;
             }
           }
-        } catch { /* OSRM falhou — seguir sem cálculo */ }
+        } catch { /* OSRM falhou */ }
       }
 
       const schedPayload = {
@@ -398,15 +478,12 @@ export default function ServiceOrders() {
         observations:      f.observations     || null,
       };
       if (f.technicianId) schedPayload.technicianId = f.technicianId;
-      // TECH não envia status — o backend define AGENDADO automaticamente
-      // OP/ADMIN envia explicitamente para poder sobrescrever quando necessário
       if (!isTech) schedPayload.schedulingStatus = f.schedulingStatus;
       if (techLat != null) { schedPayload.techLat = techLat; schedPayload.techLon = techLon; }
       if (clientLat != null) { schedPayload.clientLat = clientLat; schedPayload.clientLon = clientLon; }
       if (technicianAddress) schedPayload.technicianAddress = technicianAddress;
       if (clientAddress) schedPayload.clientAddress = clientAddress;
 
-      // Confirmação de taxa de deslocamento para TECH
       if (isTech && calculatedDisplacement > 0) {
         setDisplacementModal({
           km: calculatedKm,
@@ -472,16 +549,18 @@ export default function ServiceOrders() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold">Ordens de Serviço</h1>
-            <p className="text-zinc-400 mt-1">{visible.length} ordem(ns)</p>
+            {activeTab === "ordens" && (
+              <p className="text-zinc-400 mt-1">{visible.length} ordem(ns)</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            {selectedIds.size > 0 && (
+            {activeTab === "ordens" && selectedIds.size > 0 && (
               <button onClick={copySelected}
                 className="flex items-center gap-2 rounded-2xl border border-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-zinc-800">
                 Copiar Selecionadas ({selectedIds.size})
               </button>
             )}
-            {isField && (
+            {isField && activeTab === "ordens" && (
               <button onClick={openCreate}
                 className="flex items-center gap-2 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-black hover:bg-zinc-200">
                 <Plus size={16} /> Nova Ordem
@@ -489,119 +568,229 @@ export default function ServiceOrders() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
-            <input
-              value={searchText}
-              onChange={e => setSearchText(e.target.value)}
-              placeholder="Buscar placa, cliente, cidade…"
-              className="rounded-xl border border-zinc-800 bg-zinc-900 pl-8 pr-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none w-56"
-            />
+
+        {/* Tabs — só ADMIN vê Auditoria */}
+        {isAdmin && (
+          <div className="flex gap-1">
+            <button onClick={() => setActiveTab("ordens")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold ${activeTab === "ordens" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900"}`}>
+              Ordens
+            </button>
+            <button onClick={() => setActiveTab("auditoria")}
+              className={`rounded-xl px-4 py-2 text-sm font-semibold ${activeTab === "auditoria" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900"}`}>
+              Auditoria
+            </button>
           </div>
-          <select value={filter} onChange={e => setFilter(e.target.value)}
-            className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
-            <option value="">Todos os status</option>
-            <option value="ABERTO">Abertas</option>
-            <option value="AGENDADO">Agendadas</option>
-            <option value="CONCLUIDO">Concluídas</option>
-            <option value="LATE">Atrasadas</option>
-            <option value="PEND_FIN">Pend. Aprovação</option>
-            <option value="PEND_CONCLUSAO">Pend. Conclusão</option>
-            <option value="PRAZO_CUMPRIDO">Prazo Cumprido</option>
-          </select>
-          <select value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}
-            className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
-            <option value="">Todos os serviços</option>
-            {SERVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={filterTechnicianId} onChange={e => setFilterTechnicianId(e.target.value)}
-            className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
-            <option value="">Todos os técnicos</option>
-            {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-        </div>
-      </div>
+        )}
 
-      <div className="overflow-x-auto rounded-2xl border border-zinc-800">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500 uppercase tracking-wider">
-              <th className="px-4 py-3 w-8">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-white cursor-pointer" />
-              </th>
-              <th className="px-4 py-3">Placa</th>
-              <th className="px-4 py-3">Data</th>
-              <th className="px-4 py-3">SLA</th>
-              <th className="px-4 py-3">Serviço</th>
-              <th className="px-4 py-3">Cidade/Estado</th>
-              <th className="px-4 py-3 hidden lg:table-cell">Endereço</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
-            {!loading && visible.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS encontrada</td></tr>}
-            {pagedVisible.map((o) => (
-              <tr key={o.id}
-                onClick={() => setSelectedOrder(o)}
-                className="border-b border-zinc-900 transition-colors hover:bg-zinc-900/40 cursor-pointer">
-                <td className="px-4 py-3 w-8" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} className="accent-white cursor-pointer" />
-                </td>
-                <td className="px-4 py-3 font-mono font-semibold">{o.plate || <span className="text-zinc-600">—</span>}</td>
-                <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{o.requestedAt ? new Date(o.requestedAt).toLocaleDateString("pt-BR") : "—"}</td>
-                <td className="px-4 py-3"><SlaChip days={o.slaDays} isLate={o.late} /></td>
-                <td className="px-4 py-3 text-zinc-400">{o.serviceType}</td>
-                <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
-                  {[o.city, o.state].filter(Boolean).join(", ") || <span className="text-zinc-600">—</span>}
-                </td>
-                <td className="px-4 py-3 text-zinc-500 hidden lg:table-cell max-w-[200px] truncate">{o.address || "—"}</td>
-                <td className="px-4 py-3"><Badge label={STATUS_LABEL[o.schedulingStatus]} colorClass={STATUS_COLOR[o.schedulingStatus]} /></td>
-                <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                  <div className="flex gap-1 items-center">
-                    <button onClick={() => setSelectedOrder(o)}
-                      className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white" title="Ver detalhes">
-                      <Eye size={14} />
-                    </button>
-                    {canDelete(o) && (
-                      <button onClick={() => handleDelete(o)}
-                        className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10" title="Excluir">
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-3">
-            <span className="text-xs text-zinc-500">
-              {visible.length} resultado(s) · página {displayPage + 1} de {totalPages}
-            </span>
-            <div className="flex gap-1">
-              <button
-                onClick={() => setDisplayPage(p => Math.max(0, p - 1))}
-                disabled={displayPage === 0}
-                className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                ‹ Anterior
-              </button>
-              <button
-                onClick={() => setDisplayPage(p => Math.min(totalPages - 1, p + 1))}
-                disabled={displayPage >= totalPages - 1}
-                className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                Próxima ›
-              </button>
+        {/* Filtros da lista de ordens */}
+        {activeTab === "ordens" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+              <input
+                value={searchText}
+                onChange={e => setSearchText(e.target.value)}
+                placeholder="Buscar placa, cliente, cidade…"
+                className="rounded-xl border border-zinc-800 bg-zinc-900 pl-8 pr-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none w-56"
+              />
             </div>
+            <select value={filter} onChange={e => setFilter(e.target.value)}
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+              <option value="">Todos os status</option>
+              <option value="ABERTO">Abertas</option>
+              <option value="AGENDADO">Agendadas</option>
+              <option value="CONCLUIDO">Concluídas</option>
+              <option value="LATE">Atrasadas</option>
+              <option value="PEND_FIN">Pend. Aprovação</option>
+              <option value="PEND_CONCLUSAO">Pend. Conclusão</option>
+              <option value="PRAZO_CUMPRIDO">Prazo Cumprido</option>
+            </select>
+            <select value={filterServiceType} onChange={e => setFilterServiceType(e.target.value)}
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+              <option value="">Todos os serviços</option>
+              {SERVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <select value={filterTechnicianId} onChange={e => setFilterTechnicianId(e.target.value)}
+              className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+              <option value="">Todos os técnicos</option>
+              {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
           </div>
         )}
       </div>
+
+      {/* ===== TAB: AUDITORIA ===== */}
+      {activeTab === "auditoria" && isAdmin && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">Placa</label>
+              <input value={auditPlate} onChange={e => setAuditPlate(e.target.value)}
+                placeholder="ABC1234" className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none w-32" />
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">Ação</label>
+              <select value={auditAction} onChange={e => setAuditAction(e.target.value)}
+                className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none">
+                <option value="">Todas</option>
+                {AUDIT_ACTIONS.map(a => <option key={a} value={a}>{ACTION_LABEL[a] || a}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">Usuário</label>
+              <input value={auditUser} onChange={e => setAuditUser(e.target.value)}
+                placeholder="email@..." className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none w-44" />
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">De</label>
+              <input type="date" value={auditDateFrom} onChange={e => setAuditDateFrom(e.target.value)}
+                className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs text-zinc-400 mb-1">Até</label>
+              <input type="date" value={auditDateTo} onChange={e => setAuditDateTo(e.target.value)}
+                className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none" />
+            </div>
+            <button onClick={loadAuditLog}
+              className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black hover:bg-zinc-200">
+              Filtrar
+            </button>
+            {(auditPlate || auditAction || auditUser || auditDateFrom || auditDateTo) && (
+              <button onClick={() => {
+                setAuditPlate(""); setAuditAction(""); setAuditUser(""); setAuditDateFrom(""); setAuditDateTo("");
+                setTimeout(loadAuditLog, 0);
+              }}
+                className="text-xs text-zinc-500 hover:text-white">
+                Limpar
+              </button>
+            )}
+          </div>
+          <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500 uppercase tracking-wider">
+                  <th className="px-4 py-3">Data/Hora</th>
+                  <th className="px-4 py-3">Placa</th>
+                  <th className="px-4 py-3">Ação</th>
+                  <th className="px-4 py-3">Campo</th>
+                  <th className="px-4 py-3">Valor Anterior</th>
+                  <th className="px-4 py-3">Valor Novo</th>
+                  <th className="px-4 py-3">Usuário</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLoading && (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>
+                )}
+                {!auditLoading && auditLogs.length === 0 && (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Nenhum registro encontrado</td></tr>
+                )}
+                {!auditLoading && auditLogs.map(l => (
+                  <tr key={l.id} className="border-b border-zinc-900 hover:bg-zinc-900/40">
+                    <td className="px-4 py-3 font-mono text-xs text-zinc-400 whitespace-nowrap">
+                      {l.performedAt ? new Date(l.performedAt).toLocaleString("pt-BR") : "—"}
+                    </td>
+                    <td className="px-4 py-3 font-mono font-semibold">{l.plate || "—"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${ACTION_COLOR[l.action] || "bg-zinc-800 text-zinc-400"}`}>
+                        {ACTION_LABEL[l.action] || l.action}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-zinc-400 text-xs">{l.field || "—"}</td>
+                    <td className="px-4 py-3 text-red-400 text-xs">{l.oldValue || "—"}</td>
+                    <td className="px-4 py-3 text-green-400 text-xs">{l.newValue || "—"}</td>
+                    <td className="px-4 py-3 text-zinc-400 text-xs truncate max-w-[180px]">{l.performedBy || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ===== TAB: ORDENS ===== */}
+      {activeTab === "ordens" && (
+        <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500 uppercase tracking-wider">
+                <th className="px-4 py-3 w-8">
+                  <input type="checkbox" checked={allSelected} onChange={toggleAll} className="accent-white cursor-pointer" />
+                </th>
+                <th className="px-4 py-3">Placa</th>
+                <th className="px-4 py-3">Data</th>
+                <th className="px-4 py-3">SLA</th>
+                <th className="px-4 py-3">Serviço</th>
+                <th className="px-4 py-3">Cidade/Estado</th>
+                <th className="px-4 py-3 hidden lg:table-cell">Endereço</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
+              {!loading && visible.length === 0 && <tr><td colSpan={9} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS encontrada</td></tr>}
+              {pagedVisible.map((o) => (
+                <tr key={o.id}
+                  onClick={() => setSelectedOrder(o)}
+                  className="border-b border-zinc-900 transition-colors hover:bg-zinc-900/40 cursor-pointer">
+                  <td className="px-4 py-3 w-8" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(o.id)} onChange={() => toggleSelect(o.id)} className="accent-white cursor-pointer" />
+                  </td>
+                  <td className="px-4 py-3 font-mono font-semibold">{o.plate || <span className="text-zinc-600">—</span>}</td>
+                  <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{o.requestedAt ? new Date(o.requestedAt).toLocaleDateString("pt-BR") : "—"}</td>
+                  <td className="px-4 py-3"><SlaChip days={o.slaDays} isLate={o.late} /></td>
+                  <td className="px-4 py-3 text-zinc-400">{o.serviceType}</td>
+                  <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">
+                    {[o.city, o.state].filter(Boolean).join(", ") || <span className="text-zinc-600">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-zinc-500 hidden lg:table-cell max-w-[200px] truncate">{o.address || "—"}</td>
+                  <td className="px-4 py-3"><Badge label={STATUS_LABEL[o.schedulingStatus]} colorClass={STATUS_COLOR[o.schedulingStatus]} /></td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <div className="flex gap-1 items-center">
+                      <button onClick={() => setSelectedOrder(o)}
+                        className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white" title="Ver detalhes">
+                        <Eye size={14} />
+                      </button>
+                      {canDelete(o) && (
+                        <button onClick={() => handleDelete(o)}
+                          className="rounded-lg p-1.5 text-red-400 hover:bg-red-500/10" title="Excluir">
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-3">
+              <span className="text-xs text-zinc-500">
+                {visible.length} resultado(s) · página {displayPage + 1} de {totalPages}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setDisplayPage(p => Math.max(0, p - 1))}
+                  disabled={displayPage === 0}
+                  className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  ‹ Anterior
+                </button>
+                <button
+                  onClick={() => setDisplayPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={displayPage >= totalPages - 1}
+                  className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  Próxima ›
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ====== DRAWER LATERAL ====== */}
       {selectedOrder && (
@@ -609,7 +798,6 @@ export default function ServiceOrders() {
           <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setSelectedOrder(null)} />
           <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-2xl flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
 
-            {/* Drawer header */}
             <div className="flex items-start justify-between border-b border-zinc-800 p-5">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-3 flex-wrap">
@@ -632,11 +820,9 @@ export default function ServiceOrders() {
               </button>
             </div>
 
-            {/* Drawer body — 2-column grid */}
             <div className="flex-1 overflow-y-auto p-5">
               <div className="grid grid-cols-2 gap-x-8 gap-y-5">
 
-                {/* Col 1, Row 1: Dados do Veículo */}
                 <DrawerSection title="Dados do Veículo">
                   <DrawerRow label="Placa"       value={selectedOrder.plate} />
                   <DrawerRow label="Chassi"      value={selectedOrder.chassis} />
@@ -644,7 +830,6 @@ export default function ServiceOrders() {
                   <DrawerRow label="SLA"         value={`${selectedOrder.slaDays}d${selectedOrder.late ? " ⚠" : ""}`} />
                 </DrawerSection>
 
-                {/* Col 2, Row 1: Dados da Solicitação */}
                 <DrawerSection title="Dados da Solicitação">
                   <DrawerRow label="Solicitante" value={selectedOrder.requestedBy} />
                   <DrawerRow label="Data"        value={selectedOrder.requestedAt ? new Date(selectedOrder.requestedAt).toLocaleDateString("pt-BR") : null} />
@@ -653,7 +838,6 @@ export default function ServiceOrders() {
                   <DrawerRow label="Encerrada"   value={selectedOrder.closedAt ? new Date(selectedOrder.closedAt).toLocaleDateString("pt-BR") : null} />
                 </DrawerSection>
 
-                {/* Col 1, Row 2: Dados do Cliente */}
                 <DrawerSection title="Dados do Cliente">
                   <DrawerRow label="Nome"       value={selectedOrder.customerName} />
                   <DrawerRow label="Telefone"   value={selectedOrder.customerPhone} />
@@ -664,7 +848,6 @@ export default function ServiceOrders() {
                   <DrawerRow label="Estado"     value={selectedOrder.state} />
                 </DrawerSection>
 
-                {/* Col 2, Row 2: Agendamento */}
                 {(isTech || isField) && (
                   <DrawerSection title="Agendamento">
                     <DrawerRow label="Técnico"   value={selectedOrder.technician?.name} />
@@ -675,7 +858,6 @@ export default function ServiceOrders() {
                   </DrawerSection>
                 )}
 
-                {/* Col 1, Row 3: Valores */}
                 {(selectedOrder.totalValue > 0 || selectedOrder.displacementValue != null) && (
                   <DrawerSection title="Valores">
                     {(selectedOrder.displacementValue != null || selectedOrder.distanceKm != null) && (
@@ -702,20 +884,43 @@ export default function ServiceOrders() {
                   </DrawerSection>
                 )}
 
-                {/* Col 2, Row 3: Observações */}
                 {selectedOrder.observations && (
                   <DrawerSection title="Observações">
                     <p className="text-[11px] text-zinc-300 leading-relaxed">{selectedOrder.observations}</p>
                   </DrawerSection>
                 )}
 
+                {/* MELHORIA: Histórico de alterações da OS */}
+                <div className="col-span-2">
+                  <DrawerSection title="Histórico">
+                    {auditLogLoading && <p className="text-[11px] text-zinc-500">Carregando...</p>}
+                    {!auditLogLoading && orderAuditLog.length === 0 && (
+                      <p className="text-[11px] text-zinc-600">Nenhuma alteração registrada</p>
+                    )}
+                    {!auditLogLoading && orderAuditLog.map(l => (
+                      <div key={l.id} className="flex items-start gap-2 py-1.5 border-b border-zinc-900 last:border-0">
+                        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${ACTION_COLOR[l.action] || "bg-zinc-800 text-zinc-400"}`}>
+                          {ACTION_LABEL[l.action] || l.action}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          {l.field && <span className="text-[10px] text-zinc-500">{l.field}: </span>}
+                          {l.oldValue && <span className="text-[10px] text-red-400 line-through mr-1">{l.oldValue}</span>}
+                          {l.newValue && <span className="text-[10px] text-green-400">{l.newValue}</span>}
+                          <span className="block text-[10px] text-zinc-600 mt-0.5">
+                            {l.performedBy} · {l.performedAt ? new Date(l.performedAt).toLocaleString("pt-BR") : ""}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </DrawerSection>
+                </div>
+
               </div>
             </div>
 
-            {/* Drawer footer — role-based actions */}
+            {/* Drawer footer */}
             <div className="border-t border-zinc-800 p-4 flex flex-wrap gap-2">
 
-              {/* TECHNICIAN: apenas Marcar Agendamento */}
               {isTech && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
                 <button onClick={() => openEdit(selectedOrder)}
                   className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200">
@@ -723,22 +928,16 @@ export default function ServiceOrders() {
                 </button>
               )}
 
-              {/* FIELD (non-op, non-tech): Editar + Confirmar Conclusão */}
-              {isField && !isOp && !isTech && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
+              {/* BUG 4: Editar só quando canEdit() */}
+              {canEdit(selectedOrder) && (
                 <button onClick={() => openEdit(selectedOrder)}
                   className="flex items-center gap-1.5 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
                   <Pencil size={13} /> Editar
                 </button>
               )}
 
-              {/* OPERATOR/ADMIN: Editar + aprovação financeira */}
-              {isOp && selectedOrder.schedulingStatus !== "CONCLUIDO" && (
-                <button onClick={() => openEdit(selectedOrder)}
-                  className="flex items-center gap-1.5 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
-                  <Pencil size={13} /> Editar
-                </button>
-              )}
-              {isOp && selectedOrder.financialApprovalStatus === "PENDENTE" && (selectedOrder.displacementValue ?? 0) > 0 && (
+              {/* BUG 2: Aprovar/Reprovar para FIELD, OPERATOR e ADMIN */}
+              {isField && !isTech && selectedOrder.financialApprovalStatus === "PENDENTE" && (selectedOrder.displacementValue ?? 0) > 0 && (
                 <>
                   <button onClick={() => handleFinancial(selectedOrder.id, "APROVADO")}
                     className="rounded-xl px-4 py-2 text-sm bg-green-200 text-green-800 border border-green-300 hover:bg-green-300 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30 dark:hover:bg-green-500/20">
@@ -751,7 +950,6 @@ export default function ServiceOrders() {
                 </>
               )}
 
-              {/* ADMIN, OPERATOR, FIELD: Concluir quando prazo passou */}
               {canConcluir(selectedOrder) && !selectedOrder.completionConfirmed && (
                 <button onClick={() => handleConcluir(selectedOrder.id)}
                   className="rounded-xl px-4 py-2 text-sm bg-teal-200 text-teal-800 border border-teal-300 hover:bg-teal-300 dark:bg-teal-500/10 dark:text-teal-400 dark:border-teal-500/30 dark:hover:bg-teal-500/20">
@@ -759,7 +957,6 @@ export default function ServiceOrders() {
                 </button>
               )}
 
-              {/* Delete (any role with permission) */}
               {canDelete(selectedOrder) && (
                 <button onClick={() => handleDelete(selectedOrder)}
                   className="rounded-lg p-2 text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10 ml-auto">
@@ -772,7 +969,7 @@ export default function ServiceOrders() {
         </>
       )}
 
-      {/* Confirm completion modal — veículo com sinal */}
+      {/* Confirm completion — veículo com sinal */}
       {confirmModal?.type === "completion" && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
@@ -814,7 +1011,7 @@ export default function ServiceOrders() {
         </div>
       )}
 
-      {/* Modal confirmação de taxa de deslocamento (TECH) */}
+      {/* Modal deslocamento (TECH) */}
       {displacementModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-md rounded-2xl border border-yellow-500/30 bg-zinc-950 p-6 space-y-4">
@@ -839,7 +1036,7 @@ export default function ServiceOrders() {
         </div>
       )}
 
-      {/* Modal detalhes do cálculo de deslocamento */}
+      {/* Modal detalhes do deslocamento */}
       {displacementDetailModal && selectedOrder && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-950 p-6 space-y-3">
@@ -946,10 +1143,8 @@ export default function ServiceOrders() {
               <button onClick={() => setModal(null)}><X size={20} className="text-zinc-400" /></button>
             </div>
 
-            {/* TECHNICIAN: 2-column — read-only left / editable right */}
             {isTech ? (
               <div className="grid grid-cols-2 gap-6">
-                {/* Left: read-only operator data */}
                 <div className="space-y-3">
                   <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Dados do Operador</p>
                   <ReadField label="Placa"          value={modal.form._plate} />
@@ -960,7 +1155,6 @@ export default function ServiceOrders() {
                   <ReadField label="Endereço"       value={modal.form._address} />
                   <ReadField label="Cidade"         value={modal.form._city} />
                 </div>
-                {/* Right: editable scheduling fields */}
                 <div className="space-y-3">
                   <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Agendamento</p>
                   <Field label="Técnico">
@@ -984,7 +1178,6 @@ export default function ServiceOrders() {
                 </div>
               </div>
             ) : (
-              /* FIELD / OP / ADMIN: standard grid */
               <div className="grid grid-cols-2 gap-3">
                 {!isTech && (
                   <>
@@ -1004,7 +1197,6 @@ export default function ServiceOrders() {
                     </Field>
                   </>
                 )}
-                {/* Dados do cliente — editável por FIELD, OPERATOR e ADMIN */}
                 {isField && (
                   <>
                     <Field label="Nome do Cliente">
@@ -1035,7 +1227,6 @@ export default function ServiceOrders() {
                     </Field>
                   </>
                 )}
-                {/* Solicitante e agendamento — somente OPERATOR e ADMIN */}
                 {isOp && (
                   <Field label="Solicitante">
                     <input value={modal.form.requestedBy} onChange={e => setForm(f => ({...f, requestedBy: e.target.value}))} className={INPUT} />

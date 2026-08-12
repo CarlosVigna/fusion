@@ -51,3 +51,18 @@ export function getMonthlyCloseExcelUrl(month) {
 export function getMonthlyClosePdfUrl(month) {
   return `/service-orders/monthly-close/pdf?month=${month}`;
 }
+
+export async function getServiceOrderAuditLog(id) {
+  return apiClient.get(`/service-orders/${id}/audit-log`);
+}
+
+export async function getFullAuditLog({ plate, action, performedBy, dateFrom, dateTo } = {}) {
+  const params = new URLSearchParams();
+  if (plate)       params.append("plate", plate);
+  if (action)      params.append("action", action);
+  if (performedBy) params.append("performedBy", performedBy);
+  if (dateFrom)    params.append("dateFrom", dateFrom);
+  if (dateTo)      params.append("dateTo", dateTo);
+  const q = params.toString() ? `?${params}` : "";
+  return apiClient.get(`/service-orders/audit-log${q}`);
+}

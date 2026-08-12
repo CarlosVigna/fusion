@@ -4,6 +4,7 @@ import { getCompletedServiceOrders } from "../services/serviceOrderService";
 import { getTechnicians } from "../services/technicianService";
 import { FusionLogo } from "../assets/FusionLogo";
 import toast from "react-hot-toast";
+import ExcelJS from "exceljs";
 
 const SERVICE_TYPES = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 
@@ -44,30 +45,85 @@ export default function ServiceOrdersReports() {
     setDateFrom(""); setDateTo(""); setTechnicianId(""); setServiceType("");
   }
 
-  function downloadCsv() {
+  async function downloadXlsx() {
     const rows = filtered();
-    const header = "ID,Placa,Solicitante,Encerrada,Técnico,Tipo,Serviço (R$),Deslocamento (R$),Total (R$),SLA (dias),Sem Sinal\n";
-    const body = rows.map(o =>
-      [
-        o.id,
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Fusion";
+    const ws = wb.addWorksheet("Ordens de Serviço");
+
+    // Cabeçalho do relatório
+    ws.mergeCells("A1:K1");
+    const titleCell = ws.getCell("A1");
+    titleCell.value = `Fusion — Relatório de Ordens de Serviço — Gerado em ${new Date().toLocaleDateString("pt-BR")}`;
+    titleCell.font = { bold: true, size: 13 };
+    titleCell.alignment = { horizontal: "center" };
+    ws.getRow(1).height = 24;
+
+    ws.addRow([]);
+
+    // Cabeçalhos das colunas
+    const headerRow = ws.addRow([
+      "Placa", "Encerrada", "Técnico", "Tipo", "SLA (dias)",
+      "Serviço (R$)", "Deslocamento (R$)", "Total (R$)", "Sem Sinal", "Solicitante", "ID",
+    ]);
+    headerRow.eachCell(cell => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF18181B" } };
+      cell.alignment = { horizontal: "center" };
+    });
+    ws.getRow(3).height = 18;
+
+    // Dados
+    rows.forEach(o => {
+      ws.addRow([
         o.plate || "",
-        o.requestedBy || "",
         o.closedAt ? new Date(o.closedAt).toLocaleDateString("pt-BR") : "",
         o.technician?.name || "",
-        o.serviceType,
-        o.serviceValue ?? "",
-        o.displacementValue ?? "",
-        o.totalValue ?? "",
+        o.serviceType || "",
         o.slaDays,
+        o.serviceValue != null ? Number(o.serviceValue) : "",
+        o.displacementValue != null ? Number(o.displacementValue) : "",
+        o.totalValue != null ? Number(o.totalValue) : "",
         o.completedWithoutSignal ? "Sim" : "Não",
-      ].join(",")
-    ).join("\n");
+        o.requestedBy || "",
+        o.id,
+      ]);
+    });
 
-    const blob = new Blob(["﻿" + header + body], { type: "text/csv;charset=utf-8;" });
+    // Totais
+    ws.addRow([]);
+    const totalRow = ws.addRow([
+      "TOTAL", "", "", "", "",
+      rows.reduce((a, o) => a + (o.serviceValue ?? 0), 0),
+      rows.reduce((a, o) => a + (o.displacementValue ?? 0), 0),
+      rows.reduce((a, o) => a + (o.totalValue ?? 0), 0),
+      "", "", "",
+    ]);
+    totalRow.eachCell((cell, col) => {
+      if ([6, 7, 8].includes(col)) cell.font = { bold: true };
+      if (col === 1) cell.font = { bold: true };
+    });
+
+    // Larguras das colunas
+    [10, 14, 22, 14, 12, 16, 18, 14, 10, 18, 38].forEach((w, i) => {
+      ws.getColumn(i + 1).width = w;
+    });
+
+    // Formato numérico para valores
+    ws.eachRow((row, rn) => {
+      if (rn <= 3) return;
+      [6, 7, 8].forEach(col => {
+        const cell = row.getCell(col);
+        if (cell.value !== "") cell.numFmt = '"R$"#,##0.00';
+      });
+    });
+
+    const buffer = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `relatorio-os-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `relatorio-os-${new Date().toISOString().slice(0, 10)}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -155,9 +211,9 @@ export default function ServiceOrdersReports() {
         {/* Action buttons */}
         {!loading && rows.length > 0 && (
           <div className="flex gap-3 print:hidden">
-            <button onClick={downloadCsv}
+            <button onClick={downloadXlsx}
               className="flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
-              <Download size={14} /> Exportar CSV
+              <Download size={14} /> Exportar Excel
             </button>
             <button onClick={printReport}
               className="flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">

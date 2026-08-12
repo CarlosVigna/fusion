@@ -2,6 +2,8 @@ package com.fusion.fusion.serviceorder;
 
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.ors.OrsService;
+import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLog;
+import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLogRepository;
 import com.fusion.fusion.technician.Technician;
 import com.fusion.fusion.technician.TechnicianService;
 import com.fusion.fusion.vehicle.Vehicle;
@@ -11,6 +13,8 @@ import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,6 +36,7 @@ public class ServiceOrderService {
     private final OrsService orsService;
     private final VehicleRepository vehicleRepository;
     private final VehicleOperationalStateRepository operationalStateRepository;
+    private final ServiceOrderAuditLogRepository auditLogRepository;
 
     public List<ServiceOrderResponse> listAll(boolean includeCompleted) {
         return repository.findAll().stream()
@@ -72,7 +77,9 @@ public class ServiceOrderService {
                 .observations(request.observations())
                 .createdBy(createdBy)
                 .build();
-        return toResponse(repository.save(so));
+        ServiceOrderResponse saved = toResponse(repository.save(so));
+        audit(so, "CRIADA", null, null, so.getPlate());
+        return saved;
     }
 
     @Transactional
@@ -129,7 +136,9 @@ public class ServiceOrderService {
         if (request.requestedBy() != null) so.setRequestedBy(request.requestedBy());
         if (request.observations() != null) so.setObservations(request.observations());
 
-        return toResponse(repository.save(so));
+        ServiceOrderResponse saved = toResponse(repository.save(so));
+        audit(so, "EDITADA", null, null, null);
+        return saved;
     }
 
     @Transactional
@@ -202,14 +211,22 @@ public class ServiceOrderService {
         if (request.technicianAddress() != null) so.setTechnicianAddress(request.technicianAddress());
         if (request.clientAddress() != null) so.setClientAddress(request.clientAddress());
 
-        return toResponse(repository.save(so));
+        ServiceOrderResponse saved = toResponse(repository.save(so));
+        String auditAction = so.getSchedulingStatus() == SchedulingStatus.CONCLUIDO ? "CONCLUIDA" : "AGENDADA";
+        audit(so, auditAction, "schedulingStatus", null, so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null);
+        return saved;
     }
 
     @Transactional
     public ServiceOrderResponse updateFinancialApproval(UUID id, FinancialApprovalRequest request) {
         ServiceOrder so = find(id);
+        String oldStatus = so.getFinancialApprovalStatus() != null ? so.getFinancialApprovalStatus().name() : null;
         so.setFinancialApprovalStatus(request.financialApprovalStatus());
-        return toResponse(repository.save(so));
+        ServiceOrderResponse saved = toResponse(repository.save(so));
+        String action = request.financialApprovalStatus() == FinancialApprovalStatus.APROVADO ? "APROVADA" : "REPROVADA";
+        audit(so, action, "financialApprovalStatus", oldStatus,
+                request.financialApprovalStatus() != null ? request.financialApprovalStatus().name() : null);
+        return saved;
     }
 
     @Transactional
@@ -234,7 +251,9 @@ public class ServiceOrderService {
         so.setCompletionConfirmed(true);
         so.setSchedulingStatus(SchedulingStatus.CONCLUIDO);
         if (so.getClosedAt() == null) so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
-        return toResponse(repository.save(so));
+        ServiceOrderResponse saved = toResponse(repository.save(so));
+        audit(so, "CONCLUIDA", "schedulingStatus", "AGENDADO", "CONCLUIDO");
+        return saved;
     }
 
     public Map<String, Object> dashboard(boolean showAnalytics) {
@@ -348,7 +367,8 @@ public class ServiceOrderService {
 
     @Transactional
     public void delete(UUID id) {
-        find(id);
+        ServiceOrder so = find(id);
+        audit(so, "EXCLUIDA", null, so.getPlate(), null);
         repository.deleteById(id);
     }
 
@@ -407,6 +427,49 @@ public class ServiceOrderService {
     private ServiceOrder find(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("OS não encontrada: " + id));
+    }
+
+    private void audit(ServiceOrder so, String action, String field, String oldValue, String newValue) {
+        try {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String performedBy = auth != null ? auth.getName() : "SISTEMA";
+            auditLogRepository.save(ServiceOrderAuditLog.builder()
+                    .serviceOrderId(so.getId())
+                    .plate(so.getPlate())
+                    .action(action)
+                    .field(field)
+                    .oldValue(oldValue)
+                    .newValue(newValue)
+                    .performedBy(performedBy)
+                    .performedByName(performedBy)
+                    .build());
+        } catch (Exception e) {
+            log.warn("[AUDIT] Falha ao registrar log OS={}: {}", so.getId(), e.getMessage());
+        }
+    }
+
+    public List<ServiceOrderAuditLog> getAuditLog(String plate, String action, String performedBy,
+                                                   String dateFrom, String dateTo) {
+        List<ServiceOrderAuditLog> all = auditLogRepository.findAllByOrderByPerformedAtDesc();
+        return all.stream()
+                .filter(l -> plate == null || plate.isBlank()
+                        || (l.getPlate() != null && l.getPlate().toLowerCase().contains(plate.toLowerCase())))
+                .filter(l -> action == null || action.isBlank() || action.equals(l.getAction()))
+                .filter(l -> performedBy == null || performedBy.isBlank()
+                        || (l.getPerformedBy() != null && l.getPerformedBy().toLowerCase().contains(performedBy.toLowerCase())))
+                .filter(l -> {
+                    if (dateFrom == null || dateFrom.isBlank()) return true;
+                    return l.getPerformedAt() != null && !l.getPerformedAt().toLocalDate().isBefore(java.time.LocalDate.parse(dateFrom));
+                })
+                .filter(l -> {
+                    if (dateTo == null || dateTo.isBlank()) return true;
+                    return l.getPerformedAt() != null && !l.getPerformedAt().toLocalDate().isAfter(java.time.LocalDate.parse(dateTo));
+                })
+                .toList();
+    }
+
+    public List<ServiceOrderAuditLog> getAuditLogForOrder(UUID id) {
+        return auditLogRepository.findByServiceOrderIdOrderByPerformedAtDesc(id);
     }
 
     ServiceOrderResponse toResponse(ServiceOrder so) {

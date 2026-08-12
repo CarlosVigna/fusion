@@ -1,5 +1,6 @@
 package com.fusion.fusion.serviceorder;
 
+import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -70,6 +71,22 @@ public class ServiceOrderController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {
         service.delete(id);
+    }
+
+    @GetMapping("/audit-log")
+    public List<ServiceOrderAuditLog> auditLog(
+            @RequestParam(required = false) String plate,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String performedBy,
+            @RequestParam(required = false) String dateFrom,
+            @RequestParam(required = false) String dateTo
+    ) {
+        return service.getAuditLog(plate, action, performedBy, dateFrom, dateTo);
+    }
+
+    @GetMapping("/{id}/audit-log")
+    public List<ServiceOrderAuditLog> auditLogForOrder(@PathVariable UUID id) {
+        return service.getAuditLogForOrder(id);
     }
 
     @GetMapping("/dashboard")
