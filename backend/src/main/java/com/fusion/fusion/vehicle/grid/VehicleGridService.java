@@ -14,6 +14,7 @@ import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VehicleGridService {
@@ -208,87 +210,95 @@ public class VehicleGridService {
 
         }
 
-        return new GridVehicleResponse(
+        try {
 
-                vehicle.getId(),
+            return new GridVehicleResponse(
 
-                vehicle.getPlate(),
+                    vehicle.getId(),
 
-                vehicle.getInsuredName(),
+                    vehicle.getPlate(),
 
-                vehicle.getPlatform(),
+                    vehicle.getInsuredName(),
 
-                snapshot != null
-                        ? snapshot.getOnline()
-                        : false,
+                    vehicle.getPlatform(),
 
-                snapshot != null
-                        ? snapshot.getBatteryLevel()
-                        : null,
+                    snapshot != null
+                            ? snapshot.getOnline()
+                            : false,
 
-                snapshot != null
-                        ? snapshot.getLastCommunicationAt()
-                        : null,
+                    snapshot != null
+                            ? snapshot.getBatteryLevel()
+                            : null,
 
-                vehicle.getInMaintenance(),
+                    snapshot != null
+                            ? snapshot.getLastCommunicationAt()
+                            : null,
 
-                vehicle.getMaintenanceOperator(),
+                    vehicle.getInMaintenance(),
 
-                activeDevice,
+                    vehicle.getMaintenanceOperator(),
 
-                manufacturer,
+                    activeDevice,
 
-                model,
+                    manufacturer,
 
-                lineNumber,
+                    model,
 
-                operator,
+                    lineNumber,
 
-                snapshot != null
-                        ? snapshot.getOperationalStatus()
-                        : null,
+                    operator,
 
-                snapshot != null
-                        ? snapshot.getCommunicationStatus()
-                        : null,
+                    snapshot != null
+                            ? snapshot.getOperationalStatus()
+                            : null,
 
-                snapshot != null
-                        ? snapshot.getSignalDelayMinutes()
-                        : null,
+                    snapshot != null
+                            ? snapshot.getCommunicationStatus()
+                            : null,
 
-                snapshot != null
-                        ? snapshot.getStaleUpdate()
-                        : false,
+                    snapshot != null
+                            ? snapshot.getSignalDelayMinutes()
+                            : null,
 
-                snapshot != null
-                        ? snapshot.getLowBattery()
-                        : false,
+                    snapshot != null
+                            ? snapshot.getStaleUpdate()
+                            : false,
 
-                lastObservation != null
-                        ? lastObservation.getText()
-                        : null,
+                    snapshot != null
+                            ? snapshot.getLowBattery()
+                            : false,
 
-                lastObservation != null
-                        ? lastObservation.getCreatedAt()
-                        : null,
+                    lastObservation != null
+                            ? lastObservation.getText()
+                            : null,
 
-                vehicle.getVehicleGroup(),
+                    lastObservation != null
+                            ? lastObservation.getCreatedAt()
+                            : null,
 
-                activePolicy != null ? activePolicy.getEndDate() : null,
+                    vehicle.getVehicleGroup(),
 
-                activePolicy != null ? PolicyResponse.computeStatus(activePolicy).name() : null,
+                    activePolicy != null ? activePolicy.getEndDate() : null,
 
-                vehicle.getTracknmeImei(),
+                    activePolicy != null ? PolicyResponse.computeStatus(activePolicy).name() : null,
 
-                vehicle.getTracknmeModel(),
+                    vehicle.getTracknmeImei(),
 
-                vehicle.getTracknmeOperator(),
+                    vehicle.getTracknmeModel(),
 
-                vehicle.getTracknmeSimCard(),
+                    vehicle.getTracknmeOperator(),
 
-                vehicle.getTracknmeNumber()
+                    vehicle.getTracknmeSimCard(),
 
-        );
+                    vehicle.getTracknmeNumber()
+
+            );
+
+        } catch (Exception e) {
+            log.error("[GRID] Exception em buildGridResponse placa={} grupo={}: {}",
+                    vehicle.getPlate(), vehicle.getVehicleGroup(), e.getMessage(), e);
+            throw e;
+        }
 
     }
 
