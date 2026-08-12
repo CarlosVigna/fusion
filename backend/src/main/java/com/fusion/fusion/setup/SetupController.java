@@ -3,6 +3,7 @@ package com.fusion.fusion.setup;
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
 import com.fusion.fusion.vehicle.tracknme.TracknMeSyncService;
+import com.fusion.fusion.whatsapp.WhatsAppService;
 import com.fusion.fusion.installation.InstallationStatus;
 import com.fusion.fusion.letter.LetterRecord;
 import com.fusion.fusion.letter.LetterRecordRepository;
@@ -63,6 +64,7 @@ public class SetupController {
     private final InstallationRepository installationRepository;
     private final ServiceOrderService serviceOrderService;
     private final TracknMeSyncService tracknMeSyncService;
+    private final WhatsAppService whatsAppService;
 
     private static final Set<String> MULTIPORTAL_PLATES = Set.of(
         "FXZ9249", "QXX8I71", "FWQ9D54", "QWY7149", "QYJ4B61", "RXZ5F74", "SIE4D31", "TAP2C19", "PDH5I98", "TQU9E05",
@@ -887,6 +889,24 @@ public class SetupController {
             "AND scheduling_status = 'ABERTO'"
         );
         return Map.of("status", "ok", "updated", updated);
+    }
+
+    @GetMapping("/test-whatsapp")
+    public Map<String, Object> testWhatsapp() {
+        Installation fake = new Installation();
+        fake.setCustomerName("João da Silva Teste");
+        fake.setPlate("TST1A23");
+        fake.setModel("VW Gol 2020");
+        fake.setAddress("Rua das Flores, 123");
+        fake.setNeighborhood("Centro");
+        fake.setCity("São Paulo");
+        fake.setState("SP");
+        fake.setZipCode("01310-100");
+        fake.setPhone("11999999999");
+
+        whatsAppService.sendInstallationAlert(fake);
+
+        return Map.of("status", "ok", "message", "Mensagem de teste enviada para o grupo configurado");
     }
 
 }
