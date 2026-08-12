@@ -9,10 +9,12 @@ import com.fusion.fusion.vehicle.tracknme.TracknMeImportResponse;
 import com.fusion.fusion.vehicle.tracknme.TracknMeImportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/vehicles")
 @RequiredArgsConstructor
@@ -84,6 +86,8 @@ public class VehicleController {
             @RequestParam(defaultValue = "false") boolean includeTest,
             @RequestParam(defaultValue = "false") boolean includeTracknMe
     ) {
+
+        log.info("[GRID] Chamado com includeTracknMe={}, includeKako={}, includeTest={}", includeTracknMe, includeKako, includeTest);
 
         return gridService.getGrid(includeKako, includeTest, includeTracknMe);
 
