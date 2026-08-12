@@ -14,6 +14,17 @@ const EMPTY = {
   city: "", state: "", defaultServiceValue: "",
 };
 
+const GEOCODE_KEY = "6a767720c9a23759209230ybg19c2d3";
+async function geocode(address) {
+  try {
+    const url = `https://geocode.maps.co/search?q=${encodeURIComponent(address)}&api_key=${GEOCODE_KEY}&countrycodes=br&limit=1`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    return null;
+  } catch { return null; }
+}
+
 async function fetchCep(cep) {
   const clean = cep.replace(/\D/g, "");
   if (clean.length !== 8) return null;
@@ -77,6 +88,16 @@ export default function Technicians() {
     setSaving(true);
     try {
       const payload = { ...form, defaultServiceValue: form.defaultServiceValue || null };
+
+      const addressParts = [form.address, form.city, form.state].filter(Boolean);
+      if (addressParts.length > 0) {
+        const coords = await geocode(addressParts.join(", "));
+        if (coords) {
+          payload.latitude = coords.lat;
+          payload.longitude = coords.lon;
+        }
+      }
+
       if (modal.mode === "create") await createTechnician(payload);
       else await updateTechnician(modal.id, payload);
       toast.success(modal.mode === "create" ? "Técnico criado" : "Técnico atualizado");
