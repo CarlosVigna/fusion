@@ -223,7 +223,7 @@ public class VehicleGridService {
                     vehicle.getPlatform(),
 
                     snapshot != null
-                            ? snapshot.getOnline()
+                            ? Boolean.TRUE.equals(snapshot.getOnline())
                             : false,
 
                     snapshot != null
@@ -261,11 +261,11 @@ public class VehicleGridService {
                             : null,
 
                     snapshot != null
-                            ? snapshot.getStaleUpdate()
+                            ? Boolean.TRUE.equals(snapshot.getStaleUpdate())
                             : false,
 
                     snapshot != null
-                            ? snapshot.getLowBattery()
+                            ? Boolean.TRUE.equals(snapshot.getLowBattery())
                             : false,
 
                     lastObservation != null
