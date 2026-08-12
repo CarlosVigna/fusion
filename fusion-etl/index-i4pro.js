@@ -5,11 +5,11 @@ const { log } = require('./src/file-utils');
 const { reportHeartbeat } = require('./src/etlStatusReporter');
 
 // ── Variáveis de ambiente ────────────────────────────────────────────────────
-// I4PRO_URL         — URL base do i4pro (ex: https://i4pro.com.br)
-// I4PRO_USER        — usuário de login do i4pro
-// I4PRO_PASSWORD    — senha do i4pro
-// BACKEND_URL       — URL do backend Fusion
-// FUSION_ETL_USER   — e-mail do usuário Fusion com perfil ADMIN
+// I4PRO_URL           — URL do login do i4pro (ex: https://i4pro.usebens.com.br/Default.aspx?)
+// I4PRO_USER          — usuário de login do i4pro
+// I4PRO_PASSWORD      — senha do i4pro
+// BACKEND_URL         — URL do backend Fusion
+// FUSION_ETL_USER     — e-mail do usuário Fusion com perfil ADMIN
 // FUSION_ETL_PASSWORD — senha do usuário Fusion
 
 const I4PRO_URL  = (process.env.I4PRO_URL  || '').replace(/\/$/, '');
@@ -83,43 +83,39 @@ function mostRecentRowIndex(rowTexts, col) {
 
 // ── Playwright ─────────────────────────────────────────────────────────────────
 //
-// Arquitetura do i4pro:
-//   - Menu principal: na página (page) — fora do iframe
-//   - Formulário de consulta e resultados: dentro de um iframe
-//
-// Usamos page.frameLocator('iframe').first() para obter o FrameLocator
-// e então interagimos com todos os elementos do formulário através dele.
+// Arquitetura do i4pro (ASP.NET WebForms):
+//   - O formulário de apólices está na PÁGINA PRINCIPAL (Default.aspx).
+//   - O iframe presente na página (Blank.aspx) está vazio — não contém o form.
+//   - Todos os locators usam `page` diretamente, sem frameLocator.
 
 async function doLogin(page) {
     log('[i4pro] Abrindo login...');
     await page.goto(I4PRO_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    // Campos de login ficam na página principal (não em iframe)
-    await page.fill('input[name="login"], input[type="text"]', I4PRO_USER);
-    await page.fill('input[name="senha"], input[type="password"]', I4PRO_PASS);
+    await page.fill('input[name*="usuario" i], #txtUsuario, input[type="text"]', I4PRO_USER);
+    await page.fill('input[name*="senha" i], #txtSenha, input[type="password"]', I4PRO_PASS);
     await Promise.all([
         page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }),
-        page.click('button[type="submit"], input[type="submit"]'),
+        page.click('input[type="submit"], button[type="submit"]'),
     ]);
     log('[i4pro] Login concluído');
 }
 
 async function navigateToApolices(page) {
     log('[i4pro] Navegando para Emissão > Apólices...');
-    // Menu fica fora do iframe — usa page diretamente
     await page.click('text=Emissão');
     await page.click('text=Apólices');
     await page.waitForTimeout(2000);
-    return page.url(); // URL da página pai (usada para recarregar entre placas)
+    return page.url();
 }
 
-// Extrai texto de todas as células de todas as linhas do tbody
-async function getRowTexts(frame) {
+// Extrai texto de todas as linhas do tbody da tabela de resultados
+async function getRowTexts(page) {
     try {
-        await frame.locator('table tbody tr').first().waitFor({ timeout: 8000 });
+        await page.locator('table tbody tr').first().waitFor({ timeout: 8000 });
     } catch {
         return [];
     }
-    const rows = await frame.locator('table tbody tr').all();
+    const rows = await page.locator('table tbody tr').all();
     const result = [];
     for (const row of rows) {
         const cells = row.locator('td');
@@ -134,8 +130,8 @@ async function getRowTexts(frame) {
 }
 
 // Retorna o índice da coluna "Fim Vigência" no cabeçalho da tabela
-async function findEndDateColumn(frame) {
-    const headers = frame.locator('table thead th, table thead td');
+async function findEndDateColumn(page) {
+    const headers = page.locator('table thead th, table thead td');
     const hCount = await headers.count();
     for (let i = 0; i < hCount; i++) {
         const text = (await headers.nth(i).innerText()).toLowerCase();
@@ -145,8 +141,7 @@ async function findEndDateColumn(frame) {
 }
 
 // Extrai nome, CPF, nº apólice e vigências das abas Cliente e Endossos
-// Todos os elementos estão dentro do iframe (frame = FrameLocator)
-async function extractDetail(page, frame) {
+async function extractDetail(page) {
     const detail = {
         policyNumber : null,
         insuredName  : null,
@@ -155,20 +150,19 @@ async function extractDetail(page, frame) {
         endDate      : null,
     };
 
-    // Nº apólice pode estar no cabeçalho da tela de detalhe
-    const numEl = frame.locator('input[name*="apolice" i], input[id*="apolice" i]').first();
+    // Nº apólice — pode estar no cabeçalho da tela de detalhe
+    const numEl = page.locator('input[name*="apolice" i], input[id*="apolice" i]').first();
     if (await numEl.count() > 0) {
         detail.policyNumber = (await numEl.inputValue().catch(() => '')).trim() || null;
     }
 
     // ── Aba "Cliente" — nome e CPF/CNPJ ──────────────────────────────────────
-    const clienteTab = frame.locator('[role="tab"], a, li').filter({ hasText: /^cliente$/i }).first();
+    const clienteTab = page.locator('[role="tab"], a, li').filter({ hasText: /^cliente$/i }).first();
     if (await clienteTab.count() > 0) {
         await clienteTab.click();
-        // Aguarda campo de nome aparecer no iframe
-        await frame.locator('input[name*="nome" i]').first().waitFor({ timeout: 5000 }).catch(() => {});
+        await page.locator('input[name*="nome" i]').first().waitFor({ timeout: 5000 }).catch(() => {});
 
-        const nomeEl = frame.locator(
+        const nomeEl = page.locator(
             'input[name*="nome" i]:not([name*="social" i]), ' +
             'input[id*="nome" i]:not([id*="social" i])'
         ).first();
@@ -176,7 +170,7 @@ async function extractDetail(page, frame) {
             detail.insuredName = (await nomeEl.inputValue()).trim() || null;
         }
 
-        const cpfEl = frame.locator(
+        const cpfEl = page.locator(
             'input[name*="cpf" i], input[id*="cpf" i], ' +
             'input[name*="cnpj" i], input[id*="cnpj" i]'
         ).first();
@@ -187,19 +181,17 @@ async function extractDetail(page, frame) {
     }
 
     // ── Aba "Endossos" — nº apólice/endosso e vigências ──────────────────────
-    const endossosTab = frame.locator('[role="tab"], a, li').filter({ hasText: /endosso/i }).first();
+    const endossosTab = page.locator('[role="tab"], a, li').filter({ hasText: /endosso/i }).first();
     if (await endossosTab.count() > 0) {
         await endossosTab.click();
         await page.waitForTimeout(700);
 
-        const eRows = await getRowTexts(frame);
+        const eRows = await getRowTexts(page);
         if (eRows.length > 0) {
             for (const cell of eRows[0]) {
-                // Número da apólice/endosso
                 if (!detail.policyNumber && /^\d[\d\-\/]{3,}$/.test(cell)) {
                     detail.policyNumber = cell;
                 }
-                // Datas no formato BR
                 const dateMatch = cell.match(/\d{2}\/\d{2}\/\d{4}/);
                 if (dateMatch) {
                     const iso = parseBrDate(dateMatch[0]);
@@ -213,45 +205,39 @@ async function extractDetail(page, frame) {
     return detail;
 }
 
-// Processa uma única placa dentro do iframe
+// Processa uma única placa — formulário na página principal (sem frameLocator)
 async function processPlate(page, plate, searchUrl) {
     try {
-        // Recarrega a página de pesquisa (refresca o iframe junto)
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(2000);
 
-        // Obtém o FrameLocator do iframe principal do i4pro
-        const frame = page.frameLocator('iframe#ifrmJanela');
-
         // ── Seleciona Ramo 31-AUTO ────────────────────────────────────────────
-        // i4pro usa tabela HTML: <td>Ramo</td><td><select>...</select></td>
-        await frame.locator('td:has-text("Ramo") + td select').selectOption({ label: '31-AUTO' });
+        await page.locator('select').filter({ hasText: 'AUTO' }).selectOption({ label: '31-AUTO' });
 
         // ── Preenche a placa ──────────────────────────────────────────────────
-        // i4pro usa tabela HTML: <td>Placa do Veículo</td><td><input/></td>
-        await frame.locator('td:has-text("Placa do Veículo") + td input').fill(plate);
+        await page.locator('tr:has-text("Placa do Veículo") input').fill(plate);
 
         // ── Clica Pesquisar ───────────────────────────────────────────────────
-        await frame.locator('input[type="submit"][value="Pesquisar"], button:has-text("Pesquisar")').click();
+        await page.click('input[value="Pesquisar"], button:has-text("Pesquisar")');
         await page.waitForTimeout(2000);
 
         // ── Verifica resultados ───────────────────────────────────────────────
-        const rowTexts = await getRowTexts(frame);
+        const rowTexts = await getRowTexts(page);
         if (rowTexts.length === 0) {
             log(`[i4pro] Não encontrada: ${plate}`);
             return null;
         }
 
         // Escolhe a apólice com Fim Vigência mais recente
-        const endDateCol = await findEndDateColumn(frame);
+        const endDateCol = await findEndDateColumn(page);
         const bestIdx    = endDateCol >= 0 ? mostRecentRowIndex(rowTexts, endDateCol) : 0;
 
         // ── Abre o detalhe da apólice (clique na linha) ───────────────────────
-        const allRows = await frame.locator('table tbody tr').all();
+        const allRows = await page.locator('table tbody tr').all();
         await allRows[bestIdx].click();
         await page.waitForTimeout(1500);
 
-        return await extractDetail(page, frame);
+        return await extractDetail(page);
     } catch (err) {
         log(`[i4pro] Erro ao processar ${plate}: ${err.message}`);
         return null;

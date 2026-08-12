@@ -20,6 +20,12 @@ async function reportHeartbeat({
         return;
     }
 
+    // ETL_API_KEY ausente → backend rejeita com 401. Confirmar que a variável
+    // está configurada no Railway tanto no backend quanto no ETL com o mesmo valor.
+    if (!ETL_API_KEY) {
+        log(`[HEARTBEAT] AVISO: ETL_API_KEY não configurada — heartbeat será rejeitado pelo backend (401)`);
+    }
+
     try {
 
         await axios.post(`${BACKEND_URL}/etl/heartbeat`, {
