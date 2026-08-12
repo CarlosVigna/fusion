@@ -220,35 +220,19 @@ async function processPlate(page, plate, searchUrl) {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(2000);
 
-        // Obtém o FrameLocator do iframe principal
-        const frame = page.frameLocator('iframe').first();
+        // Obtém o FrameLocator do iframe principal do i4pro
+        const frame = page.frameLocator('iframe#ifrmJanela');
 
         // ── Seleciona Ramo 31-AUTO ────────────────────────────────────────────
-        const ramoSel = frame.locator('select[name*="ramo" i], select[id*="ramo" i]').first();
-        if (await ramoSel.count() > 0) {
-            const options = await ramoSel.locator('option').allInnerTexts();
-            const ramo31  = options.find(o => /31/i.test(o));
-            if (ramo31) await ramoSel.selectOption({ label: ramo31 });
-        } else {
-            // Tenta getByLabel como fallback
-            const ramoLabel = frame.getByLabel(/ramo/i).first();
-            if (await ramoLabel.count() > 0) {
-                await ramoLabel.selectOption({ label: /31/i });
-            }
-        }
+        // i4pro usa tabela HTML: <td>Ramo</td><td><select>...</select></td>
+        await frame.locator('td:has-text("Ramo") + td select').selectOption({ label: '31-AUTO' });
 
         // ── Preenche a placa ──────────────────────────────────────────────────
-        const placaInput = frame.locator(
-            'input[name*="placa" i], input[id*="placa" i], input[placeholder*="placa" i]'
-        ).first();
-        if (await placaInput.count() > 0) {
-            await placaInput.fill(plate);
-        } else {
-            await frame.getByLabel(/placa/i).first().fill(plate);
-        }
+        // i4pro usa tabela HTML: <td>Placa do Veículo</td><td><input/></td>
+        await frame.locator('td:has-text("Placa do Veículo") + td input').fill(plate);
 
         // ── Clica Pesquisar ───────────────────────────────────────────────────
-        await frame.getByRole('button', { name: /pesquisar/i }).click();
+        await frame.locator('input[type="submit"][value="Pesquisar"], button:has-text("Pesquisar")').click();
         await page.waitForTimeout(2000);
 
         // ── Verifica resultados ───────────────────────────────────────────────
