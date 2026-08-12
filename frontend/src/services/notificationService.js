@@ -17,6 +17,24 @@ export function notifyNewInstallation(installation) {
   };
 }
 
+export function notifyI4ProComplete(populated, notFound) {
+  if (Notification.permission !== 'granted') return;
+  const total = populated + notFound;
+  const body = total > 0
+    ? `${populated} de ${total} placa(s) com apólice encontrada` +
+      (notFound > 0 ? ` (${notFound} não encontradas)` : '')
+    : 'Nenhuma placa pendente processada';
+  const n = new Notification('Fusion — Apólices i4pro', {
+    body,
+    icon: '/favicon.ico',
+    tag: 'i4pro-complete',
+  });
+  n.onclick = () => {
+    window.focus();
+    window.location.href = '/tracknme/pending';
+  };
+}
+
 export function notifyInstallationsNew(delta) {
   if (Notification.permission !== 'granted') return;
   const n = new Notification('Fusion — Nova Instalação', {

@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { MapPin, X } from "lucide-react";
 
 import { apiClient } from "../services/api/apiClient";
+import { triggerI4Pro } from "../services/importStatusService";
 
 const EMPTY_FORM = {
   insuredName: "",
@@ -22,6 +23,7 @@ export default function TracknMePending() {
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [i4proLoading, setI4proLoading] = useState({});
 
   useEffect(() => {
     fetchPending();
@@ -99,6 +101,21 @@ export default function TracknMePending() {
     }
   }
 
+  async function handleI4Pro(plate) {
+    setI4proLoading(prev => ({ ...prev, [plate]: true }));
+    try {
+      await triggerI4Pro(plate);
+      toast(`Buscando apólice de ${plate} no i4pro...`, { icon: "🔍" });
+      // Recarrega a lista após 30s para refletir dados populados
+      setTimeout(() => fetchPending(), 30000);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Erro ao buscar ${plate} no i4pro`);
+    } finally {
+      setI4proLoading(prev => ({ ...prev, [plate]: false }));
+    }
+  }
+
   return (
     <div className="space-y-6">
 
@@ -148,7 +165,7 @@ export default function TracknMePending() {
                 <th className="px-4 py-3 text-left">Placa</th>
                 <th className="px-4 py-3 text-left">Device ID</th>
                 <th className="px-4 py-3 text-left">Cadastrado em</th>
-                <th className="px-4 py-3 text-right">Ação</th>
+                <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
 
@@ -170,17 +187,33 @@ export default function TracknMePending() {
                       : "--"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => openModal(v)}
-                      className="
-                        rounded-xl border border-cyan-500/30
-                        bg-cyan-500/10 px-3 py-1.5
-                        text-xs font-semibold text-cyan-400
-                        transition hover:bg-cyan-500/20
-                      "
-                    >
-                      Cadastrar
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleI4Pro(v.plate)}
+                        disabled={!!i4proLoading[v.plate]}
+                        title="Buscar apólice no i4pro"
+                        className="
+                          rounded-xl border border-zinc-600
+                          bg-zinc-800 px-3 py-1.5
+                          text-xs font-semibold text-zinc-300
+                          transition hover:bg-zinc-700
+                          disabled:opacity-50
+                        "
+                      >
+                        {i4proLoading[v.plate] ? "⏳" : "🔍"} i4pro
+                      </button>
+                      <button
+                        onClick={() => openModal(v)}
+                        className="
+                          rounded-xl border border-cyan-500/30
+                          bg-cyan-500/10 px-3 py-1.5
+                          text-xs font-semibold text-cyan-400
+                          transition hover:bg-cyan-500/20
+                        "
+                      >
+                        Cadastrar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

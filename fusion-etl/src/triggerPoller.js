@@ -107,6 +107,53 @@ async function pollOnce(runners) {
 
     }
 
+    // Busca de apolices i4pro — recebe placa opcional (null = bulk).
+    // Retorna {populated, notFound} incluido no heartbeat de resultado.
+    if (data?.type === 'I4PRO_TRACKNME') {
+
+        running = true;
+
+        const startedAt    = Date.now();
+        const triggerPlate = data.triggerPlate || null;
+
+        log(`[POLL] Busca i4pro recebida (placa=${triggerPlate || 'bulk'})`);
+
+        await reportHeartbeat({ type: 'I4PRO_TRACKNME', status: 'RUNNING' });
+
+        try {
+
+            const { populated, notFound } = await require('../index-i4pro').run(triggerPlate);
+
+            await reportHeartbeat({
+                type: 'I4PRO_TRACKNME',
+                status: 'SUCCESS',
+                durationMs: Date.now() - startedAt,
+                recordsProcessed: populated,
+            });
+
+            log(`[POLL] i4pro concluido — ${populated} populadas, ${notFound} nao encontradas`);
+
+        } catch (error) {
+
+            await reportHeartbeat({
+                type: 'I4PRO_TRACKNME',
+                status: 'ERROR',
+                durationMs: Date.now() - startedAt,
+                error: error.message,
+            });
+
+        } finally {
+
+            running = false;
+
+        }
+
+        setTimeout(() => pollOnce(runners), 500);
+
+        return;
+
+    }
+
     // Analise de Sinistro — job parametrizado (placa/periodo), por isso
     // nao cabe no mapa fixo de runners por ImportType. Nao usa o
     // heartbeat de EtlStatus: o proprio index-sinistro.js reporta

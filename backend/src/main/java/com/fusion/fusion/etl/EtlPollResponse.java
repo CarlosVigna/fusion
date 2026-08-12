@@ -7,6 +7,8 @@ public record EtlPollResponse(
 
         ImportType type,
 
+        String triggerPlate,
+
         SinistroJobPayload sinistroJob
 
 ) {

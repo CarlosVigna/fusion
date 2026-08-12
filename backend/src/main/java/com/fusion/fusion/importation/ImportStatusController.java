@@ -93,7 +93,8 @@ public class ImportStatusController {
     // o scrape de fato rodar.
     @PostMapping("/trigger")
     public ResponseEntity<Map<String, String>> trigger(
-            @RequestParam(required = false) ImportType type
+            @RequestParam(required = false) ImportType type,
+            @RequestParam(required = false) String plate
     ) {
 
         try {
@@ -111,6 +112,16 @@ public class ImportStatusController {
                 return ResponseEntity.ok(Map.of(
                         "status", "SUCCESS",
                         "message", "Sync de dispositivos TracknMe concluído"
+                ));
+            }
+
+            if (type == ImportType.I4PRO_TRACKNME) {
+                etlTriggerService.request(type, plate);
+                return ResponseEntity.ok(Map.of(
+                        "status", "SUCCESS",
+                        "message", plate != null
+                                ? "Busca i4pro solicitada para placa " + plate + " — ETL vai processar em breve"
+                                : "Busca i4pro em massa solicitada — ETL vai processar em breve"
                 ));
             }
 
@@ -220,6 +231,10 @@ public class ImportStatusController {
 
                 case INSTALACOES -> throw new IllegalArgumentException(
                         "Tipo INSTALACOES não suporta upload manual"
+                );
+
+                case I4PRO_TRACKNME -> throw new IllegalArgumentException(
+                        "Tipo I4PRO_TRACKNME não suporta upload manual"
                 );
 
             };

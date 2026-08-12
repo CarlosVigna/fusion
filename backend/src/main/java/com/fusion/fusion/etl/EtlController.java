@@ -38,9 +38,11 @@ public class EtlController {
             return unauthorized();
         }
 
+        var trigger = triggerService.poll();
         return ResponseEntity.ok(
                 new EtlPollResponse(
-                        triggerService.poll().orElse(null),
+                        trigger.map(EtlTriggerService.EtlTriggerPayload::type).orElse(null),
+                        trigger.map(EtlTriggerService.EtlTriggerPayload::plate).orElse(null),
                         sinistroAnalysisService.claimNextPending().orElse(null)
                 )
         );

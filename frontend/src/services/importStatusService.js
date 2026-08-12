@@ -1,5 +1,16 @@
 import { apiClient } from "./api/apiClient";
 
+export async function getEtlStatus() {
+  return apiClient.get("/etl/status");
+}
+
+export async function triggerI4Pro(plate) {
+  const q = plate
+    ? `?type=I4PRO_TRACKNME&plate=${encodeURIComponent(plate)}`
+    : "?type=I4PRO_TRACKNME";
+  return apiClient.post(`/imports/trigger${q}`);
+}
+
 export async function getRecentImportDiffs() {
   return apiClient.get("/imports/diff/recent");
 }
