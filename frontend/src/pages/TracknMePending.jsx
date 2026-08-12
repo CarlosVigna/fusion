@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import toast from "react-hot-toast";
 
 import { MapPin, X } from "lucide-react";
 
 import { apiClient } from "../services/api/apiClient";
-import { triggerI4Pro } from "../services/importStatusService";
+import { triggerI4Pro, getEtlStatus } from "../services/importStatusService";
 
 const EMPTY_FORM = {
   insuredName: "",
@@ -16,6 +16,9 @@ const EMPTY_FORM = {
   notes: "",
 };
 
+const POLL_INTERVAL_MS = 3000;
+const POLL_TIMEOUT_MS  = 120000; // 2 min
+
 export default function TracknMePending() {
 
   const [vehicles, setVehicles] = useState([]);
@@ -23,10 +26,17 @@ export default function TracknMePending() {
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [i4proLoading, setI4proLoading] = useState({});
+
+  // { [plate]: { phase: 'searching'|'done'|'notfound'|'error', message: string } }
+  const [i4proState, setI4proState] = useState({});
+
+  const pollRefs = useRef({});
 
   useEffect(() => {
     fetchPending();
+    return () => {
+      Object.values(pollRefs.current).forEach(clearInterval);
+    };
   }, []);
 
   async function fetchPending() {
@@ -42,6 +52,18 @@ export default function TracknMePending() {
     }
   }
 
+  function setPlateState(plate, phase, message = "") {
+    setI4proState(prev => ({ ...prev, [plate]: { phase, message } }));
+  }
+
+  function clearPlateState(plate) {
+    setI4proState(prev => {
+      const next = { ...prev };
+      delete next[plate];
+      return next;
+    });
+  }
+
   function openModal(vehicle) {
     setSelected(vehicle);
     setForm(EMPTY_FORM);
@@ -53,7 +75,7 @@ export default function TracknMePending() {
   }
 
   function setField(field, value) {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm(prev => ({ ...prev, [field]: value }));
   }
 
   async function handleSave() {
@@ -64,13 +86,11 @@ export default function TracknMePending() {
 
     setSaving(true);
     try {
-      // 1. Atualiza insuredName (e notes se preenchido) no veículo
       await apiClient.put(`/vehicles/${selected.plate}`, {
         insuredName: form.insuredName.trim(),
         notes: form.notes.trim() || null,
       });
 
-      // 2. Cria apólice se policyNumber ou datas foram preenchidos
       const hasPolicy =
         form.policyNumber.trim() ||
         form.startDate ||
@@ -102,22 +122,167 @@ export default function TracknMePending() {
   }
 
   async function handleI4Pro(plate) {
-    setI4proLoading(prev => ({ ...prev, [plate]: true }));
+    // Cancela polling anterior desta placa se houver
+    if (pollRefs.current[plate]) {
+      clearInterval(pollRefs.current[plate]);
+      delete pollRefs.current[plate];
+    }
+
+    setPlateState(plate, "searching", "Buscando no i4pro...");
+    const triggeredAt = Date.now();
+
     try {
       await triggerI4Pro(plate);
-      toast(`Buscando apólice de ${plate} no i4pro...`, { icon: "🔍" });
-      // Recarrega a lista após 30s para refletir dados populados
-      setTimeout(() => fetchPending(), 30000);
     } catch (err) {
       console.error(err);
-      toast.error(`Erro ao buscar ${plate} no i4pro`);
-    } finally {
-      setI4proLoading(prev => ({ ...prev, [plate]: false }));
+      setPlateState(plate, "error", "Erro ao acionar ETL");
+      return;
     }
+
+    let elapsed = 0;
+
+    pollRefs.current[plate] = setInterval(async () => {
+      elapsed += POLL_INTERVAL_MS;
+
+      if (elapsed > POLL_TIMEOUT_MS) {
+        clearInterval(pollRefs.current[plate]);
+        delete pollRefs.current[plate];
+        setPlateState(plate, "error", "Tempo esgotado — tente novamente");
+        return;
+      }
+
+      try {
+        const statuses = await getEtlStatus();
+        const entry = statuses.find(s => s.type === "I4PRO_TRACKNME");
+        if (!entry) return;
+
+        // Ignora status anterior ao nosso trigger
+        const updatedAt = new Date(entry.updatedAt).getTime();
+        if (updatedAt < triggeredAt) return;
+
+        if (entry.status === "RUNNING") {
+          setPlateState(plate, "searching", "Processando no i4pro...");
+          return;
+        }
+
+        clearInterval(pollRefs.current[plate]);
+        delete pollRefs.current[plate];
+
+        if (entry.status === "SUCCESS") {
+          setPlateState(plate, "searching", "Verificando resultado...");
+          await new Promise(r => setTimeout(r, 1000));
+
+          const pending = await apiClient.get("/tracknme/pending");
+          const stillPending = pending.some(v => v.plate === plate);
+
+          if (stillPending) {
+            setPlateState(plate, "notfound", "Não encontrado no i4pro");
+          } else {
+            setPlateState(plate, "done", "Cadastrado com sucesso!");
+            setVehicles(prev => prev.filter(v => v.plate !== plate));
+          }
+        } else {
+          setPlateState(plate, "error", entry.lastError || "Erro no ETL");
+        }
+      } catch (_) {
+        // Ignora erros de polling silenciosamente
+      }
+    }, POLL_INTERVAL_MS);
+  }
+
+  function renderI4ProCell(v) {
+    const state = i4proState[v.plate];
+
+    if (state?.phase === "searching") {
+      return (
+        <div className="flex min-w-[170px] flex-col gap-1.5">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-700">
+            <div
+              className="h-full rounded-full bg-cyan-500"
+              style={{ animation: "i4pro-sweep 1.4s ease-in-out infinite", width: "45%" }}
+            />
+          </div>
+          <span className="text-xs text-zinc-400">{state.message}</span>
+        </div>
+      );
+    }
+
+    if (state?.phase === "done") {
+      return (
+        <span className="text-xs font-semibold text-emerald-400">
+          ✅ {state.message}
+        </span>
+      );
+    }
+
+    if (state?.phase === "notfound") {
+      return (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-red-400">❌ {state.message}</span>
+          <button
+            onClick={() => clearPlateState(v.plate)}
+            className="text-xs text-zinc-500 hover:text-zinc-300"
+            title="Fechar"
+          >
+            ↩
+          </button>
+        </div>
+      );
+    }
+
+    if (state?.phase === "error") {
+      return (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-yellow-400">⚠️ {state.message}</span>
+          <button
+            onClick={() => handleI4Pro(v.plate)}
+            className="text-xs text-zinc-400 underline hover:text-zinc-200"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={() => handleI4Pro(v.plate)}
+          title="Buscar apólice no i4pro"
+          className="
+            rounded-xl border border-zinc-600
+            bg-zinc-800 px-3 py-1.5
+            text-xs font-semibold text-zinc-300
+            transition hover:bg-zinc-700
+          "
+        >
+          🔍 i4pro
+        </button>
+        <button
+          onClick={() => openModal(v)}
+          className="
+            rounded-xl border border-cyan-500/30
+            bg-cyan-500/10 px-3 py-1.5
+            text-xs font-semibold text-cyan-400
+            transition hover:bg-cyan-500/20
+          "
+        >
+          Cadastrar
+        </button>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
+
+      {/* Keyframe da barra de progresso indeterminada */}
+      <style>{`
+        @keyframes i4pro-sweep {
+          0%   { transform: translateX(-120%); }
+          100% { transform: translateX(300%); }
+        }
+      `}</style>
 
       <div
         className="
@@ -170,15 +335,15 @@ export default function TracknMePending() {
             </thead>
 
             <tbody>
-              {vehicles.map((v) => (
+              {vehicles.map(v => (
                 <tr
                   key={v.plate}
-                  className="border-t border-zinc-800 hover:bg-zinc-800/40 transition"
+                  className="border-t border-zinc-800 transition hover:bg-zinc-800/40"
                 >
                   <td className="px-4 py-3 font-mono font-semibold">
                     {v.plate}
                   </td>
-                  <td className="px-4 py-3 text-zinc-400 font-mono text-xs">
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-400">
                     {v.tracknmeDeviceId || "--"}
                   </td>
                   <td className="px-4 py-3 text-zinc-400">
@@ -187,33 +352,7 @@ export default function TracknMePending() {
                       : "--"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleI4Pro(v.plate)}
-                        disabled={!!i4proLoading[v.plate]}
-                        title="Buscar apólice no i4pro"
-                        className="
-                          rounded-xl border border-zinc-600
-                          bg-zinc-800 px-3 py-1.5
-                          text-xs font-semibold text-zinc-300
-                          transition hover:bg-zinc-700
-                          disabled:opacity-50
-                        "
-                      >
-                        {i4proLoading[v.plate] ? "⏳" : "🔍"} i4pro
-                      </button>
-                      <button
-                        onClick={() => openModal(v)}
-                        className="
-                          rounded-xl border border-cyan-500/30
-                          bg-cyan-500/10 px-3 py-1.5
-                          text-xs font-semibold text-cyan-400
-                          transition hover:bg-cyan-500/20
-                        "
-                      >
-                        Cadastrar
-                      </button>
-                    </div>
+                    {renderI4ProCell(v)}
                   </td>
                 </tr>
               ))}
@@ -238,7 +377,7 @@ export default function TracknMePending() {
               border border-zinc-700
               bg-zinc-900 p-6 shadow-2xl
             "
-            onClick={(e) => e.stopPropagation()}
+            onClick={e => e.stopPropagation()}
           >
 
             <div className="mb-5 flex items-center justify-between">
@@ -246,7 +385,7 @@ export default function TracknMePending() {
                 <h2 className="text-base font-semibold">
                   Cadastrar segurado
                 </h2>
-                <p className="text-xs text-zinc-500 font-mono">
+                <p className="font-mono text-xs text-zinc-500">
                   {selected.plate}
                 </p>
               </div>
@@ -267,7 +406,7 @@ export default function TracknMePending() {
                 <input
                   type="text"
                   value={form.insuredName}
-                  onChange={(e) => setField("insuredName", e.target.value)}
+                  onChange={e => setField("insuredName", e.target.value)}
                   placeholder="Ex: João da Silva"
                   className="
                     w-full rounded-xl border border-zinc-700
@@ -287,7 +426,7 @@ export default function TracknMePending() {
                   <input
                     type="text"
                     value={form.cpfCnpj}
-                    onChange={(e) => setField("cpfCnpj", e.target.value)}
+                    onChange={e => setField("cpfCnpj", e.target.value)}
                     placeholder="000.000.000-00"
                     className="
                       w-full rounded-xl border border-zinc-700
@@ -305,7 +444,7 @@ export default function TracknMePending() {
                   <input
                     type="text"
                     value={form.policyNumber}
-                    onChange={(e) => setField("policyNumber", e.target.value)}
+                    onChange={e => setField("policyNumber", e.target.value)}
                     placeholder="Ex: 123456"
                     className="
                       w-full rounded-xl border border-zinc-700
@@ -327,7 +466,7 @@ export default function TracknMePending() {
                   <input
                     type="date"
                     value={form.startDate}
-                    onChange={(e) => setField("startDate", e.target.value)}
+                    onChange={e => setField("startDate", e.target.value)}
                     className="
                       w-full rounded-xl border border-zinc-700
                       bg-zinc-800 px-3 py-2 text-sm
@@ -344,7 +483,7 @@ export default function TracknMePending() {
                   <input
                     type="date"
                     value={form.endDate}
-                    onChange={(e) => setField("endDate", e.target.value)}
+                    onChange={e => setField("endDate", e.target.value)}
                     className="
                       w-full rounded-xl border border-zinc-700
                       bg-zinc-800 px-3 py-2 text-sm
@@ -362,14 +501,14 @@ export default function TracknMePending() {
                 </label>
                 <textarea
                   value={form.notes}
-                  onChange={(e) => setField("notes", e.target.value)}
+                  onChange={e => setField("notes", e.target.value)}
                   placeholder="Informações adicionais..."
                   rows={3}
                   className="
-                    w-full rounded-xl border border-zinc-700
+                    w-full resize-none rounded-xl border border-zinc-700
                     bg-zinc-800 px-3 py-2 text-sm
                     outline-none placeholder:text-zinc-600
-                    focus:border-cyan-500/50 resize-none
+                    focus:border-cyan-500/50
                   "
                 />
               </div>

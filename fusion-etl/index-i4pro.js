@@ -5,11 +5,11 @@ const { log } = require('./src/file-utils');
 const { reportHeartbeat } = require('./src/etlStatusReporter');
 
 // ── Variáveis de ambiente ────────────────────────────────────────────────────
-// I4PRO_URL           — URL do login do i4pro (ex: https://i4pro.usebens.com.br/Default.aspx?)
-// I4PRO_USER          — usuário de login do i4pro
-// I4PRO_PASSWORD      — senha do i4pro
+// I4PRO_URL           — URL base do i4pro (ex: https://i4pro.usebens.com.br)
+// I4PRO_USER          — nm_usuario de login
+// I4PRO_PASSWORD      — senha
 // BACKEND_URL         — URL do backend Fusion
-// FUSION_ETL_USER     — e-mail do usuário Fusion com perfil ADMIN
+// FUSION_ETL_USER     — e-mail do usuário Fusion (ADMIN)
 // FUSION_ETL_PASSWORD — senha do usuário Fusion
 
 const I4PRO_URL  = (process.env.I4PRO_URL  || '').replace(/\/$/, '');
@@ -61,7 +61,7 @@ async function saveToFusion(plate, policy, token) {
     }
 }
 
-// ── Helpers de data ───────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 // "DD/MM/YYYY" → "YYYY-MM-DD"
 function parseBrDate(str) {
@@ -70,174 +70,152 @@ function parseBrDate(str) {
     return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
 }
 
-// Retorna o índice da linha com a data mais recente na coluna [col]
-function mostRecentRowIndex(rowTexts, col) {
-    let bestIdx = 0;
-    let bestDate = '';
-    rowTexts.forEach((row, i) => {
-        const iso = parseBrDate(row[col]);
-        if (iso && iso > bestDate) { bestDate = iso; bestIdx = i; }
-    });
-    return bestIdx;
+// DD/MM/YYYY → Date (para comparação)
+function parseBrDateObj(str) {
+    if (!str) return new Date(0);
+    const [dd, mm, yyyy] = str.split('/');
+    return new Date(+yyyy, +mm - 1, +dd);
 }
 
-// ── Playwright ─────────────────────────────────────────────────────────────────
+// ── Playwright ────────────────────────────────────────────────────────────────
 //
 // Arquitetura do i4pro (ASP.NET WebForms):
-//   - O formulário de apólices está na PÁGINA PRINCIPAL (Default.aspx).
-//   - O iframe presente na página (Blank.aspx) está vazio — não contém o form.
-//   - Todos os locators usam `page` diretamente, sem frameLocator.
+//   - Login e menu: página principal (Default.aspx)
+//   - Formulário de apólices: frames[1] (segundo iframe da página)
+//   - Todos os elementos dentro de frames[1] são acessados via page.evaluate()
+//     usando window.frames[1].document — sem frameLocator do Playwright.
 
 async function doLogin(page) {
-    log('[i4pro] Abrindo login...');
-    await page.goto(I4PRO_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.fill('input[name*="usuario" i], #txtUsuario, input[type="text"]', I4PRO_USER);
-    await page.fill('input[name*="senha" i], #txtSenha, input[type="password"]', I4PRO_PASS);
-    await Promise.all([
-        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }),
-        page.click('input[type="submit"], button[type="submit"]'),
-    ]);
+    log('[i4pro] Fazendo login...');
+    await page.goto(`${I4PRO_URL}/Default.aspx?`, {
+        waitUntil: 'domcontentloaded',
+        timeout  : 30000,
+    });
+    await page.evaluate((user, pass) => {
+        const loginEl = document.querySelector('input[name="nm_usuario"], #txtLogin');
+        if (loginEl) loginEl.value = user;
+        const passEl = document.querySelector('input[type="password"]');
+        if (passEl) passEl.value = pass;
+        const btn = document.querySelector('input[type="submit"], button[type="submit"]');
+        if (btn) btn.click();
+    }, I4PRO_USER, I4PRO_PASS);
+    await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 });
     log('[i4pro] Login concluído');
 }
 
 async function navigateToApolices(page) {
     log('[i4pro] Navegando para Emissão > Apólices...');
-    await page.click('text=Emissão');
-    await page.click('text=Apólices');
+    // Clique no menu da página principal (fora dos frames)
+    await page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll('a, li'));
+        const el = links.find(l => l.innerText?.trim() === 'Emissão');
+        el?.click();
+    });
+    await page.waitForTimeout(500);
+    await page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll('a'));
+        const el = links.find(l => l.innerText?.trim() === 'Apólices');
+        el?.click();
+    });
     await page.waitForTimeout(2000);
     return page.url();
 }
 
-// Extrai texto de todas as linhas do tbody da tabela de resultados
-async function getRowTexts(page) {
-    try {
-        await page.locator('table tbody tr').first().waitFor({ timeout: 8000 });
-    } catch {
-        return [];
-    }
-    const rows = await page.locator('table tbody tr').all();
-    const result = [];
-    for (const row of rows) {
-        const cells = row.locator('td');
-        const count = await cells.count();
-        const texts = [];
-        for (let c = 0; c < count; c++) {
-            texts.push((await cells.nth(c).innerText()).trim());
-        }
-        result.push(texts);
-    }
-    return result;
-}
-
-// Retorna o índice da coluna "Fim Vigência" no cabeçalho da tabela
-async function findEndDateColumn(page) {
-    const headers = page.locator('table thead th, table thead td');
-    const hCount = await headers.count();
-    for (let i = 0; i < hCount; i++) {
-        const text = (await headers.nth(i).innerText()).toLowerCase();
-        if (/fim|vigência|venciment/.test(text)) return i;
-    }
-    return -1;
-}
-
-// Extrai nome, CPF, nº apólice e vigências das abas Cliente e Endossos
-async function extractDetail(page) {
-    const detail = {
-        policyNumber : null,
-        insuredName  : null,
-        cpfCnpj      : null,
-        startDate    : null,
-        endDate      : null,
-    };
-
-    // Nº apólice — pode estar no cabeçalho da tela de detalhe
-    const numEl = page.locator('input[name*="apolice" i], input[id*="apolice" i]').first();
-    if (await numEl.count() > 0) {
-        detail.policyNumber = (await numEl.inputValue().catch(() => '')).trim() || null;
-    }
-
-    // ── Aba "Cliente" — nome e CPF/CNPJ ──────────────────────────────────────
-    const clienteTab = page.locator('[role="tab"], a, li').filter({ hasText: /^cliente$/i }).first();
-    if (await clienteTab.count() > 0) {
-        await clienteTab.click();
-        await page.locator('input[name*="nome" i]').first().waitFor({ timeout: 5000 }).catch(() => {});
-
-        const nomeEl = page.locator(
-            'input[name*="nome" i]:not([name*="social" i]), ' +
-            'input[id*="nome" i]:not([id*="social" i])'
-        ).first();
-        if (await nomeEl.count() > 0) {
-            detail.insuredName = (await nomeEl.inputValue()).trim() || null;
-        }
-
-        const cpfEl = page.locator(
-            'input[name*="cpf" i], input[id*="cpf" i], ' +
-            'input[name*="cnpj" i], input[id*="cnpj" i]'
-        ).first();
-        if (await cpfEl.count() > 0) {
-            const raw = (await cpfEl.inputValue()).replace(/\D/g, '');
-            detail.cpfCnpj = raw || null;
-        }
-    }
-
-    // ── Aba "Endossos" — nº apólice/endosso e vigências ──────────────────────
-    const endossosTab = page.locator('[role="tab"], a, li').filter({ hasText: /endosso/i }).first();
-    if (await endossosTab.count() > 0) {
-        await endossosTab.click();
-        await page.waitForTimeout(700);
-
-        const eRows = await getRowTexts(page);
-        if (eRows.length > 0) {
-            for (const cell of eRows[0]) {
-                if (!detail.policyNumber && /^\d[\d\-\/]{3,}$/.test(cell)) {
-                    detail.policyNumber = cell;
-                }
-                const dateMatch = cell.match(/\d{2}\/\d{2}\/\d{4}/);
-                if (dateMatch) {
-                    const iso = parseBrDate(dateMatch[0]);
-                    if (!detail.startDate) detail.startDate = iso;
-                    else if (!detail.endDate) detail.endDate = iso;
-                }
-            }
-        }
-    }
-
-    return detail;
-}
-
-// Processa uma única placa — formulário na página principal (sem frameLocator)
+// Pesquisa uma placa e retorna dados da apólice mais recente
 async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(2000);
 
-        // ── Seleciona Ramo 31-AUTO ────────────────────────────────────────────
-        await page.locator('select').filter({ hasText: 'AUTO' }).selectOption({ label: '31-AUTO' });
+        // ── Preencher formulário dentro de frames[1] ──────────────────────────
+        await page.evaluate((p) => {
+            const doc = window.frames[1].document;
+            const ramoSel = doc.getElementById('id_ramo');
+            if (ramoSel) ramoSel.value = '16'; // 31-AUTO
+            const placaInput = doc.getElementById('nm_placa');
+            if (placaInput) placaInput.value = p;
+            const btn = doc.getElementById('TRBTNC_a999996');
+            if (btn) btn.click();
+        }, plate);
+        await page.waitForTimeout(3000);
 
-        // ── Preenche a placa ──────────────────────────────────────────────────
-        await page.locator('tr:has-text("Placa do Veículo") input').fill(plate);
+        // ── Ler resultados de frames[1] ───────────────────────────────────────
+        const rows = await page.evaluate(() => {
+            const doc = window.frames[1].document;
+            const trs = doc.querySelectorAll('table tbody tr');
+            const data = [];
+            trs.forEach((row, idx) => {
+                if (idx === 0) return; // primeira linha é cabeçalho em alguns layouts
+                const cells = Array.from(row.querySelectorAll('td'));
+                if (cells.length < 10) return;
+                const linkEl = row.querySelector('[id^="TDLINK_"]');
+                data.push({
+                    numero    : cells[0]?.innerText?.trim()  || '',
+                    cliente   : cells[1]?.innerText?.trim()  || '',
+                    apolice   : cells[6]?.innerText?.trim()  || '',
+                    inicioVig : cells[9]?.innerText?.trim()  || '',
+                    fimVig    : cells[10]?.innerText?.trim() || '',
+                    linkId    : linkEl?.id || null,
+                });
+            });
+            return data;
+        });
 
-        // ── Clica Pesquisar ───────────────────────────────────────────────────
-        await page.click('input[value="Pesquisar"], button:has-text("Pesquisar")');
-        await page.waitForTimeout(2000);
-
-        // ── Verifica resultados ───────────────────────────────────────────────
-        const rowTexts = await getRowTexts(page);
-        if (rowTexts.length === 0) {
+        if (!rows.length) {
             log(`[i4pro] Não encontrada: ${plate}`);
             return null;
         }
 
-        // Escolhe a apólice com Fim Vigência mais recente
-        const endDateCol = await findEndDateColumn(page);
-        const bestIdx    = endDateCol >= 0 ? mostRecentRowIndex(rowTexts, endDateCol) : 0;
+        // Apólice com Fim Vigência mais recente
+        const latest = [...rows].sort(
+            (a, b) => parseBrDateObj(b.fimVig) - parseBrDateObj(a.fimVig)
+        )[0];
 
-        // ── Abre o detalhe da apólice (clique na linha) ───────────────────────
-        const allRows = await page.locator('table tbody tr').all();
-        await allRows[bestIdx].click();
-        await page.waitForTimeout(1500);
+        // Se não há link de detalhe, retorna o que já temos da tabela
+        if (!latest.linkId) {
+            log(`[i4pro] Sem link de detalhe para: ${plate} — usando dados da tabela`);
+            return {
+                policyNumber : latest.apolice   || null,
+                insuredName  : latest.cliente    || null,
+                cpfCnpj      : null,
+                startDate    : parseBrDate(latest.inicioVig),
+                endDate      : parseBrDate(latest.fimVig),
+            };
+        }
 
-        return await extractDetail(page);
+        // ── Abrir detalhe da apólice ──────────────────────────────────────────
+        await page.evaluate((linkId) => {
+            window.frames[1].document.getElementById(linkId)?.click();
+        }, latest.linkId);
+        await page.waitForTimeout(2000);
+
+        // ── Clicar na aba Cliente ─────────────────────────────────────────────
+        await page.evaluate(() => {
+            const doc = window.frames[1].document;
+            const tabs = Array.from(doc.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
+            const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
+            tab?.click();
+        });
+        await page.waitForTimeout(1000);
+
+        // ── Extrair nome e CPF/CNPJ ───────────────────────────────────────────
+        const clienteData = await page.evaluate(() => {
+            const doc = window.frames[1].document;
+            return {
+                nome    : doc.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')
+                              ?.value?.trim() || '',
+                cpfCnpj : doc.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')
+                              ?.value?.replace(/\D/g, '') || '',
+            };
+        });
+
+        return {
+            policyNumber : latest.apolice                             || null,
+            insuredName  : clienteData.nome    || latest.cliente       || null,
+            cpfCnpj      : clienteData.cpfCnpj                         || null,
+            startDate    : parseBrDate(latest.inicioVig),
+            endDate      : parseBrDate(latest.fimVig),
+        };
     } catch (err) {
         log(`[i4pro] Erro ao processar ${plate}: ${err.message}`);
         return null;
