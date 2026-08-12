@@ -180,6 +180,9 @@ export default function ServiceOrders() {
   // NOTIFICAÇÃO: rastrear OS em pend. aprovação já vistas (TECH)
   const seenPendingIds = useRef(null);
 
+  // Histórico colapsável no drawer
+  const [showHistory, setShowHistory] = useState(false);
+
   useEffect(() => { load(); }, []);
   useEffect(() => { setDisplayPage(0); }, [filter, searchText, filterServiceType, filterTechnicianId]);
 
@@ -188,7 +191,8 @@ export default function ServiceOrders() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (!selectedOrder) { setOrderAuditLog([]); return; }
+    if (!selectedOrder) { setOrderAuditLog([]); setShowHistory(false); return; }
+    setShowHistory(false);
     setAuditLogLoading(true);
     getServiceOrderAuditLog(selectedOrder.id)
       .then(data => setOrderAuditLog(data))
@@ -331,9 +335,49 @@ export default function ServiceOrders() {
 
   function copySelected() {
     const rows = visible.filter(o => selectedIds.has(o.id));
-    const text = rows.map(o =>
-      `PLACA: ${o.plate || "—"} | Cliente: ${o.customerName || "—"} | Cidade: ${[o.city, o.state].filter(Boolean).join("/") || "—"} | Status: ${STATUS_LABEL[o.schedulingStatus] || o.schedulingStatus} | SLA: ${o.slaDays}d | Técnico: ${o.technician?.name || "—"} | Serviço: ${o.serviceType}`
-    ).join("\n");
+    const SEP = "════════════════════════════════";
+    const text = rows.map(o => {
+      const fmtDate = (d) => d ? new Date(d).toLocaleDateString("pt-BR") : "—";
+      const fmtVal  = (v) => v != null ? `R$ ${Number(v).toFixed(2).replace(".", ",")}` : "—";
+      return [
+        SEP,
+        `ORDEM DE SERVIÇO — ${o.plate || "SEM PLACA"}`,
+        SEP,
+        "",
+        "📋 DADOS DA SOLICITAÇÃO",
+        `Solicitante: ${o.requestedBy || "—"}`,
+        `Data: ${fmtDate(o.requestedAt)} | SLA: ${o.slaDays} dias`,
+        `Criado por: ${o.createdBy || "—"}`,
+        "",
+        "🚗 DADOS DO VEÍCULO",
+        `Placa: ${o.plate || "—"}`,
+        `Chassi: ${o.chassis || "—"}`,
+        `Equipamento: ${o.equipment || "—"}`,
+        `Serviço: ${o.serviceType || "—"}`,
+        "",
+        "📍 DADOS DO CLIENTE",
+        `Nome: ${o.customerName || "—"}`,
+        `Telefone: ${o.customerPhone || "—"}`,
+        `Endereço: ${o.address || "—"}`,
+        `Bairro: ${o.neighborhood || "—"} | Cidade: ${[o.city, o.state].filter(Boolean).join("/") || "—"}`,
+        `CEP: ${o.zipCode || "—"}`,
+        "",
+        "🔧 AGENDAMENTO",
+        `Técnico: ${o.technician?.name || "—"}`,
+        `Data: ${o.scheduledDate || "—"} às ${o.scheduledTime || "—"}`,
+        `Status: ${STATUS_LABEL[o.schedulingStatus] || o.schedulingStatus}`,
+        "",
+        "💰 VALORES",
+        `Serviço: ${fmtVal(o.serviceValue)}`,
+        `Deslocamento: ${fmtVal(o.displacementValue)}`,
+        `Total: ${fmtVal(o.totalValue)}`,
+        `Aprovação: ${FINANCIAL_LABEL[o.financialApprovalStatus] || o.financialApprovalStatus || "—"}`,
+        "",
+        "📝 OBSERVAÇÕES",
+        `${o.observations || "—"}`,
+        SEP,
+      ].join("\n");
+    }).join("\n\n");
     navigator.clipboard.writeText(text)
       .then(() => toast.success(`${rows.length} OS copiada(s)`))
       .catch(() => toast.error("Erro ao copiar"));
@@ -746,7 +790,14 @@ export default function ServiceOrders() {
                     {[o.city, o.state].filter(Boolean).join(", ") || <span className="text-zinc-600">—</span>}
                   </td>
                   <td className="px-4 py-3 text-zinc-500 hidden lg:table-cell max-w-[200px] truncate">{o.address || "—"}</td>
-                  <td className="px-4 py-3"><Badge label={STATUS_LABEL[o.schedulingStatus]} colorClass={STATUS_COLOR[o.schedulingStatus]} /></td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge label={STATUS_LABEL[o.schedulingStatus]} colorClass={STATUS_COLOR[o.schedulingStatus]} />
+                      {o.serviceValueChangedAfterScheduling && (
+                        <span className="rounded-full bg-yellow-500/10 border border-yellow-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400" title="Valor do serviço alterado após agendamento">⚠️ Valor</span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                     <div className="flex gap-1 items-center">
                       <button onClick={() => setSelectedOrder(o)}
@@ -807,6 +858,11 @@ export default function ServiceOrders() {
                   {selectedOrder.completedWithoutSignal && (
                     <span className="text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-full px-2 py-0.5">
                       Sem sinal
+                    </span>
+                  )}
+                  {selectedOrder.serviceValueChangedAfterScheduling && (
+                    <span className="text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-full px-2 py-0.5">
+                      ⚠️ Valor alterado após agendamento
                     </span>
                   )}
                 </div>
@@ -890,29 +946,41 @@ export default function ServiceOrders() {
                   </DrawerSection>
                 )}
 
-                {/* MELHORIA: Histórico de alterações da OS */}
+                {/* CORREÇÃO 1: Histórico colapsável */}
                 <div className="col-span-2">
-                  <DrawerSection title="Histórico">
-                    {auditLogLoading && <p className="text-[11px] text-zinc-500">Carregando...</p>}
-                    {!auditLogLoading && orderAuditLog.length === 0 && (
-                      <p className="text-[11px] text-zinc-600">Nenhuma alteração registrada</p>
-                    )}
-                    {!auditLogLoading && orderAuditLog.map(l => (
-                      <div key={l.id} className="flex items-start gap-2 py-1.5 border-b border-zinc-900 last:border-0">
-                        <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${ACTION_COLOR[l.action] || "bg-zinc-800 text-zinc-400"}`}>
-                          {ACTION_LABEL[l.action] || l.action}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          {l.field && <span className="text-[10px] text-zinc-500">{l.field}: </span>}
-                          {l.oldValue && <span className="text-[10px] text-red-400 line-through mr-1">{l.oldValue}</span>}
-                          {l.newValue && <span className="text-[10px] text-green-400">{l.newValue}</span>}
-                          <span className="block text-[10px] text-zinc-600 mt-0.5">
-                            {l.performedBy} · {l.performedAt ? new Date(l.performedAt).toLocaleString("pt-BR") : ""}
-                          </span>
-                        </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Histórico</p>
+                      <button
+                        onClick={() => setShowHistory(s => !s)}
+                        className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors">
+                        {showHistory ? "Recolher ▲" : `Ver histórico ▼${orderAuditLog.length > 0 ? ` (${orderAuditLog.length})` : ""}`}
+                      </button>
+                    </div>
+                    {showHistory && (
+                      <div className="space-y-1.5">
+                        {auditLogLoading && <p className="text-[11px] text-zinc-500">Carregando...</p>}
+                        {!auditLogLoading && orderAuditLog.length === 0 && (
+                          <p className="text-[11px] text-zinc-600">Nenhuma alteração registrada</p>
+                        )}
+                        {!auditLogLoading && orderAuditLog.map(l => (
+                          <div key={l.id} className="flex items-start gap-2 py-1.5 border-b border-zinc-900 last:border-0">
+                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${ACTION_COLOR[l.action] || "bg-zinc-800 text-zinc-400"}`}>
+                              {ACTION_LABEL[l.action] || l.action}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              {l.field && <span className="text-[10px] text-zinc-500">{l.field}: </span>}
+                              {l.oldValue && <span className="text-[10px] text-red-400 line-through mr-1">{l.oldValue}</span>}
+                              {l.newValue && <span className="text-[10px] text-green-400">{l.newValue}</span>}
+                              <span className="block text-[10px] text-zinc-600 mt-0.5">
+                                {l.performedBy} · {l.performedAt ? new Date(l.performedAt).toLocaleString("pt-BR") : ""}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </DrawerSection>
+                    )}
+                  </div>
                 </div>
 
               </div>

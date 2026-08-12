@@ -145,7 +145,15 @@ public class ServiceOrderService {
     public ServiceOrderResponse updateScheduling(UUID id, SchedulingRequest request) {
         ServiceOrder so = find(id);
 
-        Technician prevTech = so.getTechnician();
+        // Captura estado antes das mudanças para auditoria campo a campo
+        BigDecimal prevServiceValue    = so.getServiceValue();
+        LocalDate  prevScheduledDate   = so.getScheduledDate();
+        String     prevScheduledTime   = so.getScheduledTime();
+        Technician prevTech            = so.getTechnician();
+        String     prevTechName        = prevTech != null ? prevTech.getName() : null;
+        SchedulingStatus prevStatus    = so.getSchedulingStatus();
+        boolean wasApproved            = so.getFinancialApprovalStatus() == FinancialApprovalStatus.APROVADO;
+
         boolean techChanged = request.technicianId() != null
                 && (prevTech == null || !prevTech.getId().equals(request.technicianId()));
 
@@ -181,7 +189,6 @@ public class ServiceOrderService {
         if (request.technicianId() != null && request.scheduledDate() != null) {
             so.setSchedulingStatus(SchedulingStatus.AGENDADO);
         }
-
         // Sobrescreve se OP/ADMIN enviar status explicitamente
         if (request.schedulingStatus() != null) {
             so.setSchedulingStatus(request.schedulingStatus());
@@ -191,18 +198,36 @@ public class ServiceOrderService {
         }
 
         if (request.scheduledDate() != null) {
-            // Track first time a date is scheduled (tempo Deila agir)
-            if (so.getScheduledAt() == null) {
-                so.setScheduledAt(LocalDateTime.now(ZoneOffset.UTC));
-            }
+            if (so.getScheduledAt() == null) so.setScheduledAt(LocalDateTime.now(ZoneOffset.UTC));
             so.setScheduledDate(request.scheduledDate());
         }
-
         if (request.scheduledTime() != null) so.setScheduledTime(request.scheduledTime());
-        if (request.serviceValue() != null) {
+
+        // Deslocamento efetivo após possível recálculo por mudança de técnico
+        BigDecimal effectiveDisplacement = so.getDisplacementValue();
+
+        // Detecta mudança no valor do serviço
+        boolean serviceValueChanged = request.serviceValue() != null
+                && (prevServiceValue == null || prevServiceValue.compareTo(request.serviceValue()) != 0);
+
+        boolean approvalReverted = false;
+        if (serviceValueChanged) {
+            // CORREÇÃO 3: se havia deslocamento e a OS estava aprovada → reverter para PENDENTE
+            if (wasApproved
+                    && effectiveDisplacement != null
+                    && effectiveDisplacement.compareTo(BigDecimal.ZERO) > 0) {
+                so.setFinancialApprovalStatus(FinancialApprovalStatus.PENDENTE);
+                approvalReverted = true;
+            }
+            // CORREÇÃO 4: marcar flag se não tem deslocamento e valor mudou após já estar agendado
+            if (prevStatus == SchedulingStatus.AGENDADO
+                    && (effectiveDisplacement == null || effectiveDisplacement.compareTo(BigDecimal.ZERO) == 0)) {
+                so.setServiceValueChangedAfterScheduling(true);
+            }
             so.setServiceValue(request.serviceValue());
             recalcTotal(so);
         }
+
         if (request.displacementValue() != null) {
             so.setDisplacementValue(request.displacementValue());
             recalcTotal(so);
@@ -212,8 +237,46 @@ public class ServiceOrderService {
         if (request.clientAddress() != null) so.setClientAddress(request.clientAddress());
 
         ServiceOrderResponse saved = toResponse(repository.save(so));
+
+        // CORREÇÃO 2: audit campo a campo
         String auditAction = so.getSchedulingStatus() == SchedulingStatus.CONCLUIDO ? "CONCLUIDA" : "AGENDADA";
-        audit(so, auditAction, "schedulingStatus", null, so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null);
+        boolean auditado = false;
+
+        if (techChanged) {
+            audit(so, auditAction, "tecnico",
+                    prevTechName != null ? prevTechName : "—",
+                    so.getTechnician() != null ? so.getTechnician().getName() : "—");
+            auditado = true;
+        }
+        if (request.scheduledDate() != null && !request.scheduledDate().equals(prevScheduledDate)) {
+            audit(so, auditAction, "dataAgendamento",
+                    prevScheduledDate != null ? prevScheduledDate.toString() : "—",
+                    request.scheduledDate().toString());
+            auditado = true;
+        }
+        if (request.scheduledTime() != null && !request.scheduledTime().equals(prevScheduledTime)) {
+            audit(so, auditAction, "horario",
+                    prevScheduledTime != null ? prevScheduledTime : "—",
+                    request.scheduledTime());
+            auditado = true;
+        }
+        if (serviceValueChanged) {
+            String prevStr = prevServiceValue != null ? "R$" + prevServiceValue : "—";
+            String newStr  = "R$" + request.serviceValue();
+            audit(so, auditAction, "valorServico", prevStr, newStr);
+            auditado = true;
+            if (approvalReverted) {
+                audit(so, "EDITADA", "aprovacao",
+                        "APROVADO — Aprovação revertida: valor alterado de " + prevStr + " para " + newStr,
+                        "PENDENTE");
+            }
+        }
+        if (!auditado) {
+            audit(so, auditAction, "status",
+                    prevStatus != null ? prevStatus.name() : null,
+                    so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null);
+        }
+
         return saved;
     }
 
@@ -510,7 +573,8 @@ public class ServiceOrderService {
                 so.getScheduledAt(),
                 so.getCompletedWithoutSignal(),
                 so.getSlaDays(),
-                so.isLate()
+                so.isLate(),
+                so.getServiceValueChangedAfterScheduling()
         );
     }
 

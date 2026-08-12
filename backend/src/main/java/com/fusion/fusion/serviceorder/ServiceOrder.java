@@ -97,6 +97,11 @@ public class ServiceOrder {
             columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
     private Boolean completedWithoutSignal = false;
 
+    @Builder.Default
+    @Column(name = "service_value_changed_after_scheduling", nullable = false,
+            columnDefinition = "BOOLEAN NOT NULL DEFAULT FALSE")
+    private Boolean serviceValueChangedAfterScheduling = false;
+
     @PrePersist
     public void prePersist() {
         createdAt = LocalDateTime.now(ZoneOffset.UTC);
