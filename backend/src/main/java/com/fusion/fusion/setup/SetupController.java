@@ -891,22 +891,4 @@ public class SetupController {
         return Map.of("status", "ok", "updated", updated);
     }
 
-    @GetMapping("/test-whatsapp")
-    public Map<String, Object> testWhatsapp() {
-        Installation fake = new Installation();
-        fake.setCustomerName("João da Silva Teste");
-        fake.setPlate("TST1A23");
-        fake.setModel("VW Gol 2020");
-        fake.setAddress("Rua das Flores, 123");
-        fake.setNeighborhood("Centro");
-        fake.setCity("São Paulo");
-        fake.setState("SP");
-        fake.setZipCode("01310-100");
-        fake.setPhone("11999999999");
-
-        whatsAppService.sendInstallationAlert(fake);
-
-        return Map.of("status", "ok", "message", "Mensagem de teste enviada para o grupo configurado");
-    }
-
 }
