@@ -5,11 +5,11 @@ const { log } = require('./src/file-utils');
 const { reportHeartbeat } = require('./src/etlStatusReporter');
 
 // ── Variáveis de ambiente ────────────────────────────────────────────────────
-// I4PRO_URL       — URL base do i4pro (ex: https://i4pro.com.br)
-// I4PRO_USER      — usuário de login do i4pro
-// I4PRO_PASSWORD  — senha do i4pro
-// BACKEND_URL     — URL do backend Fusion
-// FUSION_ETL_USER — e-mail do usuário Fusion com perfil ADMIN
+// I4PRO_URL         — URL base do i4pro (ex: https://i4pro.com.br)
+// I4PRO_USER        — usuário de login do i4pro
+// I4PRO_PASSWORD    — senha do i4pro
+// BACKEND_URL       — URL do backend Fusion
+// FUSION_ETL_USER   — e-mail do usuário Fusion com perfil ADMIN
 // FUSION_ETL_PASSWORD — senha do usuário Fusion
 
 const I4PRO_URL  = (process.env.I4PRO_URL  || '').replace(/\/$/, '');
@@ -81,45 +81,51 @@ function mostRecentRowIndex(rowTexts, col) {
     return bestIdx;
 }
 
-// ── Playwright — helpers i4pro ────────────────────────────────────────────────
-// NOTA: seletores baseados nos padrões mais comuns do i4pro.
-// Ajuste conforme o layout específico do seu contrato/instância.
+// ── Playwright ─────────────────────────────────────────────────────────────────
+//
+// Arquitetura do i4pro:
+//   - Menu principal: na página (page) — fora do iframe
+//   - Formulário de consulta e resultados: dentro de um iframe
+//
+// Usamos page.frameLocator('iframe').first() para obter o FrameLocator
+// e então interagimos com todos os elementos do formulário através dele.
 
 async function doLogin(page) {
     log('[i4pro] Abrindo login...');
     await page.goto(I4PRO_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    await page.locator('input[name="login"], input[id*="login"], input[type="text"]').first().fill(I4PRO_USER);
-    await page.locator('input[name="senha"], input[id*="senha"], input[type="password"]').first().fill(I4PRO_PASS);
+    // Campos de login ficam na página principal (não em iframe)
+    await page.fill('input[name="login"], input[type="text"]', I4PRO_USER);
+    await page.fill('input[name="senha"], input[type="password"]', I4PRO_PASS);
     await Promise.all([
         page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }),
-        page.locator('button[type="submit"], input[type="submit"], button:has-text("Entrar"), button:has-text("Acessar")').first().click(),
+        page.click('button[type="submit"], input[type="submit"]'),
     ]);
     log('[i4pro] Login concluído');
 }
 
 async function navigateToApolices(page) {
     log('[i4pro] Navegando para Emissão > Apólices...');
-    await page.locator('a, [role="menuitem"], li').filter({ hasText: /emiss[aã]o/i }).first().click();
-    await page.waitForTimeout(700);
-    await page.locator('a, [role="menuitem"], li').filter({ hasText: /ap[oó]lices/i }).first().click();
-    await page.waitForLoadState('domcontentloaded', { timeout: 20000 });
-    return page.url();
+    // Menu fica fora do iframe — usa page diretamente
+    await page.click('text=Emissão');
+    await page.click('text=Apólices');
+    await page.waitForTimeout(2000);
+    return page.url(); // URL da página pai (usada para recarregar entre placas)
 }
 
-async function getTableRows(page) {
+// Extrai texto de todas as células de todas as linhas do tbody
+async function getRowTexts(frame) {
     try {
-        await page.waitForSelector('table tbody tr', { timeout: 8000 });
+        await frame.locator('table tbody tr').first().waitFor({ timeout: 8000 });
     } catch {
         return [];
     }
-    const rows = page.locator('table tbody tr');
-    const count = await rows.count();
+    const rows = await frame.locator('table tbody tr').all();
     const result = [];
-    for (let r = 0; r < count; r++) {
-        const cells = rows.nth(r).locator('td');
-        const cCount = await cells.count();
+    for (const row of rows) {
+        const cells = row.locator('td');
+        const count = await cells.count();
         const texts = [];
-        for (let c = 0; c < cCount; c++) {
+        for (let c = 0; c < count; c++) {
             texts.push((await cells.nth(c).innerText()).trim());
         }
         result.push(texts);
@@ -127,8 +133,9 @@ async function getTableRows(page) {
     return result;
 }
 
-async function findEndDateColumn(page) {
-    const headers = page.locator('table thead th, table thead td');
+// Retorna o índice da coluna "Fim Vigência" no cabeçalho da tabela
+async function findEndDateColumn(frame) {
+    const headers = frame.locator('table thead th, table thead td');
     const hCount = await headers.count();
     for (let i = 0; i < hCount; i++) {
         const text = (await headers.nth(i).innerText()).toLowerCase();
@@ -137,43 +144,62 @@ async function findEndDateColumn(page) {
     return -1;
 }
 
-async function extractDetail(page) {
-    const detail = { policyNumber: null, insuredName: null, cpfCnpj: null, startDate: null, endDate: null };
+// Extrai nome, CPF, nº apólice e vigências das abas Cliente e Endossos
+// Todos os elementos estão dentro do iframe (frame = FrameLocator)
+async function extractDetail(page, frame) {
+    const detail = {
+        policyNumber : null,
+        insuredName  : null,
+        cpfCnpj      : null,
+        startDate    : null,
+        endDate      : null,
+    };
 
     // Nº apólice pode estar no cabeçalho da tela de detalhe
-    const numEl = page.locator('input[name*="apolice" i], input[id*="apolice" i], input[id*="numApolice" i]').first();
+    const numEl = frame.locator('input[name*="apolice" i], input[id*="apolice" i]').first();
     if (await numEl.count() > 0) {
-        const val = await numEl.inputValue().catch(() => '');
-        detail.policyNumber = val.trim() || null;
+        detail.policyNumber = (await numEl.inputValue().catch(() => '')).trim() || null;
     }
 
-    // Aba "Cliente" — nome e CPF/CNPJ
-    const clienteTab = page.locator('[role="tab"], a, li').filter({ hasText: /^cliente$/i }).first();
+    // ── Aba "Cliente" — nome e CPF/CNPJ ──────────────────────────────────────
+    const clienteTab = frame.locator('[role="tab"], a, li').filter({ hasText: /^cliente$/i }).first();
     if (await clienteTab.count() > 0) {
         await clienteTab.click();
-        await page.waitForTimeout(700);
-        const nomeEl = page.locator('input[name*="nome" i]:not([name*="social" i]), input[id*="nome" i]:not([id*="social" i])').first();
+        // Aguarda campo de nome aparecer no iframe
+        await frame.locator('input[name*="nome" i]').first().waitFor({ timeout: 5000 }).catch(() => {});
+
+        const nomeEl = frame.locator(
+            'input[name*="nome" i]:not([name*="social" i]), ' +
+            'input[id*="nome" i]:not([id*="social" i])'
+        ).first();
         if (await nomeEl.count() > 0) {
             detail.insuredName = (await nomeEl.inputValue()).trim() || null;
         }
-        const cpfEl = page.locator('input[name*="cpf" i], input[id*="cpf" i], input[name*="cnpj" i], input[id*="cnpj" i]').first();
+
+        const cpfEl = frame.locator(
+            'input[name*="cpf" i], input[id*="cpf" i], ' +
+            'input[name*="cnpj" i], input[id*="cnpj" i]'
+        ).first();
         if (await cpfEl.count() > 0) {
             const raw = (await cpfEl.inputValue()).replace(/\D/g, '');
             detail.cpfCnpj = raw || null;
         }
     }
 
-    // Aba "Endossos" — nº apólice/endosso e vigências
-    const endossosTab = page.locator('[role="tab"], a, li').filter({ hasText: /endosso/i }).first();
+    // ── Aba "Endossos" — nº apólice/endosso e vigências ──────────────────────
+    const endossosTab = frame.locator('[role="tab"], a, li').filter({ hasText: /endosso/i }).first();
     if (await endossosTab.count() > 0) {
         await endossosTab.click();
         await page.waitForTimeout(700);
-        const eRows = await getTableRows(page);
+
+        const eRows = await getRowTexts(frame);
         if (eRows.length > 0) {
             for (const cell of eRows[0]) {
+                // Número da apólice/endosso
                 if (!detail.policyNumber && /^\d[\d\-\/]{3,}$/.test(cell)) {
                     detail.policyNumber = cell;
                 }
+                // Datas no formato BR
                 const dateMatch = cell.match(/\d{2}\/\d{2}\/\d{4}/);
                 if (dateMatch) {
                     const iso = parseBrDate(dateMatch[0]);
@@ -187,46 +213,61 @@ async function extractDetail(page) {
     return detail;
 }
 
+// Processa uma única placa dentro do iframe
 async function processPlate(page, plate, searchUrl) {
     try {
-        // Volta à tela de pesquisa
+        // Recarrega a página de pesquisa (refresca o iframe junto)
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.waitForTimeout(2000);
 
-        // Seleciona Ramo 31-AUTO
-        const ramoSel = page.locator('select[name*="ramo" i], select[id*="ramo" i]').first();
+        // Obtém o FrameLocator do iframe principal
+        const frame = page.frameLocator('iframe').first();
+
+        // ── Seleciona Ramo 31-AUTO ────────────────────────────────────────────
+        const ramoSel = frame.locator('select[name*="ramo" i], select[id*="ramo" i]').first();
         if (await ramoSel.count() > 0) {
             const options = await ramoSel.locator('option').allInnerTexts();
             const ramo31  = options.find(o => /31/i.test(o));
             if (ramo31) await ramoSel.selectOption({ label: ramo31 });
+        } else {
+            // Tenta getByLabel como fallback
+            const ramoLabel = frame.getByLabel(/ramo/i).first();
+            if (await ramoLabel.count() > 0) {
+                await ramoLabel.selectOption({ label: /31/i });
+            }
         }
 
-        // Preenche placa e pesquisa
-        const placaInput = page.locator('input[name*="placa" i], input[id*="placa" i], input[placeholder*="placa" i]').first();
-        await placaInput.fill(plate);
+        // ── Preenche a placa ──────────────────────────────────────────────────
+        const placaInput = frame.locator(
+            'input[name*="placa" i], input[id*="placa" i], input[placeholder*="placa" i]'
+        ).first();
+        if (await placaInput.count() > 0) {
+            await placaInput.fill(plate);
+        } else {
+            await frame.getByLabel(/placa/i).first().fill(plate);
+        }
 
-        await Promise.all([
-            page.waitForLoadState('domcontentloaded', { timeout: 30000 }),
-            page.locator(
-                'button:has-text("Pesquis"), button:has-text("Buscar"), button:has-text("Filtrar"), ' +
-                'input[type="submit"], a:has-text("Pesquis")'
-            ).first().click(),
-        ]);
+        // ── Clica Pesquisar ───────────────────────────────────────────────────
+        await frame.getByRole('button', { name: /pesquisar/i }).click();
+        await page.waitForTimeout(2000);
 
-        // Verifica resultados
-        const rows = await getTableRows(page);
-        if (rows.length === 0) {
+        // ── Verifica resultados ───────────────────────────────────────────────
+        const rowTexts = await getRowTexts(frame);
+        if (rowTexts.length === 0) {
             log(`[i4pro] Não encontrada: ${plate}`);
             return null;
         }
 
         // Escolhe a apólice com Fim Vigência mais recente
-        const endDateCol = await findEndDateColumn(page);
-        const bestIdx    = endDateCol >= 0 ? mostRecentRowIndex(rows, endDateCol) : 0;
+        const endDateCol = await findEndDateColumn(frame);
+        const bestIdx    = endDateCol >= 0 ? mostRecentRowIndex(rowTexts, endDateCol) : 0;
 
-        await page.locator('table tbody tr').nth(bestIdx).click();
-        await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+        // ── Abre o detalhe da apólice (clique na linha) ───────────────────────
+        const allRows = await frame.locator('table tbody tr').all();
+        await allRows[bestIdx].click();
+        await page.waitForTimeout(1500);
 
-        return await extractDetail(page);
+        return await extractDetail(page, frame);
     } catch (err) {
         log(`[i4pro] Erro ao processar ${plate}: ${err.message}`);
         return null;
@@ -295,7 +336,7 @@ module.exports = { run };
 
 // ── CLI: node index-i4pro.js [PLACA] ─────────────────────────────────────────
 if (require.main === module) {
-    const plateArg = process.argv[2]?.trim().toUpperCase() || null;
+    const plateArg  = process.argv[2]?.trim().toUpperCase() || null;
     const startedAt = Date.now();
 
     reportHeartbeat({ type: 'I4PRO_TRACKNME', status: 'RUNNING' }).catch(() => {});
@@ -304,9 +345,9 @@ if (require.main === module) {
         .then(({ populated, notFound }) => {
             log(`[i4pro] Resultado final: ${populated} populadas, ${notFound} não encontradas`);
             return reportHeartbeat({
-                type: 'I4PRO_TRACKNME',
-                status: 'SUCCESS',
-                durationMs: Date.now() - startedAt,
+                type            : 'I4PRO_TRACKNME',
+                status          : 'SUCCESS',
+                durationMs      : Date.now() - startedAt,
                 recordsProcessed: populated,
             });
         })
@@ -314,10 +355,10 @@ if (require.main === module) {
         .catch(err => {
             log(`[i4pro] Erro fatal: ${err.message}`);
             reportHeartbeat({
-                type: 'I4PRO_TRACKNME',
-                status: 'ERROR',
+                type      : 'I4PRO_TRACKNME',
+                status    : 'ERROR',
                 durationMs: Date.now() - startedAt,
-                error: err.message,
+                error     : err.message,
             }).catch(() => {});
             process.exit(1);
         });
