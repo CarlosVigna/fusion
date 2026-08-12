@@ -1,5 +1,8 @@
 package com.fusion.fusion.vehicle.tracknme;
 
+import com.fusion.fusion.importation.ImportDiffLog;
+import com.fusion.fusion.importation.ImportDiffLogRepository;
+import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.importation.preview.ImportPreviewResponse;
 import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -9,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.fusion.fusion.importation.confirm.ImportConfirmRequest;
 import com.fusion.fusion.importation.confirm.ImportConfirmResponse;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -20,6 +24,7 @@ public class TracknMeController {
     private final TracknMePreviewService previewService;
     private final TracknMeConfirmService confirmService;
     private final VehicleRepository vehicleRepository;
+    private final ImportDiffLogRepository diffLogRepository;
 
     @PostMapping("/import")
     public TracknMeImportResponse importFile(
@@ -46,6 +51,30 @@ public class TracknMeController {
 
         return confirmService.confirm(request);
 
+    }
+
+    @GetMapping("/history")
+    public List<ImportDiffLog> history(
+            @RequestParam(required = false) String dateFrom,
+            @RequestParam(required = false) String dateTo
+    ) {
+        List<ImportType> types = List.of(ImportType.TRACKNME, ImportType.TRACKNME_POSITION);
+        List<ImportDiffLog> logs = diffLogRepository.findByImportTypeInOrderByCreatedAtDesc(types);
+
+        if (dateFrom != null && !dateFrom.isBlank()) {
+            LocalDate from = LocalDate.parse(dateFrom);
+            logs = logs.stream()
+                    .filter(l -> !l.getCreatedAt().toLocalDate().isBefore(from))
+                    .toList();
+        }
+        if (dateTo != null && !dateTo.isBlank()) {
+            LocalDate to = LocalDate.parse(dateTo);
+            logs = logs.stream()
+                    .filter(l -> !l.getCreatedAt().toLocalDate().isAfter(to))
+                    .toList();
+        }
+
+        return logs;
     }
 
     @GetMapping("/pending")
