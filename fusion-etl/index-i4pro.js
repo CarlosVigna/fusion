@@ -1,8 +1,11 @@
 require('dotenv').config();
+const path = require('path');
 const { chromium } = require('playwright');
 const axios = require('axios');
 const { log } = require('./src/file-utils');
 const { reportHeartbeat } = require('./src/etlStatusReporter');
+
+const SCREENSHOT_DIR = path.join(process.env.ETL_LOG_DIR || 'C:/FusionData/log', 'screenshots');
 
 // ── Variáveis de ambiente ────────────────────────────────────────────────────
 // I4PRO_URL           — URL base do i4pro (ex: https://i4pro.usebens.com.br)
@@ -113,21 +116,44 @@ async function doLogin(page) {
 }
 
 async function navigateToApolices(page) {
-    log('[i4pro] Navegando para Emissão > Apólices...');
-    // Clique no menu da página principal (fora dos frames)
-    await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a, li'));
-        const el = links.find(l => l.innerText?.trim() === 'Emissão');
-        el?.click();
-    });
-    await page.waitForTimeout(500);
-    await page.evaluate(() => {
-        const links = Array.from(document.querySelectorAll('a'));
-        const el = links.find(l => l.innerText?.trim() === 'Apólices');
-        el?.click();
-    });
-    await page.waitForTimeout(2000);
-    return page.url();
+    try {
+        log('[i4pro] Navegando para Emissão > Apólices...');
+        // Clique no menu da página principal (fora dos frames)
+        await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a, li'));
+            const el = links.find(l => l.innerText?.trim() === 'Emissão');
+            el?.click();
+        });
+        await page.waitForTimeout(500);
+        await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a'));
+            const el = links.find(l => l.innerText?.trim() === 'Apólices');
+            el?.click();
+        });
+        await page.waitForTimeout(2000);
+        log('[i4pro] Página de apólices carregada');
+        return page.url();
+    } catch (e) {
+        log('[i4pro] ERRO ao navegar para Apólices: ' + e.message);
+        await saveErrorScreenshot(page, 'navigate-apolices');
+        throw e;
+    }
+}
+
+// Screenshot de diagnóstico quando a navegação falha — salva junto do
+// etl.log (mesma pasta base, subpasta screenshots/) para inspecionar
+// visualmente em qual tela o fluxo travou.
+async function saveErrorScreenshot(page, label) {
+    try {
+        const fs = require('fs');
+        fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filePath = path.join(SCREENSHOT_DIR, `${timestamp}_${label}.png`);
+        await page.screenshot({ path: filePath, fullPage: true });
+        log(`[i4pro] Screenshot de diagnóstico salvo: ${filePath}`);
+    } catch (screenshotErr) {
+        log('[i4pro] Falha ao salvar screenshot de diagnóstico: ' + screenshotErr.message);
+    }
 }
 
 // Pesquisa uma placa e retorna dados da apólice mais recente
