@@ -29,7 +29,6 @@ import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.http.HttpEntity;
@@ -76,9 +75,6 @@ public class SetupController {
     private final TracknMeSyncService tracknMeSyncService;
     private final WhatsAppService whatsAppService;
     private final EtlStatusService etlStatusService;
-
-    @Value("${fusion.etl.api-key:}")
-    private String etlApiKey;
 
     private static final Set<String> MULTIPORTAL_PLATES = Set.of(
         "FXZ9249", "QXX8I71", "FWQ9D54", "QWY7149", "QYJ4B61", "RXZ5F74", "SIE4D31", "TAP2C19", "PDH5I98", "TQU9E05",
@@ -918,10 +914,9 @@ public class SetupController {
         return Map.of("status", "OK", "type", type != null ? type : "none");
     }
 
-    // Campos completos de volta (durationMs/error/recordsProcessed/
-    // nextRunAt), agora que /heartbeat-test confirmou que o path em si
-    // funciona — type/status continuam String na assinatura (nao enum
-    // direto), convertidos via valueOf() dentro do metodo.
+    // Sem validacao de chave — protegido so pelo permitAll() de
+    // /setup/**. Endpoint fica aberto pra qualquer requisicao que
+    // souber o path (sem segredo nenhum envolvido).
     @GetMapping("/etl-heartbeat")
     public Map<String, Object> etlHeartbeat(
             @RequestParam(required = false) String type,
@@ -929,14 +924,8 @@ public class SetupController {
             @RequestParam(required = false) Long durationMs,
             @RequestParam(required = false) String error,
             @RequestParam(required = false) Integer recordsProcessed,
-            @RequestParam(required = false) String nextRunAt,
-            @RequestParam(required = false) String tk
+            @RequestParam(required = false) String nextRunAt
     ) {
-
-        if (!isValidEtlKey(tk)) {
-            log.warn("Chamada a /setup/etl-heartbeat rejeitada: key invalida ou ausente");
-            return Map.of("status", "ERROR", "message", "chave invalida");
-        }
 
         try {
             etlStatusService.heartbeat(
@@ -954,19 +943,6 @@ public class SetupController {
         }
 
         return Map.of("status", "OK");
-
-    }
-
-    private boolean isValidEtlKey(String providedKey) {
-
-        if (etlApiKey == null || providedKey == null) {
-            return false;
-        }
-
-        String expected = etlApiKey.trim();
-        String provided = providedKey.trim();
-
-        return !expected.isBlank() && expected.equals(provided);
 
     }
 
