@@ -1,5 +1,6 @@
 package com.fusion.fusion.etl;
 
+import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.sinistro.SinistroAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,6 +9,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
@@ -49,9 +53,20 @@ public class EtlController {
 
     }
 
-    @PostMapping("/heartbeat")
+    // Trocado de POST para GET — payload vai via query params em vez de
+    // body. Motivo: POST /etl/heartbeat estava voltando 403 puro (sem
+    // corpo, so' os headers padrao do Spring Security) mesmo com a
+    // permitAll() e a chave corretas, enquanto GET /etl/poll (mesma
+    // permitAll(), mesma chave) sempre funcionou — unica diferenca
+    // observavel entre os dois era o metodo HTTP.
+    @GetMapping("/heartbeat")
     public ResponseEntity<?> heartbeat(
-            @RequestBody EtlHeartbeatRequest request,
+            @RequestParam ImportType type,
+            @RequestParam EtlRunStatus status,
+            @RequestParam(required = false) Long durationMs,
+            @RequestParam(required = false) String error,
+            @RequestParam(required = false) Integer recordsProcessed,
+            @RequestParam(required = false) String nextRunAt,
             @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
     ) {
 
@@ -70,9 +85,40 @@ public class EtlController {
             return unauthorized();
         }
 
-        statusService.heartbeat(request);
+        statusService.heartbeat(
+                new EtlHeartbeatRequest(
+                        type,
+                        status,
+                        durationMs,
+                        error,
+                        recordsProcessed,
+                        parseNextRunAt(nextRunAt)
+                )
+        );
 
         return ResponseEntity.ok().build();
+
+    }
+
+    // scheduler.js manda nextRunAt via new Date().toISOString() (formato
+    // com offset/instant, ex: "2026-08-13T05:00:00.000Z") — mesmo parsing
+    // tolerante ja usado em TracknMeSyncService para o mesmo tipo de data.
+    private LocalDateTime parseNextRunAt(String raw) {
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        try {
+            return OffsetDateTime.parse(raw).toLocalDateTime();
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDateTime.parse(raw);
+            } catch (DateTimeParseException e2) {
+                log.warn("[HEARTBEAT] nextRunAt em formato invalido, ignorando: {}", raw);
+                return null;
+            }
+        }
 
     }
 

@@ -28,14 +28,11 @@ async function reportHeartbeat({
 
     try {
 
-        await axios.post(`${BACKEND_URL}/etl/heartbeat`, {
-            type,
-            status,
-            durationMs,
-            error,
-            recordsProcessed,
-            nextRunAt,
-        }, {
+        // GET em vez de POST — POST /etl/heartbeat estava voltando 403
+        // puro no Railway (mesma permitAll(), mesma chave de GET /etl/poll,
+        // unica diferenca era o metodo HTTP). Payload vai via query params.
+        await axios.get(`${BACKEND_URL}/etl/heartbeat`, {
+            params: { type, status, durationMs, error, recordsProcessed, nextRunAt },
             headers: { 'X-ETL-Key': ETL_API_KEY },
             timeout: 15000,
         });
