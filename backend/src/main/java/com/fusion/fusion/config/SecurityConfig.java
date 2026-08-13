@@ -81,13 +81,21 @@ public class SecurityConfig {
                         // Autenticado por API key (X-ETL-Key) dentro do
                         // proprio controller, nao por JWT — o ETL local
                         // nao tem usuario logado nem token de sessao.
-                        // redeploy: heartbeat permitAll fix
                         .requestMatchers(
                                 "/imports/upload",
                                 "/etl/poll",
-                                "/etl/heartbeat",
                                 "/installations/sync",
                                 "/sinistro/upload"
+                        ).permitAll()
+
+                        // /etl/heartbeat com metodo explicito — igual ao
+                        // padrao ja usado em /etl/status (linha abaixo),
+                        // que sempre funcionou. Sem o HttpMethod aqui, o
+                        // GET continuava caindo 403 mesmo com permitAll()
+                        // no path (ver historico de investigacao).
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/etl/heartbeat"
                         ).permitAll()
 
                         .requestMatchers(
