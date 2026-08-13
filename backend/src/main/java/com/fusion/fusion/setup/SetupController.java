@@ -39,7 +39,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -913,6 +912,9 @@ public class SetupController {
     // atualizado — /setup/** ja e permitAll pra qualquer metodo e ja
     // funciona (usado por sync-tracknme, check-tracknme etc), entao o
     // heartbeat do ETL passa a reportar aqui em vez de /etl/heartbeat.
+    // Chave via query param "key" em vez de header X-ETL-Key — suspeita
+    // de que o Railway bloqueia headers customizados antes de chegar na
+    // aplicacao.
     @GetMapping("/etl-heartbeat")
     public ResponseEntity<?> etlHeartbeat(
             @RequestParam ImportType type,
@@ -921,11 +923,11 @@ public class SetupController {
             @RequestParam(required = false) String error,
             @RequestParam(required = false) Integer recordsProcessed,
             @RequestParam(required = false) String nextRunAt,
-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
+            @RequestParam(value = "key", required = false) String apiKey
     ) {
 
-        if (!isValidEtlKey(providedKey)) {
-            log.warn("Chamada a /setup/etl-heartbeat rejeitada: X-ETL-Key invalida ou ausente");
+        if (!isValidEtlKey(apiKey)) {
+            log.warn("Chamada a /setup/etl-heartbeat rejeitada: key invalida ou ausente");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("status", "ERROR", "message", "Chave de API inválida"));
         }

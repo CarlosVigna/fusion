@@ -32,9 +32,11 @@ async function reportHeartbeat({
         // com metodo explicito no SecurityConfig. /setup/** ja e permitAll
         // pra qualquer metodo e ja funciona hoje (sync-tracknme etc), entao
         // o heartbeat passou a reportar ali em vez de /etl/heartbeat.
+        // Chave via query param "key" em vez de header X-ETL-Key — suspeita
+        // de que o Railway bloqueia headers customizados antes de chegar
+        // na aplicacao.
         await axios.get(`${BACKEND_URL}/setup/etl-heartbeat`, {
-            params: { type, status, durationMs, error, recordsProcessed, nextRunAt },
-            headers: { 'X-ETL-Key': ETL_API_KEY },
+            params: { type, status, durationMs, error, recordsProcessed, nextRunAt, key: ETL_API_KEY },
             timeout: 15000,
         });
 
