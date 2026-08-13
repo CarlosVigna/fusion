@@ -28,12 +28,8 @@ async function reportHeartbeat({
 
     try {
 
-        // Versao reduzida ao maximo pra isolar a causa do 403 (mesmo
-        // padrao do /setup/check-tracknme, que funciona): so type/status/
-        // key, sem os campos extras por enquanto. Repor durationMs/error/
-        // recordsProcessed/nextRunAt depois de confirmar que isso resolve.
         await axios.get(`${BACKEND_URL}/setup/etl-heartbeat`, {
-            params: { type, status, key: ETL_API_KEY },
+            params: { type, status, durationMs, error, recordsProcessed, nextRunAt, key: ETL_API_KEY },
             timeout: 15000,
         });
 

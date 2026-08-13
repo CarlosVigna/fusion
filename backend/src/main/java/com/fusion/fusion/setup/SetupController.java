@@ -45,6 +45,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -916,17 +918,18 @@ public class SetupController {
         return Map.of("status", "OK", "type", type != null ? type : "none");
     }
 
-    // Versao reduzida ao maximo pra isolar a causa do 403: mesma
-    // assinatura de metodo do check-tracknme (que funciona) — sem
-    // ResponseEntity, sem enum bindado direto da query string (type/status
-    // viram String cru, convertidos manualmente dentro do metodo). Campos
-    // durationMs/error/recordsProcessed/nextRunAt ficam de fora por
-    // enquanto — depois de confirmar que isso resolve o 403, dá pra
-    // devolver esses campos sem reintroduzir os enums na assinatura.
+    // Campos completos de volta (durationMs/error/recordsProcessed/
+    // nextRunAt), agora que /heartbeat-test confirmou que o path em si
+    // funciona — type/status continuam String na assinatura (nao enum
+    // direto), convertidos via valueOf() dentro do metodo.
     @GetMapping("/etl-heartbeat")
     public Map<String, Object> etlHeartbeat(
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long durationMs,
+            @RequestParam(required = false) String error,
+            @RequestParam(required = false) Integer recordsProcessed,
+            @RequestParam(required = false) String nextRunAt,
             @RequestParam(required = false) String key
     ) {
 
@@ -938,15 +941,15 @@ public class SetupController {
         try {
             etlStatusService.heartbeat(
                     new EtlHeartbeatRequest(
-                            ImportType.valueOf(type),
-                            EtlRunStatus.valueOf(status),
-                            null,
-                            null,
-                            null,
-                            null
+                            type != null ? ImportType.valueOf(type) : null,
+                            status != null ? EtlRunStatus.valueOf(status) : null,
+                            durationMs,
+                            error,
+                            recordsProcessed,
+                            parseNextRunAt(nextRunAt)
                     )
             );
-        } catch (IllegalArgumentException | NullPointerException e) {
+        } catch (IllegalArgumentException e) {
             return Map.of("status", "ERROR", "message", "type/status invalido: " + type + "/" + status);
         }
 
@@ -964,6 +967,26 @@ public class SetupController {
         String provided = providedKey.trim();
 
         return !expected.isBlank() && expected.equals(provided);
+
+    }
+
+    // scheduler.js manda nextRunAt via new Date().toISOString().
+    private LocalDateTime parseNextRunAt(String raw) {
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        try {
+            return OffsetDateTime.parse(raw).toLocalDateTime();
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDateTime.parse(raw);
+            } catch (DateTimeParseException e2) {
+                log.warn("[SETUP] nextRunAt em formato invalido, ignorando: {}", raw);
+                return null;
+            }
+        }
 
     }
 
