@@ -913,7 +913,7 @@ public class SetupController {
     public Map<String, Object> heartbeatTest(
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String key
+            @RequestParam(required = false) String tk
     ) {
         return Map.of("status", "OK", "type", type != null ? type : "none");
     }
@@ -930,10 +930,10 @@ public class SetupController {
             @RequestParam(required = false) String error,
             @RequestParam(required = false) Integer recordsProcessed,
             @RequestParam(required = false) String nextRunAt,
-            @RequestParam(required = false) String key
+            @RequestParam(required = false) String tk
     ) {
 
-        if (!isValidEtlKey(key)) {
+        if (!isValidEtlKey(tk)) {
             log.warn("Chamada a /setup/etl-heartbeat rejeitada: key invalida ou ausente");
             return Map.of("status", "ERROR", "message", "chave invalida");
         }

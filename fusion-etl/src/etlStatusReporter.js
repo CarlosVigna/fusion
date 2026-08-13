@@ -29,7 +29,7 @@ async function reportHeartbeat({
     try {
 
         await axios.get(`${BACKEND_URL}/setup/etl-heartbeat`, {
-            params: { type, status, durationMs, error, recordsProcessed, nextRunAt, key: ETL_API_KEY },
+            params: { type, status, durationMs, error, recordsProcessed, nextRunAt, tk: ETL_API_KEY },
             timeout: 15000,
         });
 
