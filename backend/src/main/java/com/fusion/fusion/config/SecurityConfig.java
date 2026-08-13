@@ -70,6 +70,15 @@ public class SecurityConfig {
                                 "/ws/**"
                         ).permitAll()
 
+                        // Regra explicita antes da geral /setup/** abaixo —
+                        // pedido pra descartar qualquer efeito de ordem/
+                        // especificidade na resolucao do matcher, mesmo
+                        // /setup/** ja cobrindo esse path por padrao.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/setup/etl-heartbeat"
+                        ).permitAll()
+
                         .requestMatchers("/setup/**").permitAll()
 
                         // Health check do Render — sem isso o Render nao
