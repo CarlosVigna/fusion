@@ -81,6 +81,7 @@ public class SecurityConfig {
                         // Autenticado por API key (X-ETL-Key) dentro do
                         // proprio controller, nao por JWT — o ETL local
                         // nao tem usuario logado nem token de sessao.
+                        // redeploy: heartbeat permitAll fix
                         .requestMatchers(
                                 "/imports/upload",
                                 "/etl/poll",

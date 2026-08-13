@@ -93,8 +93,12 @@ async function doLogin(page) {
     });
     // O i4pro pode passar por uma tela de inicializacao (Atualizando.aspx)
     // antes do form de login existir — esperar a URL nao serve (ela nao
-    // muda), entao espera o campo de usuario aparecer de verdade.
-    await page.waitForSelector('#cd_usuario', { timeout: 60000 });
+    // muda), entao espera o campo de usuario aparecer de verdade. 120s
+    // porque a primeira carga (Atualizando.aspx "aquecendo") pode
+    // demorar bem mais que os 60s usados antes.
+    log('[i4pro] Aguardando tela de login (pode demorar até 2min na primeira vez)...');
+    await page.waitForSelector('#cd_usuario', { timeout: 120000 });
+    log('[i4pro] Tela de login pronta');
     await page.fill('#cd_usuario', I4PRO_USER);
     await page.fill('#nm_senha', I4PRO_PASS);
     await page.click('#botaoEntrar');
