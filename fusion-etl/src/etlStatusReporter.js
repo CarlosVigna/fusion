@@ -28,15 +28,12 @@ async function reportHeartbeat({
 
     try {
 
-        // /etl/heartbeat continuava voltando 403 mesmo depois de virar GET
-        // com metodo explicito no SecurityConfig. /setup/** ja e permitAll
-        // pra qualquer metodo e ja funciona hoje (sync-tracknme etc), entao
-        // o heartbeat passou a reportar ali em vez de /etl/heartbeat.
-        // Chave via query param "key" em vez de header X-ETL-Key — suspeita
-        // de que o Railway bloqueia headers customizados antes de chegar
-        // na aplicacao.
+        // Versao reduzida ao maximo pra isolar a causa do 403 (mesmo
+        // padrao do /setup/check-tracknme, que funciona): so type/status/
+        // key, sem os campos extras por enquanto. Repor durationMs/error/
+        // recordsProcessed/nextRunAt depois de confirmar que isso resolve.
         await axios.get(`${BACKEND_URL}/setup/etl-heartbeat`, {
-            params: { type, status, durationMs, error, recordsProcessed, nextRunAt, key: ETL_API_KEY },
+            params: { type, status, key: ETL_API_KEY },
             timeout: 15000,
         });
 

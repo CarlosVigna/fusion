@@ -35,8 +35,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -47,8 +45,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -907,43 +903,41 @@ public class SetupController {
         return Map.of("status", "ok", "updated", updated);
     }
 
-    // GET /etl/heartbeat continuava caindo 403 mesmo com permitAll() +
-    // metodo explicito no SecurityConfig, mesmo com o deploy confirmado
-    // atualizado — /setup/** ja e permitAll pra qualquer metodo e ja
-    // funciona (usado por sync-tracknme, check-tracknme etc), entao o
-    // heartbeat do ETL passa a reportar aqui em vez de /etl/heartbeat.
-    // Chave via query param "key" em vez de header X-ETL-Key — suspeita
-    // de que o Railway bloqueia headers customizados antes de chegar na
-    // aplicacao.
+    // Versao reduzida ao maximo pra isolar a causa do 403: mesma
+    // assinatura de metodo do check-tracknme (que funciona) — sem
+    // ResponseEntity, sem enum bindado direto da query string (type/status
+    // viram String cru, convertidos manualmente dentro do metodo). Campos
+    // durationMs/error/recordsProcessed/nextRunAt ficam de fora por
+    // enquanto — depois de confirmar que isso resolve o 403, dá pra
+    // devolver esses campos sem reintroduzir os enums na assinatura.
     @GetMapping("/etl-heartbeat")
-    public ResponseEntity<?> etlHeartbeat(
-            @RequestParam ImportType type,
-            @RequestParam EtlRunStatus status,
-            @RequestParam(required = false) Long durationMs,
-            @RequestParam(required = false) String error,
-            @RequestParam(required = false) Integer recordsProcessed,
-            @RequestParam(required = false) String nextRunAt,
-            @RequestParam(value = "key", required = false) String apiKey
+    public Map<String, Object> etlHeartbeat(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String key
     ) {
 
-        if (!isValidEtlKey(apiKey)) {
+        if (!isValidEtlKey(key)) {
             log.warn("Chamada a /setup/etl-heartbeat rejeitada: key invalida ou ausente");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("status", "ERROR", "message", "Chave de API inválida"));
+            return Map.of("status", "ERROR", "message", "chave invalida");
         }
 
-        etlStatusService.heartbeat(
-                new EtlHeartbeatRequest(
-                        type,
-                        status,
-                        durationMs,
-                        error,
-                        recordsProcessed,
-                        parseNextRunAt(nextRunAt)
-                )
-        );
+        try {
+            etlStatusService.heartbeat(
+                    new EtlHeartbeatRequest(
+                            ImportType.valueOf(type),
+                            EtlRunStatus.valueOf(status),
+                            null,
+                            null,
+                            null,
+                            null
+                    )
+            );
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return Map.of("status", "ERROR", "message", "type/status invalido: " + type + "/" + status);
+        }
 
-        return ResponseEntity.ok().build();
+        return Map.of("status", "OK");
 
     }
 
@@ -957,26 +951,6 @@ public class SetupController {
         String provided = providedKey.trim();
 
         return !expected.isBlank() && expected.equals(provided);
-
-    }
-
-    // scheduler.js manda nextRunAt via new Date().toISOString().
-    private LocalDateTime parseNextRunAt(String raw) {
-
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-
-        try {
-            return OffsetDateTime.parse(raw).toLocalDateTime();
-        } catch (DateTimeParseException e) {
-            try {
-                return LocalDateTime.parse(raw);
-            } catch (DateTimeParseException e2) {
-                log.warn("[SETUP] nextRunAt em formato invalido, ignorando: {}", raw);
-                return null;
-            }
-        }
 
     }
 
