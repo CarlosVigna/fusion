@@ -891,6 +891,18 @@ public class SetupController {
 
     }
 
+    // Corrige linhas antigas da tabela etl_status gravadas antes do rename
+    // de ImportType.I4PRO_TRACKNME para I4PRO — sem isso, o Hibernate
+    // falha ao desserializar essas linhas (@Enumerated(EnumType.STRING)
+    // em EtlStatus.java) e derruba GET /etl/status inteiro.
+    @GetMapping("/fix-i4pro-type")
+    public Map<String, Object> fixI4proType() {
+        int updated = jdbcTemplate.getJdbcTemplate().update(
+            "UPDATE etl_status SET type = 'I4PRO' WHERE type = 'I4PRO_TRACKNME'"
+        );
+        return Map.of("status", "ok", "updated", updated);
+    }
+
     @GetMapping("/fix-scheduling-status")
     public Map<String, Object> fixSchedulingStatus() {
         int updated = jdbcTemplate.getJdbcTemplate().update(
