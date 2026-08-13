@@ -153,7 +153,7 @@ export default function TracknMePending() {
 
       try {
         const statuses = await getEtlStatus();
-        const entry = statuses.find(s => s.type === "I4PRO_TRACKNME");
+        const entry = statuses.find(s => s.type === "I4PRO");
         if (!entry) return;
 
         // Ignora status anterior ao nosso trigger

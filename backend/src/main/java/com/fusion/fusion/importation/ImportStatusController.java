@@ -115,7 +115,7 @@ public class ImportStatusController {
                 ));
             }
 
-            if (type == ImportType.I4PRO_TRACKNME) {
+            if (type == ImportType.I4PRO) {
                 etlTriggerService.request(type, plate);
                 return ResponseEntity.ok(Map.of(
                         "status", "SUCCESS",
@@ -233,8 +233,8 @@ public class ImportStatusController {
                         "Tipo INSTALACOES não suporta upload manual"
                 );
 
-                case I4PRO_TRACKNME -> throw new IllegalArgumentException(
-                        "Tipo I4PRO_TRACKNME não suporta upload manual"
+                case I4PRO -> throw new IllegalArgumentException(
+                        "Tipo I4PRO não suporta upload manual"
                 );
 
             };

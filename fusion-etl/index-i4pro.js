@@ -322,13 +322,13 @@ if (require.main === module) {
     const plateArg  = process.argv[2]?.trim().toUpperCase() || null;
     const startedAt = Date.now();
 
-    reportHeartbeat({ type: 'I4PRO_TRACKNME', status: 'RUNNING' }).catch(() => {});
+    reportHeartbeat({ type: 'I4PRO', status: 'RUNNING' }).catch(() => {});
 
     run(plateArg)
         .then(({ populated, notFound }) => {
             log(`[i4pro] Resultado final: ${populated} populadas, ${notFound} não encontradas`);
             return reportHeartbeat({
-                type            : 'I4PRO_TRACKNME',
+                type            : 'I4PRO',
                 status          : 'SUCCESS',
                 durationMs      : Date.now() - startedAt,
                 recordsProcessed: populated,
@@ -338,7 +338,7 @@ if (require.main === module) {
         .catch(err => {
             log(`[i4pro] Erro fatal: ${err.message}`);
             reportHeartbeat({
-                type      : 'I4PRO_TRACKNME',
+                type      : 'I4PRO',
                 status    : 'ERROR',
                 durationMs: Date.now() - startedAt,
                 error     : err.message,

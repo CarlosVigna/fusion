@@ -6,8 +6,8 @@ export async function getEtlStatus() {
 
 export async function triggerI4Pro(plate) {
   const q = plate
-    ? `?type=I4PRO_TRACKNME&plate=${encodeURIComponent(plate)}`
-    : "?type=I4PRO_TRACKNME";
+    ? `?type=I4PRO&plate=${encodeURIComponent(plate)}`
+    : "?type=I4PRO";
   return apiClient.post(`/imports/trigger${q}`);
 }
 

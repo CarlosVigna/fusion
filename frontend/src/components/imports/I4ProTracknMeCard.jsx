@@ -13,7 +13,7 @@ async function waitForCompletion(beforeUpdatedAt) {
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
     try {
       const statuses = await getEtlStatus();
-      const s = statuses.find(x => x.type === "I4PRO_TRACKNME");
+      const s = statuses.find(x => x.type === "I4PRO");
       if (s && s.status !== "RUNNING") {
         const updatedAt = s.updatedAt ? new Date(s.updatedAt).getTime() : 0;
         if (updatedAt > beforeUpdatedAt) return s;
@@ -33,7 +33,7 @@ export default function I4ProTracknMeCard() {
       let beforeUpdatedAt = 0;
       try {
         const statuses = await getEtlStatus();
-        const cur = statuses.find(s => s.type === "I4PRO_TRACKNME");
+        const cur = statuses.find(s => s.type === "I4PRO");
         if (cur?.updatedAt) beforeUpdatedAt = new Date(cur.updatedAt).getTime();
       } catch {}
 
