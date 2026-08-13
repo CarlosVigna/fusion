@@ -91,9 +91,19 @@ public class EtlController {
 
     private boolean isValidKey(String providedKey) {
 
-        return etlApiKey != null
-                && !etlApiKey.isBlank()
-                && etlApiKey.equals(providedKey);
+        // .trim() nos dois lados — defensivo contra espaco/quebra de
+        // linha invisivel vindo da UI do Railway ou de um .env local
+        // (nao e' a causa confirmada do 403 atual: testamos com a chave
+        // certa e o request nem chega aqui, ver comentario no metodo
+        // heartbeat() — mas elimina essa classe de bug de qualquer jeito).
+        if (etlApiKey == null || providedKey == null) {
+            return false;
+        }
+
+        String expected = etlApiKey.trim();
+        String provided = providedKey.trim();
+
+        return !expected.isBlank() && expected.equals(provided);
 
     }
 
