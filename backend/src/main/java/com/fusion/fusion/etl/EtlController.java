@@ -62,7 +62,9 @@ public class EtlController {
         // contra producao (403 puro, sem o corpo JSON que unauthorized()
         // devolve, com os headers padrao do Spring Security).
         log.info("[HEARTBEAT] Header recebido: {}", providedKey);
-        log.info("[HEARTBEAT] Header esperado: {}", maskKey(etlApiKey));
+        log.info("[HEARTBEAT] Header esperado: {}...", etlApiKey.length() > 12 ? etlApiKey.substring(0, 12) : etlApiKey);
+        log.info("[HEARTBEAT] Chaves batem: {}", etlApiKey.trim().equals(providedKey != null ? providedKey.trim() : ""));
+        log.info("[HEARTBEAT] Tamanho esperado: {}, recebido: {}", etlApiKey.length(), providedKey != null ? providedKey.length() : 0);
 
         if (!isValidKey(providedKey)) {
             return unauthorized();
@@ -72,11 +74,6 @@ public class EtlController {
 
         return ResponseEntity.ok().build();
 
-    }
-
-    private String maskKey(String key) {
-        if (key == null || key.isBlank()) return "(vazia/nao configurada)";
-        return key.substring(0, Math.min(8, key.length())) + "...";
     }
 
     // Lido pela tela de monitoramento do ETL no Fusion — autenticado
