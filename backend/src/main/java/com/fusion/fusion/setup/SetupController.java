@@ -1,5 +1,9 @@
 package com.fusion.fusion.setup;
 
+import com.fusion.fusion.etl.EtlHeartbeatRequest;
+import com.fusion.fusion.etl.EtlRunStatus;
+import com.fusion.fusion.etl.EtlStatusService;
+import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
 import com.fusion.fusion.vehicle.tracknme.TracknMeSyncService;
@@ -24,20 +28,28 @@ import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -47,6 +59,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/setup")
 @RequiredArgsConstructor
@@ -65,6 +78,10 @@ public class SetupController {
     private final ServiceOrderService serviceOrderService;
     private final TracknMeSyncService tracknMeSyncService;
     private final WhatsAppService whatsAppService;
+    private final EtlStatusService etlStatusService;
+
+    @Value("${fusion.etl.api-key:}")
+    private String etlApiKey;
 
     private static final Set<String> MULTIPORTAL_PLATES = Set.of(
         "FXZ9249", "QXX8I71", "FWQ9D54", "QWY7149", "QYJ4B61", "RXZ5F74", "SIE4D31", "TAP2C19", "PDH5I98", "TQU9E05",
@@ -889,6 +906,76 @@ public class SetupController {
             "AND scheduling_status = 'ABERTO'"
         );
         return Map.of("status", "ok", "updated", updated);
+    }
+
+    // GET /etl/heartbeat continuava caindo 403 mesmo com permitAll() +
+    // metodo explicito no SecurityConfig, mesmo com o deploy confirmado
+    // atualizado — /setup/** ja e permitAll pra qualquer metodo e ja
+    // funciona (usado por sync-tracknme, check-tracknme etc), entao o
+    // heartbeat do ETL passa a reportar aqui em vez de /etl/heartbeat.
+    @GetMapping("/etl-heartbeat")
+    public ResponseEntity<?> etlHeartbeat(
+            @RequestParam ImportType type,
+            @RequestParam EtlRunStatus status,
+            @RequestParam(required = false) Long durationMs,
+            @RequestParam(required = false) String error,
+            @RequestParam(required = false) Integer recordsProcessed,
+            @RequestParam(required = false) String nextRunAt,
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
+    ) {
+
+        if (!isValidEtlKey(providedKey)) {
+            log.warn("Chamada a /setup/etl-heartbeat rejeitada: X-ETL-Key invalida ou ausente");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("status", "ERROR", "message", "Chave de API inválida"));
+        }
+
+        etlStatusService.heartbeat(
+                new EtlHeartbeatRequest(
+                        type,
+                        status,
+                        durationMs,
+                        error,
+                        recordsProcessed,
+                        parseNextRunAt(nextRunAt)
+                )
+        );
+
+        return ResponseEntity.ok().build();
+
+    }
+
+    private boolean isValidEtlKey(String providedKey) {
+
+        if (etlApiKey == null || providedKey == null) {
+            return false;
+        }
+
+        String expected = etlApiKey.trim();
+        String provided = providedKey.trim();
+
+        return !expected.isBlank() && expected.equals(provided);
+
+    }
+
+    // scheduler.js manda nextRunAt via new Date().toISOString().
+    private LocalDateTime parseNextRunAt(String raw) {
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        try {
+            return OffsetDateTime.parse(raw).toLocalDateTime();
+        } catch (DateTimeParseException e) {
+            try {
+                return LocalDateTime.parse(raw);
+            } catch (DateTimeParseException e2) {
+                log.warn("[SETUP] nextRunAt em formato invalido, ignorando: {}", raw);
+                return null;
+            }
+        }
+
     }
 
 }

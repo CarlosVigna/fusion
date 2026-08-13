@@ -28,10 +28,11 @@ async function reportHeartbeat({
 
     try {
 
-        // GET em vez de POST — POST /etl/heartbeat estava voltando 403
-        // puro no Railway (mesma permitAll(), mesma chave de GET /etl/poll,
-        // unica diferenca era o metodo HTTP). Payload vai via query params.
-        await axios.get(`${BACKEND_URL}/etl/heartbeat`, {
+        // /etl/heartbeat continuava voltando 403 mesmo depois de virar GET
+        // com metodo explicito no SecurityConfig. /setup/** ja e permitAll
+        // pra qualquer metodo e ja funciona hoje (sync-tracknme etc), entao
+        // o heartbeat passou a reportar ali em vez de /etl/heartbeat.
+        await axios.get(`${BACKEND_URL}/setup/etl-heartbeat`, {
             params: { type, status, durationMs, error, recordsProcessed, nextRunAt },
             headers: { 'X-ETL-Key': ETL_API_KEY },
             timeout: 15000,
