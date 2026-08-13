@@ -41,6 +41,12 @@ public class SecurityConfig {
 
         log.info("[SECURITY] Iniciando SecurityFilterChain - versao com /setup/** permitAll");
 
+        // Confirma na inicializacao (sem precisar de uma requisicao de
+        // teste) que a instancia rodando de fato tem essa regra — se o
+        // 403 em /etl/heartbeat for deploy desatualizado, essa linha
+        // simplesmente nao aparece no log da instancia velha.
+        log.info("[SECURITY] /etl/heartbeat está em permitAll: true");
+
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
 

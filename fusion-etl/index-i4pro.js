@@ -91,13 +91,20 @@ async function doLogin(page) {
         waitUntil: 'domcontentloaded',
         timeout  : 30000,
     });
-    // A tela de inicializacao (se aparecer) redireciona de volta pra
-    // Default.aspx antes do form de login ficar disponivel.
-    await page.waitForURL('**/Default.aspx**', { timeout: 30000 });
+    // O i4pro pode passar por uma tela de inicializacao (Atualizando.aspx)
+    // antes do form de login existir — esperar a URL nao serve (ela nao
+    // muda), entao espera o campo de usuario aparecer de verdade.
+    await page.waitForSelector('#cd_usuario', { timeout: 60000 });
     await page.fill('#cd_usuario', I4PRO_USER);
     await page.fill('#nm_senha', I4PRO_PASS);
     await page.click('#botaoEntrar');
-    await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 });
+    // A URL continua Default.aspx? depois do clique — nao muda. O sinal
+    // real de login concluido e' o campo oculto eng_sessao_aberta virar
+    // '3' (sessao aberta no servidor).
+    await page.waitForFunction(() => {
+        const el = document.querySelector('[name="eng_sessao_aberta"]');
+        return el && el.value === '3';
+    }, { timeout: 30000 });
     log('[i4pro] Login concluído');
 }
 
