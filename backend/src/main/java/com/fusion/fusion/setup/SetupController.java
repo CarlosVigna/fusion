@@ -903,6 +903,19 @@ public class SetupController {
         return Map.of("status", "ok", "updated", updated);
     }
 
+    // Diagnostico puro: sem validacao de chave, sem chamar
+    // etlStatusService, so ecoa de volta o que recebeu. Se isso tambem
+    // vier 403, isola de vez que o problema nao esta em nada que
+    // etlHeartbeat() faz por dentro — e sim em algo ligado ao path/deploy.
+    @GetMapping("/heartbeat-test")
+    public Map<String, Object> heartbeatTest(
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String key
+    ) {
+        return Map.of("status", "OK", "type", type != null ? type : "none");
+    }
+
     // Versao reduzida ao maximo pra isolar a causa do 403: mesma
     // assinatura de metodo do check-tracknme (que funciona) — sem
     // ResponseEntity, sem enum bindado direto da query string (type/status
