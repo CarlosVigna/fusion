@@ -91,15 +91,13 @@ async function doLogin(page) {
         waitUntil: 'domcontentloaded',
         timeout  : 30000,
     });
-    await page.evaluate((user, pass) => {
-        const loginEl = document.querySelector('input[name="nm_usuario"], #txtLogin');
-        if (loginEl) loginEl.value = user;
-        const passEl = document.querySelector('input[type="password"]');
-        if (passEl) passEl.value = pass;
-        const btn = document.querySelector('input[type="submit"], button[type="submit"]');
-        if (btn) btn.click();
-    }, I4PRO_USER, I4PRO_PASS);
-    await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 });
+    // A tela de inicializacao (se aparecer) redireciona de volta pra
+    // Default.aspx antes do form de login ficar disponivel.
+    await page.waitForURL('**/Default.aspx**', { timeout: 30000 });
+    await page.fill('#cd_usuario', I4PRO_USER);
+    await page.fill('#nm_senha', I4PRO_PASS);
+    await page.click('#botaoEntrar');
+    await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 15000 });
     log('[i4pro] Login concluído');
 }
 

@@ -55,6 +55,15 @@ public class EtlController {
             @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
     ) {
 
+        // Diagnostico do 403 em /etl/heartbeat: se essas duas linhas nunca
+        // aparecerem no log, a requisicao esta sendo barrada antes de
+        // chegar aqui (SecurityConfig/filtro), nao pela validacao de
+        // chave abaixo — foi exatamente isso que confirmamos rodando
+        // contra producao (403 puro, sem o corpo JSON que unauthorized()
+        // devolve, com os headers padrao do Spring Security).
+        log.info("[HEARTBEAT] Header recebido: {}", providedKey);
+        log.info("[HEARTBEAT] Header esperado: {}", maskKey(etlApiKey));
+
         if (!isValidKey(providedKey)) {
             return unauthorized();
         }
@@ -63,6 +72,11 @@ public class EtlController {
 
         return ResponseEntity.ok().build();
 
+    }
+
+    private String maskKey(String key) {
+        if (key == null || key.isBlank()) return "(vazia/nao configurada)";
+        return key.substring(0, Math.min(8, key.length())) + "...";
     }
 
     // Lido pela tela de monitoramento do ETL no Fusion — autenticado
