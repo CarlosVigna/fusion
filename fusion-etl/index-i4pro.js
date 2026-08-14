@@ -153,20 +153,32 @@ async function saveErrorScreenshot(page, label) {
     }
 }
 
-// Encontra o frame que contém o formulário de apólices e loga diagnóstico.
+// Busca recursivamente em todos os frames e child frames pelo id_ramo.
 async function findFormFrame(page) {
-    const frames = page.frames();
-    log(`[i4pro] Frames: ${frames.map(f => f.url()).join(' | ')}`);
+    const allFrames = page.frames();
+    log(`[i4pro] Frames disponíveis: ${allFrames.map(f => f.url()).join(' | ')}`);
 
-    const formFrame =
-        frames.find(f => f.url().includes('Blank.aspx')) ||
-        frames.find(f => f.url().includes('Default.aspx') && f !== page.mainFrame()) ||
-        page; // fallback para página principal
+    for (const frame of allFrames) {
+        try {
+            const found = await frame.evaluate(() => !!document.getElementById('id_ramo'));
+            if (found) {
+                log(`[i4pro] id_ramo encontrado no frame: ${frame.url()}`);
+                return frame;
+            }
+            for (const child of frame.childFrames()) {
+                try {
+                    const childFound = await child.evaluate(() => !!document.getElementById('id_ramo'));
+                    if (childFound) {
+                        log(`[i4pro] id_ramo encontrado em child frame: ${child.url()}`);
+                        return child;
+                    }
+                } catch (_) {}
+            }
+        } catch (_) {}
+    }
 
-    const ramoTest = await formFrame.evaluate(() => !!document.getElementById('id_ramo'));
-    log(`[i4pro] id_ramo encontrado: ${ramoTest} no frame: ${formFrame.url()}`);
-
-    return formFrame;
+    log(`[i4pro] id_ramo NÃO encontrado em nenhum frame — usando página principal como fallback`);
+    return page;
 }
 
 // Pesquisa uma placa e retorna dados da apólice mais recente
