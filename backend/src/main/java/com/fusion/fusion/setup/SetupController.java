@@ -950,11 +950,11 @@ public class SetupController {
                             parseNextRunAt(nextRunAt)
                     )
             );
-        } catch (IllegalArgumentException e) {
-            return Map.of("status", "ERROR", "message", "type/status invalido: " + type + "/" + status);
+            return Map.of("status", "OK");
+        } catch (Exception e) {
+            log.error("[HEARTBEAT] Erro: {}", e.getMessage(), e);
+            return Map.of("status", "ERROR", "message", e.getMessage());
         }
-
-        return Map.of("status", "OK");
 
     }
 
