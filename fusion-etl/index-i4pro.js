@@ -155,53 +155,58 @@ async function saveErrorScreenshot(page, label) {
 async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.waitForTimeout(2000);
 
-        // Aguardar ifrmPai e id_ramo via contentDocument (same-origin)
-        log('[i4pro] Aguardando ifrmPai contentDocument...');
-        await page.waitForFunction(() => {
-            const ifrmPai = document.getElementById('ifrmPai');
-            if (!ifrmPai || !ifrmPai.contentDocument) return false;
-            return !!ifrmPai.contentDocument.getElementById('id_ramo');
-        }, { timeout: 30000 });
+        // ── Diagnóstico: ver o que o Playwright enxerga ───────────────────────
+        await saveErrorScreenshot(page, 'apolices-debug');
+        const html = await page.content();
+        log(`[i4pro] Frames ativos: ${page.frames().map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
+        log(`[i4pro] HTML (primeiros 3000): ${html.substring(0, 3000)}`);
 
-        const formReady = await page.evaluate(() => {
-            const ifrmPai = document.getElementById('ifrmPai');
-            if (!ifrmPai || !ifrmPai.contentDocument) return false;
-            return !!ifrmPai.contentDocument.getElementById('id_ramo');
-        });
+        // ── Preencher formulário via locators visuais ─────────────────────────
+        // Ramo: 2º select da página
+        await page.locator('select').nth(1).selectOption('16');
 
-        if (!formReady) throw new Error('ifrmPai contentDocument sem id_ramo');
-        log('[i4pro] Formulário pronto via contentDocument!');
+        // Placa: input que não é o de usuário/senha — usa índice ou placeholder
+        const placaInput = page.locator('input[name="nm_placa"], input[id="nm_placa"]').first();
+        await placaInput.fill(plate);
 
-        // Preencher via contentDocument
-        await page.evaluate((p) => {
-            const doc = document.getElementById('ifrmPai').contentDocument;
-            doc.getElementById('id_ramo').value = '16';
-            doc.getElementById('nm_placa').value = p;
-            doc.getElementById('TRBTNC_a999996').click();
-        }, plate);
-
+        // Botão Pesquisar
+        await page.locator('button:has-text("Pesquisar"), input[value="Pesquisar"], input[type="submit"]').first().click();
         await page.waitForTimeout(3000);
 
-        // Ler resultados via contentDocument
+        // Screenshot após pesquisa para ver resultado
+        await saveErrorScreenshot(page, 'apolices-resultado');
+
+        // ── Ler resultados ────────────────────────────────────────────────────
         const rows = await page.evaluate(() => {
-            const doc = document.getElementById('ifrmPai').contentDocument;
-            const data = [];
-            doc.querySelectorAll('table tbody tr').forEach((row, idx) => {
-                if (idx === 0) return;
-                const cells = Array.from(row.querySelectorAll('td'));
-                if (cells.length < 10) return;
-                const linkEl = row.querySelector('[id^="TDLINK_"]');
-                data.push({
-                    numero    : cells[0]?.innerText?.trim()  || '',
-                    cliente   : cells[1]?.innerText?.trim()  || '',
-                    apolice   : cells[6]?.innerText?.trim()  || '',
-                    inicioVig : cells[9]?.innerText?.trim()  || '',
-                    fimVig    : cells[10]?.innerText?.trim() || '',
-                    linkId    : linkEl?.id || null,
-                });
+            // Tenta na página principal e em todos os iframes (same-origin)
+            const docs = [document];
+            document.querySelectorAll('iframe').forEach(f => {
+                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
             });
-            return data;
+
+            for (const doc of docs) {
+                const trs = doc.querySelectorAll('table tbody tr');
+                if (!trs.length) continue;
+                const data = [];
+                trs.forEach((row, idx) => {
+                    if (idx === 0) return;
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    if (cells.length < 10) return;
+                    const linkEl = row.querySelector('[id^="TDLINK_"]');
+                    data.push({
+                        numero    : cells[0]?.innerText?.trim()  || '',
+                        cliente   : cells[1]?.innerText?.trim()  || '',
+                        apolice   : cells[6]?.innerText?.trim()  || '',
+                        inicioVig : cells[9]?.innerText?.trim()  || '',
+                        fimVig    : cells[10]?.innerText?.trim() || '',
+                        linkId    : linkEl?.id || null,
+                    });
+                });
+                if (data.length) return data;
+            }
+            return [];
         });
 
         log(`[i4pro] Resultados: ${rows.length} linhas`);
@@ -228,25 +233,43 @@ async function processPlate(page, plate, searchUrl) {
         }
 
         await page.evaluate((linkId) => {
-            const doc = document.getElementById('ifrmPai').contentDocument;
-            doc.getElementById(linkId)?.click();
+            const docs = [document];
+            document.querySelectorAll('iframe').forEach(f => {
+                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
+            });
+            for (const doc of docs) {
+                const el = doc.getElementById(linkId);
+                if (el) { el.click(); return; }
+            }
         }, latest.linkId);
         await page.waitForTimeout(2000);
 
         await page.evaluate(() => {
-            const doc = document.getElementById('ifrmPai').contentDocument;
-            const tabs = Array.from(doc.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
-            const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
-            tab?.click();
+            const docs = [document];
+            document.querySelectorAll('iframe').forEach(f => {
+                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
+            });
+            for (const doc of docs) {
+                const tabs = Array.from(doc.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
+                const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
+                if (tab) { tab.click(); return; }
+            }
         });
         await page.waitForTimeout(1000);
 
         const clienteData = await page.evaluate(() => {
-            const doc = document.getElementById('ifrmPai').contentDocument;
-            return {
-                nome    : doc.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',
-                cpfCnpj : doc.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
-            };
+            const docs = [document];
+            document.querySelectorAll('iframe').forEach(f => {
+                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
+            });
+            for (const doc of docs) {
+                const nome = doc.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim();
+                if (nome) return {
+                    nome,
+                    cpfCnpj: doc.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
+                };
+            }
+            return { nome: '', cpfCnpj: '' };
         });
 
         return {
@@ -258,6 +281,7 @@ async function processPlate(page, plate, searchUrl) {
         };
     } catch (err) {
         log(`[i4pro] Erro ao processar ${plate}: ${err.message}`);
+        await saveErrorScreenshot(page, 'apolices-erro');
         return null;
     }
 }
