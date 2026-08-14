@@ -113,7 +113,12 @@ async function doLogin(page) {
 async function navigateToApolices(page) {
     try {
         log('[i4pro] Navegando para Emissão > Apólices...');
-        // Clique no menu da página principal (fora dos frames)
+
+        // Interceptar requests durante a navegação para descobrir a URL do formulário
+        const capturedUrls = [];
+        const onRequest = req => capturedUrls.push(req.url());
+        page.on('request', onRequest);
+
         await page.evaluate(() => {
             const links = Array.from(document.querySelectorAll('a, li'));
             const el = links.find(l => l.innerText?.trim() === 'Emissão');
@@ -126,6 +131,20 @@ async function navigateToApolices(page) {
             el?.click();
         });
         await page.waitForTimeout(2000);
+
+        page.off('request', onRequest);
+
+        log(`[i4pro] URL atual após menu: ${page.url()}`);
+        log(`[i4pro] Requests capturadas (${capturedUrls.length}):`);
+        capturedUrls.forEach(u => log(`[i4pro]   → ${u}`));
+
+        // Logar também o src de todos os iframes presentes
+        const iframeSrcs = await page.evaluate(() =>
+            Array.from(document.querySelectorAll('iframe')).map(f => `id=${f.id} name=${f.name} src=${f.src}`)
+        );
+        log(`[i4pro] Iframes na página (${iframeSrcs.length}): ${iframeSrcs.join(' || ')}`);
+
+        await saveErrorScreenshot(page, 'menu-apolices');
         log('[i4pro] Página de apólices carregada');
         return page.url();
     } catch (e) {
