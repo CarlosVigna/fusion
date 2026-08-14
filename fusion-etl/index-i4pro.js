@@ -153,58 +153,39 @@ async function saveErrorScreenshot(page, label) {
     }
 }
 
-// Localiza o frame que contém o formulário de apólices.
-// O i4pro usa iframes aninhados: ifrmPai contém um child frame com o form real.
+// Aguarda id_ramo aparecer em qualquer frame e retorna o frame que o contém.
 async function findFormFrame(page) {
-    const allFrames = page.frames();
-    log(`[i4pro] Frames disponíveis: ${allFrames.map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
+    log('[i4pro] Aguardando formulário carregar (id_ramo em qualquer frame)...');
+    await page.waitForFunction(() => {
+        if (document.getElementById('id_ramo')) return true;
+        for (let i = 0; i < window.frames.length; i++) {
+            try { if (window.frames[i].document.getElementById('id_ramo')) return true; } catch (_) {}
+        }
+        return false;
+    }, { timeout: 30000 });
+    log('[i4pro] Formulário carregado!');
 
-    const ifrmPai =
-        page.frame({ name: 'ifrmPai' }) ||
-        page.frame({ name: 'ifrmJanela' }) ||
-        allFrames.find(f => f.url().includes('Blank.aspx'));
+    const frames = page.frames();
+    log(`[i4pro] Frames disponíveis: ${frames.map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
 
-    if (!ifrmPai) {
-        log(`[i4pro] ifrmPai não encontrado — usando página principal como fallback`);
-        return page;
-    }
-
-    await page.waitForTimeout(2000); // aguardar iframe interno carregar
-
-    const childFrames = ifrmPai.childFrames();
-    log(`[i4pro] Child frames de ifrmPai: ${childFrames.map(f => `${f.name()}|${f.url()}`).join(' || ') || '(nenhum)'}`);
-
-    for (const child of childFrames) {
+    for (const f of frames) {
         try {
-            const found = await child.evaluate(() => !!document.getElementById('id_ramo'));
+            const found = await f.evaluate(() => !!document.getElementById('id_ramo'));
             if (found) {
-                log(`[i4pro] Formulário encontrado em child frame: ${child.url()}`);
-                return child;
+                log(`[i4pro] id_ramo encontrado no frame: ${f.name()}|${f.url()}`);
+                return f;
             }
         } catch (_) {}
     }
 
-    // Fallback: usa o próprio ifrmPai se o form não estiver num child
-    log(`[i4pro] Formulário não encontrado em child frames — usando ifrmPai: ${ifrmPai.url()}`);
-    return ifrmPai;
+    log('[i4pro] id_ramo não encontrado via frames() — usando página principal como fallback');
+    return page;
 }
 
 // Pesquisa uma placa e retorna dados da apólice mais recente
 async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        await page.waitForTimeout(3000); // aguardar iframe carregar completamente
-
-        // Diagnóstico: inspecionar todos os frames antes de escolher
-        for (const f of page.frames()) {
-            try {
-                const hasRamo = await f.evaluate(() => !!document.getElementById('id_ramo')).catch(() => 'erro-eval');
-                log(`[i4pro] Frame: ${f.url()} | id_ramo: ${hasRamo}`);
-            } catch (e) {
-                log(`[i4pro] Frame: ${f.url()} | erro: ${e.message}`);
-            }
-        }
-
         const formFrame = await findFormFrame(page);
 
         // ── Preencher formulário via Frame Playwright (não window.frames[N]) ──
