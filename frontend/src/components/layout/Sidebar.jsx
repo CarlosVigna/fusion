@@ -50,8 +50,8 @@ const GROUPS = [
         icon: Monitor,
         items: [
             { label: "Grid",                      icon: LayoutGrid,      path: "/grid" },
-            { label: "Relatório Multiportal",     icon: FileSpreadsheet, path: "/reports" },
-            { label: "Relatório de Dispositivos", icon: FileSpreadsheet, path: "/reports" },
+            { label: "Relatório Multiportal",     icon: FileSpreadsheet, path: "/reports/multiportal" },
+            { label: "Relatório de Dispositivos", icon: FileSpreadsheet, path: "/reports/devices" },
         ],
     },
     {
@@ -59,10 +59,10 @@ const GROUPS = [
         label: "TracknMe",
         icon: Satellite,
         items: [
-            { label: "Grid TracknMe",         icon: LayoutGrid,      path: "/grid?mode=tracknme" },
+            { label: "Grid TracknMe",         icon: LayoutGrid,      path: "/tracknme/grid" },
             { label: "Histórico",             icon: History,         path: "/tracknme/history" },
             { label: "Pendentes de Cadastro", icon: MapPin,          path: "/tracknme/pending" },
-            { label: "Relatório TracknMe",    icon: FileSpreadsheet, path: "/reports" },
+            { label: "Relatório TracknMe",    icon: FileSpreadsheet, path: "/reports/tracknme" },
         ],
     },
     {
@@ -71,7 +71,7 @@ const GROUPS = [
         icon: Bell,
         items: [
             { label: "Controle de Sinais",  icon: Radio,  path: "/signal-control", badgeKey: "signalControl" },
-            { label: "Cartas de Suspensão", icon: Mail,   path: "/cartas" },
+            { label: "Cartas de Suspensão", icon: Mail,   path: "/letters" },
             { label: "Manutenções",         icon: Wrench, path: "/maintenance" },
         ],
     },
@@ -104,11 +104,10 @@ const GROUPS = [
         items: [
             { label: "Usuários",           icon: Users,         path: "/users" },
             { label: "Import Center",      icon: Upload,        path: "/imports" },
-            { label: "Monitor ETL",        icon: Activity,      path: "/etl-monitor" },
+            { label: "Monitor ETL",        icon: Activity,      path: "/etl" },
             { label: "Mudanças Pendentes", icon: ClipboardList, path: "/pending-changes" },
             { label: "Sem Comunicação",    icon: WifiOff,       path: "/no-communication" },
             { label: "Passagem de Turno",  icon: Send,          path: "/shift-handover" },
-            { label: "Histórico TracknMe", icon: History,       path: "/tracknme/history" },
         ],
     },
 ];

@@ -121,8 +121,12 @@ export default function AppRoutes() {
                     <Route path="sinistro"         element={<AnaliseSinistro />} />
                     <Route path="users"            element={<Users />} />
                     <Route path="shift-handover"   element={<ShiftHandover />} />
-                    <Route path="tracknme/pending"  element={<TracknMePending />} />
-                    <Route path="tracknme/history" element={<TracknMeHistory />} />
+                    <Route path="tracknme/pending"      element={<TracknMePending />} />
+                    <Route path="tracknme/history"      element={<TracknMeHistory />} />
+                    <Route path="tracknme/grid"         element={<Grid />} />
+                    <Route path="reports/multiportal"   element={<Reports />} />
+                    <Route path="reports/devices"       element={<Reports />} />
+                    <Route path="reports/tracknme"      element={<Reports />} />
                 </Route>
             </Route>
 
