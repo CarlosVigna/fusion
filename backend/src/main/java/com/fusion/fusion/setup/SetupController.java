@@ -55,6 +55,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+// rebuild-marker: 2026-08-14
 @Slf4j
 @RestController
 @RequestMapping("/setup")
@@ -62,6 +63,11 @@ import java.util.stream.Collectors;
 public class SetupController {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    @GetMapping("/ping")
+    public Map<String, Object> ping() {
+        return Map.of("pong", true, "v", "2");
+    }
 
     private final VehicleRepository vehicleRepository;
     private final DeviceLinkageRepository deviceLinkageRepository;
