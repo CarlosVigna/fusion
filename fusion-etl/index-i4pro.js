@@ -160,6 +160,7 @@ async function processPlate(page, plate, searchUrl) {
         await page.waitForTimeout(2000);
 
         // ── Preencher formulário dentro de frames[1] ──────────────────────────
+        // Ramo é setado a cada placa porque o form pode resetar entre pesquisas
         await page.evaluate((p) => {
             const doc = window.frames[1].document;
             const ramoSel = doc.getElementById('id_ramo');
@@ -169,6 +170,15 @@ async function processPlate(page, plate, searchUrl) {
             const btn = doc.getElementById('TRBTNC_a999996');
             if (btn) btn.click();
         }, plate);
+
+        // Confirma o valor do Ramo após o set (diagnóstico de reset entre pesquisas)
+        const ramoValue = await page.evaluate(() => {
+            const doc = window.frames[1].document;
+            const ramoSel = doc.getElementById('id_ramo');
+            return ramoSel ? ramoSel.value : 'elemento nao encontrado';
+        });
+        log(`[i4pro] Ramo selecionado: ${ramoValue} (esperado: 16 = 31-AUTO)`);
+
         await page.waitForTimeout(3000);
 
         // ── Ler resultados de frames[1] ───────────────────────────────────────
