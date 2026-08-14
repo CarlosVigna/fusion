@@ -161,43 +161,53 @@ async function processPlate(page, plate, searchUrl) {
         await saveErrorScreenshot(page, 'apolices-debug');
         log(`[i4pro] Frames ativos: ${page.frames().map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
 
-        // ── Aguardar iframe e usar frameLocator pelo ID do elemento ───────────
-        await page.waitForSelector('#ifrmPai', { timeout: 15000 });
-        await page.waitForTimeout(2000);
+        // ── Poll até id_ramo aparecer no contentDocument do ifrmPai ──────────
+        log('[i4pro] Aguardando formulário via contentDocument...');
+        let formReady = false;
+        for (let i = 0; i < 30; i++) {
+            formReady = await page.evaluate(() => {
+                const ifrmPai = document.getElementById('ifrmPai');
+                return !!(ifrmPai && ifrmPai.contentDocument && ifrmPai.contentDocument.getElementById('id_ramo'));
+            });
+            if (formReady) break;
+            await page.waitForTimeout(1000);
+        }
+        if (!formReady) throw new Error('Formulário não carregou em 30s');
+        log('[i4pro] Formulário pronto!');
 
-        const fl = page.frameLocator('#ifrmPai');
+        // ── Preencher e pesquisar via contentDocument ─────────────────────────
+        await page.evaluate((p) => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
+            doc.getElementById('id_ramo').value = '16';
+            doc.getElementById('nm_placa').value = p;
+            doc.getElementById('TRBTNC_a999996').click();
+        }, plate);
 
-        await fl.locator('#id_ramo').waitFor({ timeout: 30000 });
-        log('[i4pro] Formulário encontrado no ifrmPai!');
-
-        await fl.locator('#id_ramo').selectOption('16');
-        await fl.locator('#nm_placa').fill(plate);
-        await fl.locator('#TRBTNC_a999996').click();
-        await page.waitForTimeout(3000);
-
+        await page.waitForTimeout(4000);
         await saveErrorScreenshot(page, 'apolices-resultado');
 
-        // ── Ler resultados via frameLocator ───────────────────────────────────
-        const rows = await fl.locator('body').evaluate(() => {
-            const data = [];
-            document.querySelectorAll('table tbody tr').forEach((row, idx) => {
-                if (idx === 0) return;
+        // ── Ler resultados via contentDocument ────────────────────────────────
+        const rawRows = await page.evaluate(() => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
+            return Array.from(doc.querySelectorAll('table tbody tr')).map((row, idx) => {
                 const cells = Array.from(row.querySelectorAll('td'));
-                if (cells.length < 10) return;
-                const linkEl = row.querySelector('[id^="TDLINK_"]');
-                data.push({
-                    numero    : cells[0]?.innerText?.trim()  || '',
-                    cliente   : cells[1]?.innerText?.trim()  || '',
-                    apolice   : cells[6]?.innerText?.trim()  || '',
-                    inicioVig : cells[9]?.innerText?.trim()  || '',
-                    fimVig    : cells[10]?.innerText?.trim() || '',
-                    linkId    : linkEl?.id || null,
-                });
+                const link  = row.querySelector('[id^="TDLINK_"]');
+                return { index: idx, cells: cells.map(c => c.innerText?.trim()), linkId: link?.id };
             });
-            return data;
         });
 
-        log(`[i4pro] Resultados: ${rows.length} linhas`);
+        log(`[i4pro] Resultados: ${rawRows.length} linhas`);
+
+        const rows = rawRows
+            .filter(r => r.index > 0 && r.cells.length >= 10)
+            .map(r => ({
+                numero    : r.cells[0]  || '',
+                cliente   : r.cells[1]  || '',
+                apolice   : r.cells[6]  || '',
+                inicioVig : r.cells[9]  || '',
+                fimVig    : r.cells[10] || '',
+                linkId    : r.linkId    || null,
+            }));
 
         if (!rows.length) {
             log(`[i4pro] Não encontrada: ${plate}`);
@@ -220,16 +230,26 @@ async function processPlate(page, plate, searchUrl) {
             };
         }
 
-        await fl.locator(`#${latest.linkId}`).click();
+        await page.evaluate((linkId) => {
+            document.getElementById('ifrmPai').contentDocument.getElementById(linkId)?.click();
+        }, latest.linkId);
         await page.waitForTimeout(2000);
 
-        await fl.locator('a, [role="tab"]').filter({ hasText: /^cliente$/i }).click();
+        await page.evaluate(() => {
+            const doc  = document.getElementById('ifrmPai').contentDocument;
+            const tabs = Array.from(doc.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
+            const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
+            tab?.click();
+        });
         await page.waitForTimeout(1000);
 
-        const clienteData = await fl.locator('body').evaluate(() => ({
-            nome    : document.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',
-            cpfCnpj : document.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
-        }));
+        const clienteData = await page.evaluate(() => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
+            return {
+                nome    : doc.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',
+                cpfCnpj : doc.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
+            };
+        });
 
         return {
             policyNumber : latest.apolice                             || null,
