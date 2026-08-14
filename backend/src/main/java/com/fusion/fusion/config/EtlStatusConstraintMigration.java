@@ -16,6 +16,7 @@ public class EtlStatusConstraintMigration {
     @PostConstruct
     public void migrateConstraint() {
         try {
+            jdbcTemplate.execute("DELETE FROM etl_status WHERE type NOT IN ('MULTIPORTAL_DEVICE','MULTIPORTAL_LINKAGE','MULTIPORTAL_OPERATIONAL','MULTIPORTAL_ULTIMA_POSICAO','INSTALLATION_SYNC','OPERATIONAL_ENGINE','SERVICE_ORDER_COMPLETION','TRACKNME','TRACKNME_POSITION','I4PRO')");
             jdbcTemplate.execute("ALTER TABLE etl_status DROP CONSTRAINT IF EXISTS etl_status_type_check");
             jdbcTemplate.execute("ALTER TABLE etl_status ADD CONSTRAINT etl_status_type_check CHECK (type IN ('MULTIPORTAL_DEVICE','MULTIPORTAL_LINKAGE','MULTIPORTAL_OPERATIONAL','MULTIPORTAL_ULTIMA_POSICAO','INSTALLATION_SYNC','OPERATIONAL_ENGINE','SERVICE_ORDER_COMPLETION','TRACKNME','TRACKNME_POSITION','I4PRO'))");
             log.info("[MIGRATION] etl_status constraint atualizada com sucesso");
