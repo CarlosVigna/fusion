@@ -153,17 +153,20 @@ async function saveErrorScreenshot(page, label) {
     }
 }
 
-// Encontra o frame que contém o formulário de apólices.
-// page.frames() retorna objetos Frame do Playwright — muito mais confiável
-// do que window.frames[N] dentro de page.evaluate(), que não é acessível
-// ao contexto Playwright por causa do isolamento de contextos do browser.
-function findFormFrame(page) {
+// Encontra o frame que contém o formulário de apólices e loga diagnóstico.
+async function findFormFrame(page) {
     const frames = page.frames();
-    log(`[i4pro] Frames disponíveis: ${frames.map(f => f.url()).join(', ')}`);
-    // Prefere frame com Default.aspx na URL (mesmo domínio, não a página pai)
-    return frames.find(f => f.url().includes('Default.aspx') && f !== page.mainFrame())
-        || frames[1]
-        || frames[0];
+    log(`[i4pro] Frames: ${frames.map(f => f.url()).join(' | ')}`);
+
+    const formFrame =
+        frames.find(f => f.url().includes('Blank.aspx')) ||
+        frames.find(f => f.url().includes('Default.aspx') && f !== page.mainFrame()) ||
+        page; // fallback para página principal
+
+    const ramoTest = await formFrame.evaluate(() => !!document.getElementById('id_ramo'));
+    log(`[i4pro] id_ramo encontrado: ${ramoTest} no frame: ${formFrame.url()}`);
+
+    return formFrame;
 }
 
 // Pesquisa uma placa e retorna dados da apólice mais recente
@@ -172,7 +175,7 @@ async function processPlate(page, plate, searchUrl) {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(2000);
 
-        const formFrame = findFormFrame(page);
+        const formFrame = await findFormFrame(page);
 
         // ── Preencher formulário via Frame Playwright (não window.frames[N]) ──
         // Ramo é setado a cada placa porque o form pode resetar entre pesquisas
