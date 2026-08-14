@@ -173,7 +173,17 @@ async function findFormFrame(page) {
 async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        await page.waitForTimeout(2000);
+        await page.waitForTimeout(3000); // aguardar iframe carregar completamente
+
+        // Diagnóstico: inspecionar todos os frames antes de escolher
+        for (const f of page.frames()) {
+            try {
+                const hasRamo = await f.evaluate(() => !!document.getElementById('id_ramo')).catch(() => 'erro-eval');
+                log(`[i4pro] Frame: ${f.url()} | id_ramo: ${hasRamo}`);
+            } catch (e) {
+                log(`[i4pro] Frame: ${f.url()} | erro: ${e.message}`);
+            }
+        }
 
         const formFrame = await findFormFrame(page);
 
