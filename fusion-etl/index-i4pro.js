@@ -108,10 +108,7 @@ async function doLogin(page) {
     // A URL continua Default.aspx? depois do clique — nao muda. O sinal
     // real de login concluido e' o campo oculto eng_sessao_aberta virar
     // '3' (sessao aberta no servidor).
-    await page.waitForFunction(() => {
-        const el = document.querySelector('[name="eng_sessao_aberta"]');
-        return el && el.value === '3';
-    }, { timeout: 30000 });
+    await page.waitForSelector('a:has-text("Emissão"), .navbar, #menu-principal', { timeout: 30000 });
     log('[i4pro] Login concluído');
 }
 
