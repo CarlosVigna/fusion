@@ -1,27 +1,29 @@
 import {
     Activity,
-    Building2,
-    Car,
+    AlertTriangle,
+    Bell,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
     ClipboardCheck,
     ClipboardList,
     FileSpreadsheet,
+    FileText,
     History,
     LayoutGrid,
     Mail,
     MapPin,
-    MonitorCheck,
+    Monitor,
     Radio,
+    Satellite,
     ScrollText,
-    Search,
     Send,
     Settings,
     Shield,
     Upload,
     UserCog,
     Users,
+    WifiOff,
     Wrench,
 } from "lucide-react";
 
@@ -43,52 +45,55 @@ import { FusionLogo } from "../../assets/FusionLogo";
 
 const GROUPS = [
     {
-        key: "monitoring",
-        label: "Monitoramento",
-        icon: MonitorCheck,
+        key: "multiportal",
+        label: "Monitoramento Multiportal",
+        icon: Monitor,
         items: [
-            { label: "Grid",                icon: LayoutGrid,      path: "/grid" },
-            { label: "Central Operacional", icon: Shield,          path: "/dashboard" },
-            { label: "Controle de Sinais",  icon: Radio,           path: "/signal-control", badgeKey: "signalControl" },
-            { label: "Cartas de Suspensão", icon: Mail,            path: "/letters" },
-            { label: "Manutenções",         icon: Wrench,          path: "/maintenance" },
-            { label: "Relatórios",          icon: FileSpreadsheet, path: "/reports" },
+            { label: "Grid",                      icon: LayoutGrid,      path: "/grid" },
+            { label: "Relatório Multiportal",     icon: FileSpreadsheet, path: "/reports" },
+            { label: "Relatório de Dispositivos", icon: FileSpreadsheet, path: "/reports" },
         ],
     },
     {
-        key: "portal",
-        label: "Portal Use",
-        icon: Building2,
+        key: "tracknme",
+        label: "TracknMe",
+        icon: Satellite,
         items: [
-            {
-                label: "Apólices",
-                icon: ScrollText,
-                path: "/policies",
-                adminOnly: true,
-                badges: [
-                    { key: "policiesExpired",  color: "bg-red-500" },
-                    { key: "policiesExpiring", color: "bg-yellow-500 text-black" },
-                ],
-            },
+            { label: "Grid TracknMe",         icon: LayoutGrid,      path: "/grid?mode=tracknme" },
+            { label: "Histórico",             icon: History,         path: "/tracknme/history" },
+            { label: "Pendentes de Cadastro", icon: MapPin,          path: "/tracknme/pending" },
+            { label: "Relatório TracknMe",    icon: FileSpreadsheet, path: "/reports" },
         ],
     },
     {
-        key: "sinistro",
-        label: "Sinistro",
-        icon: Search,
+        key: "operational",
+        label: "Operacional",
+        icon: Bell,
         items: [
-            { label: "Análise de Sinistro", icon: Search, path: "/sinistro" },
+            { label: "Controle de Sinais",  icon: Radio,  path: "/signal-control", badgeKey: "signalControl" },
+            { label: "Cartas de Suspensão", icon: Mail,   path: "/cartas" },
+            { label: "Manutenções",         icon: Wrench, path: "/maintenance" },
+        ],
+    },
+    {
+        key: "policies",
+        label: "Apólices",
+        icon: FileText,
+        items: [
+            { label: "Conferência", icon: ScrollText,    path: "/policies" },
+            { label: "Alertas",     icon: AlertTriangle, path: "/policies/alerts" },
         ],
     },
     {
         key: "serviceorders",
         label: "Ordens de Serviço",
-        icon: ClipboardCheck,
+        icon: ClipboardList,
         items: [
-            { label: "Dashboard",   icon: ClipboardCheck,  path: "/service-orders/dashboard" },
-            { label: "Ordens",      icon: ClipboardList,   path: "/service-orders", end: true },
-            { label: "Técnicos",    icon: UserCog,         path: "/technicians" },
-            { label: "Relatórios",  icon: FileSpreadsheet, path: "/service-orders/reports" },
+            { label: "Dashboard",  icon: ClipboardCheck,  path: "/service-orders/dashboard" },
+            { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
+            { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
+            { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
+            { label: "Auditoria",  icon: Shield,          path: "/service-orders/audit" },
         ],
     },
     {
@@ -97,13 +102,13 @@ const GROUPS = [
         icon: Settings,
         adminOnly: true,
         items: [
-            { label: "Veículos",            icon: Car,      path: "/vehicles" },
-            { label: "Import Center",       icon: Upload,   path: "/imports" },
-            { label: "Monitor ETL",         icon: Activity, path: "/etl" },
-            { label: "Usuários",            icon: Users,    path: "/users" },
-            { label: "Passagem de Turno",   icon: Send,     path: "/shift-handover" },
-            { label: "TracknMe Pendentes",  icon: MapPin,   path: "/tracknme/pending" },
-            { label: "Histórico TracknMe",  icon: History,  path: "/tracknme/history" },
+            { label: "Usuários",           icon: Users,         path: "/users" },
+            { label: "Import Center",      icon: Upload,        path: "/imports" },
+            { label: "Monitor ETL",        icon: Activity,      path: "/etl-monitor" },
+            { label: "Mudanças Pendentes", icon: ClipboardList, path: "/pending-changes" },
+            { label: "Sem Comunicação",    icon: WifiOff,       path: "/no-communication" },
+            { label: "Passagem de Turno",  icon: Send,          path: "/shift-handover" },
+            { label: "Histórico TracknMe", icon: History,       path: "/tracknme/history" },
         ],
     },
 ];
@@ -117,7 +122,7 @@ function loadGroupState() {
         const saved = localStorage.getItem(GROUPS_STORAGE_KEY);
         if (saved) return JSON.parse(saved);
     } catch {}
-    return { monitoring: false, portal: false, sinistro: false, serviceorders: false, admin: true };
+    return { multiportal: false, tracknme: false, operational: false, policies: false, serviceorders: false, admin: true };
 }
 
 // Auto-recolhe apenas no Grid (tabela densa); Home e demais ficam abertos.
@@ -127,7 +132,7 @@ export default function Sidebar() {
 
     const location = useLocation();
     const { user } = useAuthStore();
-    const isAdmin = user?.role === "ADMIN";
+    const isAdmin = user?.role === "ADMIN" || user?.role === "OPERATOR";
     const isFieldOrTech = user?.role === "FIELD" || user?.role === "TECHNICIAN";
 
     const isGridPage = GRID_PATHS.includes(location.pathname);
@@ -234,12 +239,15 @@ export default function Sidebar() {
 
     // Filtra grupos e itens conforme o perfil do usuário
     const visibleGroups = GROUPS
-        .filter(group => !isFieldOrTech || group.key === "serviceorders")
+        .filter(group => {
+            if (isFieldOrTech && group.key !== "serviceorders") return false;
+            if (group.adminOnly && !isAdmin) return false;
+            return true;
+        })
         .map(group => ({
             ...group,
             items: group.items.filter(item => {
                 if (item.adminOnly && !isAdmin) return false;
-                if (item.fullAccessOnly && isFieldOrTech) return false;
                 return true;
             }),
         }))
@@ -329,7 +337,7 @@ export default function Sidebar() {
 
                                     return (
                                         <NavLink
-                                            key={item.path}
+                                            key={item.path + item.label}
                                             to={item.path}
                                             end={!!item.end}
                                             title={!expanded ? item.label : undefined}
