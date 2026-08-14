@@ -157,56 +157,44 @@ async function processPlate(page, plate, searchUrl) {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(2000);
 
-        // ── Diagnóstico: ver o que o Playwright enxerga ───────────────────────
+        // ── Diagnóstico ───────────────────────────────────────────────────────
         await saveErrorScreenshot(page, 'apolices-debug');
-        const html = await page.content();
         log(`[i4pro] Frames ativos: ${page.frames().map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
-        log(`[i4pro] HTML (primeiros 3000): ${html.substring(0, 3000)}`);
 
-        // ── Preencher formulário via locators visuais ─────────────────────────
-        // Ramo: 2º select da página
-        await page.locator('select').nth(1).selectOption('16');
+        // ── Aguardar iframe e usar frameLocator pelo ID do elemento ───────────
+        await page.waitForSelector('#ifrmPai', { timeout: 15000 });
+        await page.waitForTimeout(2000);
 
-        // Placa: input que não é o de usuário/senha — usa índice ou placeholder
-        const placaInput = page.locator('input[name="nm_placa"], input[id="nm_placa"]').first();
-        await placaInput.fill(plate);
+        const fl = page.frameLocator('#ifrmPai');
 
-        // Botão Pesquisar
-        await page.locator('button:has-text("Pesquisar"), input[value="Pesquisar"], input[type="submit"]').first().click();
+        await fl.locator('#id_ramo').waitFor({ timeout: 30000 });
+        log('[i4pro] Formulário encontrado no ifrmPai!');
+
+        await fl.locator('#id_ramo').selectOption('16');
+        await fl.locator('#nm_placa').fill(plate);
+        await fl.locator('#TRBTNC_a999996').click();
         await page.waitForTimeout(3000);
 
-        // Screenshot após pesquisa para ver resultado
         await saveErrorScreenshot(page, 'apolices-resultado');
 
-        // ── Ler resultados ────────────────────────────────────────────────────
-        const rows = await page.evaluate(() => {
-            // Tenta na página principal e em todos os iframes (same-origin)
-            const docs = [document];
-            document.querySelectorAll('iframe').forEach(f => {
-                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
-            });
-
-            for (const doc of docs) {
-                const trs = doc.querySelectorAll('table tbody tr');
-                if (!trs.length) continue;
-                const data = [];
-                trs.forEach((row, idx) => {
-                    if (idx === 0) return;
-                    const cells = Array.from(row.querySelectorAll('td'));
-                    if (cells.length < 10) return;
-                    const linkEl = row.querySelector('[id^="TDLINK_"]');
-                    data.push({
-                        numero    : cells[0]?.innerText?.trim()  || '',
-                        cliente   : cells[1]?.innerText?.trim()  || '',
-                        apolice   : cells[6]?.innerText?.trim()  || '',
-                        inicioVig : cells[9]?.innerText?.trim()  || '',
-                        fimVig    : cells[10]?.innerText?.trim() || '',
-                        linkId    : linkEl?.id || null,
-                    });
+        // ── Ler resultados via frameLocator ───────────────────────────────────
+        const rows = await fl.locator('body').evaluate(() => {
+            const data = [];
+            document.querySelectorAll('table tbody tr').forEach((row, idx) => {
+                if (idx === 0) return;
+                const cells = Array.from(row.querySelectorAll('td'));
+                if (cells.length < 10) return;
+                const linkEl = row.querySelector('[id^="TDLINK_"]');
+                data.push({
+                    numero    : cells[0]?.innerText?.trim()  || '',
+                    cliente   : cells[1]?.innerText?.trim()  || '',
+                    apolice   : cells[6]?.innerText?.trim()  || '',
+                    inicioVig : cells[9]?.innerText?.trim()  || '',
+                    fimVig    : cells[10]?.innerText?.trim() || '',
+                    linkId    : linkEl?.id || null,
                 });
-                if (data.length) return data;
-            }
-            return [];
+            });
+            return data;
         });
 
         log(`[i4pro] Resultados: ${rows.length} linhas`);
@@ -232,45 +220,16 @@ async function processPlate(page, plate, searchUrl) {
             };
         }
 
-        await page.evaluate((linkId) => {
-            const docs = [document];
-            document.querySelectorAll('iframe').forEach(f => {
-                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
-            });
-            for (const doc of docs) {
-                const el = doc.getElementById(linkId);
-                if (el) { el.click(); return; }
-            }
-        }, latest.linkId);
+        await fl.locator(`#${latest.linkId}`).click();
         await page.waitForTimeout(2000);
 
-        await page.evaluate(() => {
-            const docs = [document];
-            document.querySelectorAll('iframe').forEach(f => {
-                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
-            });
-            for (const doc of docs) {
-                const tabs = Array.from(doc.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
-                const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
-                if (tab) { tab.click(); return; }
-            }
-        });
+        await fl.locator('a, [role="tab"]').filter({ hasText: /^cliente$/i }).click();
         await page.waitForTimeout(1000);
 
-        const clienteData = await page.evaluate(() => {
-            const docs = [document];
-            document.querySelectorAll('iframe').forEach(f => {
-                try { if (f.contentDocument) docs.push(f.contentDocument); } catch (_) {}
-            });
-            for (const doc of docs) {
-                const nome = doc.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim();
-                if (nome) return {
-                    nome,
-                    cpfCnpj: doc.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
-                };
-            }
-            return { nome: '', cpfCnpj: '' };
-        });
+        const clienteData = await fl.locator('body').evaluate(() => ({
+            nome    : document.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',
+            cpfCnpj : document.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
+        }));
 
         return {
             policyNumber : latest.apolice                             || null,
