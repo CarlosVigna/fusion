@@ -156,12 +156,17 @@ async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-        const ifrmPaiFrame = page.frame({ name: 'ifrmPai' });
-        if (!ifrmPaiFrame) throw new Error('Frame ifrmPai não encontrado');
+        log('[i4pro] Aguardando frame ifrmPai...');
+        const ifrmPaiFrame = await page.waitForFunction(() => {
+            const iframe = document.getElementById('ifrmPai');
+            return iframe && iframe.name === 'ifrmPai';
+        }, { timeout: 15000 }).then(() => page.frame({ name: 'ifrmPai' }));
+
+        if (!ifrmPaiFrame) throw new Error('Frame ifrmPai não encontrado após aguardar');
 
         await ifrmPaiFrame.waitForLoadState('domcontentloaded');
         await ifrmPaiFrame.waitForSelector('#id_ramo', { timeout: 30000 });
-        log('[i4pro] Formulário pronto no ifrmPai!');
+        log('[i4pro] Formulário pronto!');
 
         await ifrmPaiFrame.selectOption('#id_ramo', '16');
         await ifrmPaiFrame.fill('#nm_placa', plate);
