@@ -903,6 +903,20 @@ public class SetupController {
         return Map.of("status", "ok", "updated", updated);
     }
 
+    @GetMapping("/fix-etl-status-constraint")
+    public Map<String, Object> fixEtlStatusConstraint() {
+        jdbcTemplate.getJdbcTemplate().execute(
+            "ALTER TABLE etl_status DROP CONSTRAINT IF EXISTS etl_status_type_check"
+        );
+        jdbcTemplate.getJdbcTemplate().execute(
+            "ALTER TABLE etl_status ADD CONSTRAINT etl_status_type_check " +
+            "CHECK (type IN ('MULTIPORTAL_DEVICE','MULTIPORTAL_LINKAGE','MULTIPORTAL_OPERATIONAL'," +
+            "'MULTIPORTAL_ULTIMA_POSICAO','INSTALLATION_SYNC','OPERATIONAL_ENGINE'," +
+            "'SERVICE_ORDER_COMPLETION','TRACKNME','TRACKNME_POSITION','I4PRO'))"
+        );
+        return Map.of("status", "ok", "message", "Constraint etl_status_type_check recriada com todos os tipos validos");
+    }
+
     @GetMapping("/fix-scheduling-status")
     public Map<String, Object> fixSchedulingStatus() {
         int updated = jdbcTemplate.getJdbcTemplate().update(
