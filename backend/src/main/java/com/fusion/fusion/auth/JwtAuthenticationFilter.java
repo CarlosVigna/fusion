@@ -70,8 +70,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
             }
         } catch (Exception e) {
-            log.warn("[JWT] Falha ao processar token: {} - {} | path={}",
-                    e.getClass().getSimpleName(), e.getMessage(), request.getRequestURI());
+            log.error("[JWT-FILTER] Exception para path={} params={}: {} - {}",
+                    request.getRequestURI(),
+                    request.getQueryString(),
+                    e.getClass().getSimpleName(),
+                    e.getMessage());
         }
 
         filterChain.doFilter(request, response);
