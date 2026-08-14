@@ -156,28 +156,38 @@ async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-        log('[i4pro] Aguardando frame ifrmPai...');
-        const ifrmPaiFrame = await page.waitForFunction(() => {
-            const iframe = document.getElementById('ifrmPai');
-            return iframe && iframe.name === 'ifrmPai';
-        }, { timeout: 15000 }).then(() => page.frame({ name: 'ifrmPai' }));
+        // Aguardar ifrmPai e id_ramo via contentDocument (same-origin)
+        log('[i4pro] Aguardando ifrmPai contentDocument...');
+        await page.waitForFunction(() => {
+            const ifrmPai = document.getElementById('ifrmPai');
+            if (!ifrmPai || !ifrmPai.contentDocument) return false;
+            return !!ifrmPai.contentDocument.getElementById('id_ramo');
+        }, { timeout: 30000 });
 
-        if (!ifrmPaiFrame) throw new Error('Frame ifrmPai não encontrado após aguardar');
+        const formReady = await page.evaluate(() => {
+            const ifrmPai = document.getElementById('ifrmPai');
+            if (!ifrmPai || !ifrmPai.contentDocument) return false;
+            return !!ifrmPai.contentDocument.getElementById('id_ramo');
+        });
 
-        await ifrmPaiFrame.waitForLoadState('domcontentloaded');
-        await ifrmPaiFrame.waitForSelector('#id_ramo', { timeout: 30000 });
-        log('[i4pro] Formulário pronto!');
+        if (!formReady) throw new Error('ifrmPai contentDocument sem id_ramo');
+        log('[i4pro] Formulário pronto via contentDocument!');
 
-        await ifrmPaiFrame.selectOption('#id_ramo', '16');
-        await ifrmPaiFrame.fill('#nm_placa', plate);
-        await ifrmPaiFrame.click('#TRBTNC_a999996');
+        // Preencher via contentDocument
+        await page.evaluate((p) => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
+            doc.getElementById('id_ramo').value = '16';
+            doc.getElementById('nm_placa').value = p;
+            doc.getElementById('TRBTNC_a999996').click();
+        }, plate);
+
         await page.waitForTimeout(3000);
 
-        // Ler dados da tabela no contexto do frame
-        const rows = await ifrmPaiFrame.evaluate(() => {
-            const trs = document.querySelectorAll('table tbody tr');
+        // Ler resultados via contentDocument
+        const rows = await page.evaluate(() => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
             const data = [];
-            trs.forEach((row, idx) => {
+            doc.querySelectorAll('table tbody tr').forEach((row, idx) => {
                 if (idx === 0) return;
                 const cells = Array.from(row.querySelectorAll('td'));
                 if (cells.length < 10) return;
@@ -194,7 +204,7 @@ async function processPlate(page, plate, searchUrl) {
             return data;
         });
 
-        log(`[i4pro] Resultado: ${rows.length} linhas`);
+        log(`[i4pro] Resultados: ${rows.length} linhas`);
 
         if (!rows.length) {
             log(`[i4pro] Não encontrada: ${plate}`);
@@ -217,20 +227,27 @@ async function processPlate(page, plate, searchUrl) {
             };
         }
 
-        await ifrmPaiFrame.click(`#${latest.linkId}`);
+        await page.evaluate((linkId) => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
+            doc.getElementById(linkId)?.click();
+        }, latest.linkId);
         await page.waitForTimeout(2000);
 
-        await ifrmPaiFrame.evaluate(() => {
-            const tabs = Array.from(document.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
+        await page.evaluate(() => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
+            const tabs = Array.from(doc.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
             const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
             tab?.click();
         });
         await page.waitForTimeout(1000);
 
-        const clienteData = await ifrmPaiFrame.evaluate(() => ({
-            nome    : document.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',
-            cpfCnpj : document.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
-        }));
+        const clienteData = await page.evaluate(() => {
+            const doc = document.getElementById('ifrmPai').contentDocument;
+            return {
+                nome    : doc.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',
+                cpfCnpj : doc.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
+            };
+        });
 
         return {
             policyNumber : latest.apolice                             || null,
