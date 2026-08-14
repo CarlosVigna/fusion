@@ -99,7 +99,6 @@ async function doLogin(page) {
     // demorar bem mais que os 60s usados antes.
     log('[i4pro] Aguardando tela de login (pode demorar até 2min na primeira vez)...');
     await page.waitForSelector('#cd_usuario', { timeout: 120000 });
-    log('[i4pro] Tela de login pronta');
     await page.fill('#cd_usuario', I4PRO_USER);
     await page.fill('#nm_senha', I4PRO_PASS);
     await page.click('#botaoEntrar');
@@ -122,36 +121,20 @@ async function saveErrorScreenshot(page, label) {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filePath = path.join(SCREENSHOT_DIR, `${timestamp}_${label}.png`);
         await page.screenshot({ path: filePath, fullPage: true });
-        log(`[i4pro] Screenshot de diagnóstico salvo: ${filePath}`);
-    } catch (screenshotErr) {
-        log('[i4pro] Falha ao salvar screenshot de diagnóstico: ' + screenshotErr.message);
-    }
+    } catch (_) {}
 }
 
 // Pesquisa uma placa e retorna dados da apólice mais recente
 async function processPlate(page, plate) {
     try {
-        const url = `${I4PRO_URL}/${APOLICES_URL}`;
-        log(`[i4pro] Navegando diretamente para: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-
-        // ── Diagnóstico ───────────────────────────────────────────────────────
-        await saveErrorScreenshot(page, 'apolices-debug');
-        log(`[i4pro] Frames ativos: ${page.frames().map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
-
-        // ── Aguardar formulário na página principal ────────────────────────────
+        await page.goto(`${I4PRO_URL}/${APOLICES_URL}`, { waitUntil: 'networkidle', timeout: 30000 });
         await page.waitForSelector('#id_ramo', { timeout: 30000 });
-        log('[i4pro] Formulário pronto!');
 
-        // ── Preencher diretamente na página ───────────────────────────────────
         await page.selectOption('#id_ramo', '16');
         await page.fill('#nm_placa', plate);
         await page.click('#TRBTNC_a999996');
         await page.waitForTimeout(3000);
 
-        await saveErrorScreenshot(page, 'apolices-resultado');
-
-        // ── Ler resultados ────────────────────────────────────────────────────
         const rawRows = await page.evaluate(() => {
             return Array.from(document.querySelectorAll('table tbody tr')).map((row, idx) => {
                 const cells = Array.from(row.querySelectorAll('td'));
@@ -159,8 +142,6 @@ async function processPlate(page, plate) {
                 return { index: idx, cells: cells.map(c => c.innerText?.trim()), linkId: link?.id };
             });
         });
-
-        log(`[i4pro] Resultados: ${rawRows.length} linhas`);
 
         const rows = rawRows
             .filter(r => r.index > 0 && r.cells.length >= 10)
@@ -184,7 +165,6 @@ async function processPlate(page, plate) {
         )[0];
 
         if (!latest.linkId) {
-            log(`[i4pro] Sem link de detalhe para: ${plate} — usando dados da tabela`);
             return {
                 policyNumber : latest.apolice || null,
                 insuredName  : latest.cliente || null,
