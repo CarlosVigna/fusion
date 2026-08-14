@@ -51,6 +51,9 @@ import ServiceOrdersReports from "../pages/ServiceOrdersReports";
 
 import TracknMePending from "../pages/TracknMePending";
 import TracknMeHistory from "../pages/TracknMeHistory";
+import PendingChanges from "../pages/PendingChanges";
+import NoCommunication from "../pages/NoCommunication";
+import PolicyAlerts from "../pages/PolicyAlerts";
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
@@ -127,6 +130,9 @@ export default function AppRoutes() {
                     <Route path="reports/multiportal"   element={<Reports />} />
                     <Route path="reports/devices"       element={<Reports />} />
                     <Route path="reports/tracknme"      element={<Reports />} />
+                    <Route path="pending-changes"       element={<PendingChanges />} />
+                    <Route path="no-communication"      element={<NoCommunication />} />
+                    <Route path="policies/alerts"       element={<PolicyAlerts />} />
                 </Route>
             </Route>
 
