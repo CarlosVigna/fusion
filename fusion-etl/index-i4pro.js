@@ -153,32 +153,19 @@ async function saveErrorScreenshot(page, label) {
     }
 }
 
-// Busca recursivamente em todos os frames e child frames pelo id_ramo.
-async function findFormFrame(page) {
+// Localiza o frame do formulário de apólices pelo nome do iframe.
+function findFormFrame(page) {
     const allFrames = page.frames();
-    log(`[i4pro] Frames disponíveis: ${allFrames.map(f => f.url()).join(' | ')}`);
+    log(`[i4pro] Frames disponíveis: ${allFrames.map(f => `${f.name()}=${f.url()}`).join(' | ')}`);
 
-    for (const frame of allFrames) {
-        try {
-            const found = await frame.evaluate(() => !!document.getElementById('id_ramo'));
-            if (found) {
-                log(`[i4pro] id_ramo encontrado no frame: ${frame.url()}`);
-                return frame;
-            }
-            for (const child of frame.childFrames()) {
-                try {
-                    const childFound = await child.evaluate(() => !!document.getElementById('id_ramo'));
-                    if (childFound) {
-                        log(`[i4pro] id_ramo encontrado em child frame: ${child.url()}`);
-                        return child;
-                    }
-                } catch (_) {}
-            }
-        } catch (_) {}
-    }
+    const formFrame =
+        page.frame({ name: 'ifrmPai' }) ||
+        page.frame({ name: 'ifrmJanela' }) ||
+        allFrames.find(f => f.url().includes('Blank.aspx')) ||
+        page;
 
-    log(`[i4pro] id_ramo NÃO encontrado em nenhum frame — usando página principal como fallback`);
-    return page;
+    log(`[i4pro] Frame do formulário: ${formFrame.url()} | nome: ${formFrame.name()}`);
+    return formFrame;
 }
 
 // Pesquisa uma placa e retorna dados da apólice mais recente
@@ -197,7 +184,7 @@ async function processPlate(page, plate, searchUrl) {
             }
         }
 
-        const formFrame = await findFormFrame(page);
+        const formFrame = findFormFrame(page);
 
         // ── Preencher formulário via Frame Playwright (não window.frames[N]) ──
         // Ramo é setado a cada placa porque o form pode resetar entre pesquisas
