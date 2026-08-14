@@ -153,38 +153,50 @@ async function saveErrorScreenshot(page, label) {
     }
 }
 
+// Encontra o frame que contém o formulário de apólices.
+// page.frames() retorna objetos Frame do Playwright — muito mais confiável
+// do que window.frames[N] dentro de page.evaluate(), que não é acessível
+// ao contexto Playwright por causa do isolamento de contextos do browser.
+function findFormFrame(page) {
+    const frames = page.frames();
+    log(`[i4pro] Frames disponíveis: ${frames.map(f => f.url()).join(', ')}`);
+    // Prefere frame com Default.aspx na URL (mesmo domínio, não a página pai)
+    return frames.find(f => f.url().includes('Default.aspx') && f !== page.mainFrame())
+        || frames[1]
+        || frames[0];
+}
+
 // Pesquisa uma placa e retorna dados da apólice mais recente
 async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
         await page.waitForTimeout(2000);
 
-        // ── Preencher formulário dentro de frames[1] ──────────────────────────
+        const formFrame = findFormFrame(page);
+
+        // ── Preencher formulário via Frame Playwright (não window.frames[N]) ──
         // Ramo é setado a cada placa porque o form pode resetar entre pesquisas
-        await page.evaluate((p) => {
-            const doc = window.frames[1].document;
-            const ramoSel = doc.getElementById('id_ramo');
-            if (ramoSel) ramoSel.value = '16'; // 31-AUTO
-            const placaInput = doc.getElementById('nm_placa');
+        await formFrame.evaluate((p) => {
+            const ramoEl = document.getElementById('id_ramo');
+            if (ramoEl) ramoEl.value = '16'; // 31-AUTO
+            const placaInput = document.getElementById('nm_placa');
             if (placaInput) placaInput.value = p;
-            const btn = doc.getElementById('TRBTNC_a999996');
+            const btn = document.getElementById('TRBTNC_a999996');
             if (btn) btn.click();
         }, plate);
 
-        // Confirma o valor do Ramo após o set (diagnóstico de reset entre pesquisas)
-        const ramoValue = await page.evaluate(() => {
-            const doc = window.frames[1].document;
-            const ramoSel = doc.getElementById('id_ramo');
-            return ramoSel ? ramoSel.value : 'elemento nao encontrado';
+        // Confirma o valor do Ramo após o set
+        const ramoValue = await formFrame.evaluate(() => {
+            const ramoEl = document.getElementById('id_ramo');
+            return ramoEl ? ramoEl.value : 'elemento nao encontrado';
         });
         log(`[i4pro] Ramo selecionado: ${ramoValue} (esperado: 16 = 31-AUTO)`);
 
         await page.waitForTimeout(3000);
 
-        // ── Ler resultados de frames[1] ───────────────────────────────────────
-        const rows = await page.evaluate(() => {
-            const doc = window.frames[1].document;
-            const trs = doc.querySelectorAll('table tbody tr');
+        // ── Ler resultados ────────────────────────────────────────────────────
+        const rows = await formFrame.evaluate(() => {
+            const trs = document.querySelectorAll('table tbody tr');
             const data = [];
             trs.forEach((row, idx) => {
                 if (idx === 0) return; // primeira linha é cabeçalho em alguns layouts
@@ -226,30 +238,26 @@ async function processPlate(page, plate, searchUrl) {
         }
 
         // ── Abrir detalhe da apólice ──────────────────────────────────────────
-        await page.evaluate((linkId) => {
-            window.frames[1].document.getElementById(linkId)?.click();
+        await formFrame.evaluate((linkId) => {
+            document.getElementById(linkId)?.click();
         }, latest.linkId);
         await page.waitForTimeout(2000);
 
         // ── Clicar na aba Cliente ─────────────────────────────────────────────
-        await page.evaluate(() => {
-            const doc = window.frames[1].document;
-            const tabs = Array.from(doc.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
+        await formFrame.evaluate(() => {
+            const tabs = Array.from(document.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
             const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
             tab?.click();
         });
         await page.waitForTimeout(1000);
 
         // ── Extrair nome e CPF/CNPJ ───────────────────────────────────────────
-        const clienteData = await page.evaluate(() => {
-            const doc = window.frames[1].document;
-            return {
-                nome    : doc.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')
-                              ?.value?.trim() || '',
-                cpfCnpj : doc.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')
-                              ?.value?.replace(/\D/g, '') || '',
-            };
-        });
+        const clienteData = await formFrame.evaluate(() => ({
+            nome    : document.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')
+                          ?.value?.trim() || '',
+            cpfCnpj : document.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')
+                          ?.value?.replace(/\D/g, '') || '',
+        }));
 
         return {
             policyNumber : latest.apolice                             || null,
