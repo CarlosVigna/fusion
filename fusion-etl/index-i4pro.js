@@ -156,21 +156,20 @@ async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-        const fl = page.frameLocator('#ifrmPai');
+        const ifrmPaiFrame = page.frame({ name: 'ifrmPai' });
+        if (!ifrmPaiFrame) throw new Error('Frame ifrmPai não encontrado');
 
-        await fl.locator('#id_ramo').waitFor({ timeout: 30000 });
-        log('[i4pro] Formulário encontrado via frameLocator!');
+        await ifrmPaiFrame.waitForLoadState('domcontentloaded');
+        await ifrmPaiFrame.waitForSelector('#id_ramo', { timeout: 30000 });
+        log('[i4pro] Formulário pronto no ifrmPai!');
 
-        await fl.locator('#id_ramo').selectOption('16');
-        await fl.locator('#nm_placa').fill(plate);
-        await fl.locator('#TRBTNC_a999996').click();
+        await ifrmPaiFrame.selectOption('#id_ramo', '16');
+        await ifrmPaiFrame.fill('#nm_placa', plate);
+        await ifrmPaiFrame.click('#TRBTNC_a999996');
         await page.waitForTimeout(3000);
 
-        const rowCount = await fl.locator('table tbody tr').count();
-        log(`[i4pro] Resultado: ${rowCount} linhas`);
-
-        // Ler dados da tabela via evaluate no contexto do iframe
-        const rows = await fl.locator('body').evaluate(() => {
+        // Ler dados da tabela no contexto do frame
+        const rows = await ifrmPaiFrame.evaluate(() => {
             const trs = document.querySelectorAll('table tbody tr');
             const data = [];
             trs.forEach((row, idx) => {
@@ -189,6 +188,8 @@ async function processPlate(page, plate, searchUrl) {
             });
             return data;
         });
+
+        log(`[i4pro] Resultado: ${rows.length} linhas`);
 
         if (!rows.length) {
             log(`[i4pro] Não encontrada: ${plate}`);
@@ -211,19 +212,25 @@ async function processPlate(page, plate, searchUrl) {
             };
         }
 
-        await fl.locator(`#${latest.linkId}`).click();
+        await ifrmPaiFrame.click(`#${latest.linkId}`);
         await page.waitForTimeout(2000);
 
-        await fl.locator('a, [role="tab"]').filter({ hasText: /^cliente$/i }).click();
+        await ifrmPaiFrame.evaluate(() => {
+            const tabs = Array.from(document.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
+            const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
+            tab?.click();
+        });
         await page.waitForTimeout(1000);
 
-        const insuredName = await fl.locator('#nm_pessoa_segurado, [name="nm_pessoa"]').first().inputValue().catch(() => '');
-        const cpfCnpj     = await fl.locator('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]').first().inputValue().catch(() => '');
+        const clienteData = await ifrmPaiFrame.evaluate(() => ({
+            nome    : document.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',
+            cpfCnpj : document.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')?.value?.replace(/\D/g, '') || '',
+        }));
 
         return {
-            policyNumber : latest.apolice                        || null,
-            insuredName  : insuredName || latest.cliente          || null,
-            cpfCnpj      : cpfCnpj.replace(/\D/g, '')            || null,
+            policyNumber : latest.apolice                             || null,
+            insuredName  : clienteData.nome    || latest.cliente       || null,
+            cpfCnpj      : clienteData.cpfCnpj                         || null,
             startDate    : parseBrDate(latest.inicioVig),
             endDate      : parseBrDate(latest.fimVig),
         };
