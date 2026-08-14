@@ -84,9 +84,7 @@ function parseBrDateObj(str) {
 //
 // Arquitetura do i4pro (ASP.NET WebForms):
 //   - Login e menu: página principal (Default.aspx)
-//   - Formulário de apólices: frames[1] (segundo iframe da página)
-//   - Todos os elementos dentro de frames[1] são acessados via page.evaluate()
-//     usando window.frames[1].document — sem frameLocator do Playwright.
+//   - Formulário de apólices: iframe #ifrmPai — acessado via page.frameLocator()
 
 async function doLogin(page) {
     log('[i4pro] Fazendo login...');
@@ -153,67 +151,30 @@ async function saveErrorScreenshot(page, label) {
     }
 }
 
-// Aguarda id_ramo aparecer em qualquer frame e retorna o frame que o contém.
-async function findFormFrame(page) {
-    log('[i4pro] Aguardando formulário carregar (id_ramo em qualquer frame)...');
-    await page.waitForFunction(() => {
-        if (document.getElementById('id_ramo')) return true;
-        for (let i = 0; i < window.frames.length; i++) {
-            try { if (window.frames[i].document.getElementById('id_ramo')) return true; } catch (_) {}
-        }
-        return false;
-    }, { timeout: 30000 });
-    log('[i4pro] Formulário carregado!');
-
-    const frames = page.frames();
-    log(`[i4pro] Frames disponíveis: ${frames.map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
-
-    for (const f of frames) {
-        try {
-            const found = await f.evaluate(() => !!document.getElementById('id_ramo'));
-            if (found) {
-                log(`[i4pro] id_ramo encontrado no frame: ${f.name()}|${f.url()}`);
-                return f;
-            }
-        } catch (_) {}
-    }
-
-    log('[i4pro] id_ramo não encontrado via frames() — usando página principal como fallback');
-    return page;
-}
-
 // Pesquisa uma placa e retorna dados da apólice mais recente
 async function processPlate(page, plate, searchUrl) {
     try {
         await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        const formFrame = await findFormFrame(page);
 
-        // ── Preencher formulário via Frame Playwright (não window.frames[N]) ──
-        // Ramo é setado a cada placa porque o form pode resetar entre pesquisas
-        await formFrame.evaluate((p) => {
-            const ramoEl = document.getElementById('id_ramo');
-            if (ramoEl) ramoEl.value = '16'; // 31-AUTO
-            const placaInput = document.getElementById('nm_placa');
-            if (placaInput) placaInput.value = p;
-            const btn = document.getElementById('TRBTNC_a999996');
-            if (btn) btn.click();
-        }, plate);
+        const fl = page.frameLocator('#ifrmPai');
 
-        // Confirma o valor do Ramo após o set
-        const ramoValue = await formFrame.evaluate(() => {
-            const ramoEl = document.getElementById('id_ramo');
-            return ramoEl ? ramoEl.value : 'elemento nao encontrado';
-        });
-        log(`[i4pro] Ramo selecionado: ${ramoValue} (esperado: 16 = 31-AUTO)`);
+        await fl.locator('#id_ramo').waitFor({ timeout: 30000 });
+        log('[i4pro] Formulário encontrado via frameLocator!');
 
+        await fl.locator('#id_ramo').selectOption('16');
+        await fl.locator('#nm_placa').fill(plate);
+        await fl.locator('#TRBTNC_a999996').click();
         await page.waitForTimeout(3000);
 
-        // ── Ler resultados ────────────────────────────────────────────────────
-        const rows = await formFrame.evaluate(() => {
+        const rowCount = await fl.locator('table tbody tr').count();
+        log(`[i4pro] Resultado: ${rowCount} linhas`);
+
+        // Ler dados da tabela via evaluate no contexto do iframe
+        const rows = await fl.locator('body').evaluate(() => {
             const trs = document.querySelectorAll('table tbody tr');
             const data = [];
             trs.forEach((row, idx) => {
-                if (idx === 0) return; // primeira linha é cabeçalho em alguns layouts
+                if (idx === 0) return;
                 const cells = Array.from(row.querySelectorAll('td'));
                 if (cells.length < 10) return;
                 const linkEl = row.querySelector('[id^="TDLINK_"]');
@@ -239,44 +200,30 @@ async function processPlate(page, plate, searchUrl) {
             (a, b) => parseBrDateObj(b.fimVig) - parseBrDateObj(a.fimVig)
         )[0];
 
-        // Se não há link de detalhe, retorna o que já temos da tabela
         if (!latest.linkId) {
             log(`[i4pro] Sem link de detalhe para: ${plate} — usando dados da tabela`);
             return {
-                policyNumber : latest.apolice   || null,
-                insuredName  : latest.cliente    || null,
+                policyNumber : latest.apolice || null,
+                insuredName  : latest.cliente || null,
                 cpfCnpj      : null,
                 startDate    : parseBrDate(latest.inicioVig),
                 endDate      : parseBrDate(latest.fimVig),
             };
         }
 
-        // ── Abrir detalhe da apólice ──────────────────────────────────────────
-        await formFrame.evaluate((linkId) => {
-            document.getElementById(linkId)?.click();
-        }, latest.linkId);
+        await fl.locator(`#${latest.linkId}`).click();
         await page.waitForTimeout(2000);
 
-        // ── Clicar na aba Cliente ─────────────────────────────────────────────
-        await formFrame.evaluate(() => {
-            const tabs = Array.from(document.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
-            const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
-            tab?.click();
-        });
+        await fl.locator('a, [role="tab"]').filter({ hasText: /^cliente$/i }).click();
         await page.waitForTimeout(1000);
 
-        // ── Extrair nome e CPF/CNPJ ───────────────────────────────────────────
-        const clienteData = await formFrame.evaluate(() => ({
-            nome    : document.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')
-                          ?.value?.trim() || '',
-            cpfCnpj : document.querySelector('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]')
-                          ?.value?.replace(/\D/g, '') || '',
-        }));
+        const insuredName = await fl.locator('#nm_pessoa_segurado, [name="nm_pessoa"]').first().inputValue().catch(() => '');
+        const cpfCnpj     = await fl.locator('#nr_cnpj_cpf, [name="nr_cnpj_cpf"]').first().inputValue().catch(() => '');
 
         return {
-            policyNumber : latest.apolice                             || null,
-            insuredName  : clienteData.nome    || latest.cliente       || null,
-            cpfCnpj      : clienteData.cpfCnpj                         || null,
+            policyNumber : latest.apolice                        || null,
+            insuredName  : insuredName || latest.cliente          || null,
+            cpfCnpj      : cpfCnpj.replace(/\D/g, '')            || null,
             startDate    : parseBrDate(latest.inicioVig),
             endDate      : parseBrDate(latest.fimVig),
         };
