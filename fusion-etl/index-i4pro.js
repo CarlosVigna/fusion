@@ -153,19 +153,40 @@ async function saveErrorScreenshot(page, label) {
     }
 }
 
-// Localiza o frame do formulário de apólices pelo nome do iframe.
-function findFormFrame(page) {
+// Localiza o frame que contém o formulário de apólices.
+// O i4pro usa iframes aninhados: ifrmPai contém um child frame com o form real.
+async function findFormFrame(page) {
     const allFrames = page.frames();
-    log(`[i4pro] Frames disponíveis: ${allFrames.map(f => `${f.name()}=${f.url()}`).join(' | ')}`);
+    log(`[i4pro] Frames disponíveis: ${allFrames.map(f => `${f.name()}|${f.url()}`).join(' || ')}`);
 
-    const formFrame =
+    const ifrmPai =
         page.frame({ name: 'ifrmPai' }) ||
         page.frame({ name: 'ifrmJanela' }) ||
-        allFrames.find(f => f.url().includes('Blank.aspx')) ||
-        page;
+        allFrames.find(f => f.url().includes('Blank.aspx'));
 
-    log(`[i4pro] Frame do formulário: ${formFrame.url()} | nome: ${formFrame.name()}`);
-    return formFrame;
+    if (!ifrmPai) {
+        log(`[i4pro] ifrmPai não encontrado — usando página principal como fallback`);
+        return page;
+    }
+
+    await page.waitForTimeout(2000); // aguardar iframe interno carregar
+
+    const childFrames = ifrmPai.childFrames();
+    log(`[i4pro] Child frames de ifrmPai: ${childFrames.map(f => `${f.name()}|${f.url()}`).join(' || ') || '(nenhum)'}`);
+
+    for (const child of childFrames) {
+        try {
+            const found = await child.evaluate(() => !!document.getElementById('id_ramo'));
+            if (found) {
+                log(`[i4pro] Formulário encontrado em child frame: ${child.url()}`);
+                return child;
+            }
+        } catch (_) {}
+    }
+
+    // Fallback: usa o próprio ifrmPai se o form não estiver num child
+    log(`[i4pro] Formulário não encontrado em child frames — usando ifrmPai: ${ifrmPai.url()}`);
+    return ifrmPai;
 }
 
 // Pesquisa uma placa e retorna dados da apólice mais recente
@@ -184,7 +205,7 @@ async function processPlate(page, plate, searchUrl) {
             }
         }
 
-        const formFrame = findFormFrame(page);
+        const formFrame = await findFormFrame(page);
 
         // ── Preencher formulário via Frame Playwright (não window.frames[N]) ──
         // Ramo é setado a cada placa porque o form pode resetar entre pesquisas
