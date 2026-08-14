@@ -909,7 +909,7 @@ public class SetupController {
         return Map.of("status", "ok", "updated", updated);
     }
 
-    @GetMapping("/corrigir-etl")
+    @GetMapping("/ajuste-banco")
     public Map<String, Object> corrigirEtl() {
         jdbcTemplate.getJdbcTemplate().execute(
             "ALTER TABLE etl_status DROP CONSTRAINT IF EXISTS etl_status_type_check"
