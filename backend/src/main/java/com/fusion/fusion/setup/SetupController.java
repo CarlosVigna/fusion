@@ -6,6 +6,7 @@ import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
+import com.fusion.fusion.installation.InstallationSyncService;
 import com.fusion.fusion.vehicle.tracknme.TracknMeSyncService;
 import com.fusion.fusion.whatsapp.WhatsAppService;
 import com.fusion.fusion.installation.InstallationStatus;
@@ -66,6 +67,32 @@ public class SetupController {
     private final NamedParameterJdbcTemplate jdbcTemplate;
 
     private final Environment env;
+
+    private final InstallationSyncService installationSyncService;
+
+    // Chama scheduledSync() diretamente (nao syncFromPortal()) pra
+    // reproduzir exatamente o que o cron faz, inclusive o try-catch que
+    // engole exceptions — se o problema for algo que so aparece por essa
+    // via, esse endpoint reproduz. scheduledSync() e' void por ser
+    // @Scheduled; o resultado real fica em getLastResult(), que so e'
+    // atualizado no caminho de sucesso — se vier igual ao de antes da
+    // chamada, o sync falhou (ver log [INSTALACOES] Erro no sync agendado
+    // pra causa exata).
+    @GetMapping("/force-installation-sync")
+    public Map<String, Object> forceInstallationSync() {
+
+        var before = installationSyncService.getLastResult();
+
+        installationSyncService.scheduledSync();
+
+        var after = installationSyncService.getLastResult();
+
+        return Map.of(
+                "changed", after != before,
+                "lastResult", after != null ? after : Map.of()
+        );
+
+    }
 
     // env.getProperty() nao serve pra "configurado"/"AUSENTE" aqui:
     // portal.parceiro.client-id/secret tem fallback ${VAR:} no
