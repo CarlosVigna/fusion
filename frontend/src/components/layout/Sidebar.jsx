@@ -19,7 +19,6 @@ import {
     ScrollText,
     Send,
     Settings,
-    Shield,
     Upload,
     UserCog,
     Users,
@@ -93,7 +92,6 @@ const GROUPS = [
             { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
             { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
             { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
-            { label: "Auditoria",  icon: Shield,          path: "/service-orders?tab=auditoria" },
         ],
     },
     {
