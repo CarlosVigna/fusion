@@ -29,6 +29,7 @@ import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.http.HttpEntity;
@@ -63,6 +64,27 @@ import java.util.stream.Collectors;
 public class SetupController {
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
+
+    private final Environment env;
+
+    // env.getProperty() nao serve pra "configurado"/"AUSENTE" aqui:
+    // portal.parceiro.client-id/secret tem fallback ${VAR:} no
+    // application.properties, entao sem a env var no Railway a property
+    // resolve pra "" (string vazia), nao null — != null sempre daria
+    // "configurado" mesmo com a variavel ausente. Por isso checa isBlank().
+    @GetMapping("/check-installation-config")
+    public Map<String, Object> checkInstallationConfig() {
+        return Map.of(
+                "portalUrl", isConfigured("portal.parceiro.url") ? "configurado" : "AUSENTE",
+                "clientId", isConfigured("portal.parceiro.client-id") ? "configurado" : "AUSENTE",
+                "clientSecret", isConfigured("portal.parceiro.client-secret") ? "configurado" : "AUSENTE"
+        );
+    }
+
+    private boolean isConfigured(String property) {
+        String value = env.getProperty(property);
+        return value != null && !value.isBlank();
+    }
 
     @GetMapping("/ping")
     public Map<String, Object> ping() {
