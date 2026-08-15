@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useLocation } from "react-router-dom";
+
 import toast from "react-hot-toast";
 
 import { FileSpreadsheet } from "lucide-react";
@@ -286,7 +288,18 @@ function ChangesModal({ changes, onConfirm, onCancel }) {
   );
 }
 
+// Rotas especificas mostram so o card correspondente; a rota generica
+// /reports (sem sufixo, sem link no menu hoje) continua mostrando todos.
+const ROUTE_CARD = {
+  "/reports/multiportal": "multiportal",
+  "/reports/devices": "devices",
+  "/reports/tracknme": "tracknme",
+};
+
 export default function Reports() {
+  const location = useLocation();
+  const onlyCard = ROUTE_CARD[location.pathname] ?? null;
+
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState(null);
   const [pending, setPending] = useState(null);
@@ -393,91 +406,97 @@ export default function Reports() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 
         {/* Planilha MULTIPORTAL */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
-          <div className="border-b border-zinc-800 p-6">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet size={20} className="text-zinc-400" />
-              <div>
-                <h2 className="text-base font-semibold">Planilha MULTIPORTAL</h2>
-                <p className="mt-0.5 text-sm text-zinc-500">
-                  Operacionais, KAKO, Testes e Verificação — apólice, dispositivo, posição.
-                </p>
+        {(!onlyCard || onlyCard === "multiportal") && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+            <div className="border-b border-zinc-800 p-6">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet size={20} className="text-zinc-400" />
+                <div>
+                  <h2 className="text-base font-semibold">Planilha MULTIPORTAL</h2>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    Operacionais, KAKO, Testes e Verificação — apólice, dispositivo, posição.
+                  </p>
+                </div>
               </div>
             </div>
+            <div className="p-6">
+              <button
+                onClick={handleGenerate}
+                disabled={loading}
+                className="
+                  w-full rounded-xl bg-white py-3
+                  text-sm font-semibold text-black
+                  transition hover:bg-zinc-200
+                  disabled:cursor-not-allowed disabled:opacity-40
+                "
+              >
+                {loading ? "Gerando..." : "📊 Relatório Multiportal"}
+              </button>
+            </div>
           </div>
-          <div className="p-6">
-            <button
-              onClick={handleGenerate}
-              disabled={loading}
-              className="
-                w-full rounded-xl bg-white py-3
-                text-sm font-semibold text-black
-                transition hover:bg-zinc-200
-                disabled:cursor-not-allowed disabled:opacity-40
-              "
-            >
-              {loading ? "Gerando..." : "📊 Relatório Multiportal"}
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Relatório de Dispositivos */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
-          <div className="border-b border-zinc-800 p-6">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet size={20} className="text-zinc-400" />
-              <div>
-                <h2 className="text-base font-semibold">Relatório de Dispositivos</h2>
-                <p className="mt-0.5 text-sm text-zinc-500">
-                  Placa, segurado, número, Serial Chip 1, operadora e linha — por bloco.
-                </p>
+        {(!onlyCard || onlyCard === "devices") && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+            <div className="border-b border-zinc-800 p-6">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet size={20} className="text-zinc-400" />
+                <div>
+                  <h2 className="text-base font-semibold">Relatório de Dispositivos</h2>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    Placa, segurado, número, Serial Chip 1, operadora e linha — por bloco.
+                  </p>
+                </div>
               </div>
             </div>
+            <div className="p-6">
+              <button
+                onClick={handleDeviceReport}
+                disabled={deviceLoading}
+                className="
+                  w-full rounded-xl bg-blue-600 py-3
+                  text-sm font-semibold text-white
+                  transition hover:bg-blue-700
+                  disabled:cursor-not-allowed disabled:opacity-40
+                "
+              >
+                {deviceLoading ? "Gerando..." : "🔌 Relatório de Dispositivos"}
+              </button>
+            </div>
           </div>
-          <div className="p-6">
-            <button
-              onClick={handleDeviceReport}
-              disabled={deviceLoading}
-              className="
-                w-full rounded-xl bg-blue-600 py-3
-                text-sm font-semibold text-white
-                transition hover:bg-blue-700
-                disabled:cursor-not-allowed disabled:opacity-40
-              "
-            >
-              {deviceLoading ? "Gerando..." : "🔌 Relatório de Dispositivos"}
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* Relatório TracknMe */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
-          <div className="border-b border-zinc-800 p-6">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet size={20} className="text-zinc-400" />
-              <div>
-                <h2 className="text-base font-semibold">Relatório TracknMe</h2>
-                <p className="mt-0.5 text-sm text-zinc-500">
-                  Placa, última posição, segurado, apólice, fim de vigência e CPF/CNPJ.
-                </p>
+        {(!onlyCard || onlyCard === "tracknme") && (
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900">
+            <div className="border-b border-zinc-800 p-6">
+              <div className="flex items-center gap-3">
+                <FileSpreadsheet size={20} className="text-zinc-400" />
+                <div>
+                  <h2 className="text-base font-semibold">Relatório TracknMe</h2>
+                  <p className="mt-0.5 text-sm text-zinc-500">
+                    Placa, última posição, segurado, apólice, fim de vigência e CPF/CNPJ.
+                  </p>
+                </div>
               </div>
             </div>
+            <div className="p-6">
+              <button
+                onClick={handleTracknMeReport}
+                disabled={tracknmeLoading}
+                className="
+                  w-full rounded-xl bg-blue-600 py-3
+                  text-sm font-semibold text-white
+                  transition hover:bg-blue-700
+                  disabled:cursor-not-allowed disabled:opacity-40
+                "
+              >
+                {tracknmeLoading ? "Gerando..." : "📡 Relatório TracknMe"}
+              </button>
+            </div>
           </div>
-          <div className="p-6">
-            <button
-              onClick={handleTracknMeReport}
-              disabled={tracknmeLoading}
-              className="
-                w-full rounded-xl bg-blue-600 py-3
-                text-sm font-semibold text-white
-                transition hover:bg-blue-700
-                disabled:cursor-not-allowed disabled:opacity-40
-              "
-            >
-              {tracknmeLoading ? "Gerando..." : "📡 Relatório TracknMe"}
-            </button>
-          </div>
-        </div>
+        )}
 
       </div>
 

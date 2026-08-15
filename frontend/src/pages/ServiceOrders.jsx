@@ -162,7 +162,7 @@ export default function ServiceOrders() {
   const [filterTechnicianId, setFilterTechnicianId] = useState("");
   const [selectedIds, setSelectedIds]       = useState(new Set());
   const [displayPage, setDisplayPage]       = useState(0);
-  const [activeTab, setActiveTab]           = useState("ordens");
+  const [activeTab, setActiveTab]           = useState(searchParams.get("tab") === "auditoria" ? "auditoria" : "ordens");
 
   // Drawer: histórico de auditoria por OS
   const [orderAuditLog, setOrderAuditLog]   = useState([]);

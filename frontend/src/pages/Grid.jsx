@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import toast from "react-hot-toast";
 
@@ -14,7 +14,6 @@ import {
   ChevronRight,
   Columns3,
   FlaskConical,
-  MapPin,
   RefreshCw,
   Settings,
 } from "lucide-react";
@@ -363,6 +362,15 @@ function applyColumnPreference(raw) {
 
 export default function Grid() {
 
+  const location = useLocation();
+
+  // Modo TracknMe e' definido pela rota, nao mais por um toggle manual —
+  // /grid so mostra Multiportal, /tracknme/grid so mostra TracknMe. Antes
+  // disso os dois usavam o mesmo componente com um toggle persistido
+  // (preferencia "show_tracknme" compartilhada), entao visitar /grid
+  // depois de ter ligado o toggle em /tracknme/grid vazava o modo errado.
+  const isTracknMeRoute = location.pathname === "/tracknme/grid";
+
   const {
 
     vehicles,
@@ -420,11 +428,6 @@ export default function Grid() {
     useState(false);
 
   const showTestRef = useRef(false);
-
-  const [showTracknMe, setShowTracknMe] =
-    useState(false);
-
-  const showTracknMeRef = useRef(false);
 
   const [noLinkageVehicles, setNoLinkageVehicles] =
     useState([]);
@@ -677,7 +680,7 @@ export default function Grid() {
 
   const columns = useMemo(() => {
 
-    if (showTracknMe) {
+    if (isTracknMeRoute) {
       return TRACKNME_COLUMNS;
     }
 
@@ -687,7 +690,7 @@ export default function Grid() {
         (col) => col && (!col.optional || visibleColumns[col.key])
       );
 
-  }, [visibleColumns, columnOrder, columnsByKey, showTracknMe]);
+  }, [visibleColumns, columnOrder, columnsByKey, isTracknMeRoute]);
 
   function setColumnFilter(field, value) {
 
@@ -808,7 +811,7 @@ export default function Grid() {
 
     showKakoRef.current = next;
 
-    await loadGrid({ includeKako: next, includeTest: showTestRef.current, includeTracknMe: showTracknMeRef.current });
+    await loadGrid({ includeKako: next, includeTest: showTestRef.current, includeTracknMe: isTracknMeRoute });
 
     savePreference("show_kako", String(next)).catch(console.error);
 
@@ -822,59 +825,48 @@ export default function Grid() {
 
     showTestRef.current = next;
 
-    await loadGrid({ includeKako: showKakoRef.current, includeTest: next, includeTracknMe: showTracknMeRef.current });
+    await loadGrid({ includeKako: showKakoRef.current, includeTest: next, includeTracknMe: isTracknMeRoute });
 
     savePreference("show_test", String(next)).catch(console.error);
 
   }
 
-  async function handleTracknMeToggle() {
-
-    const next = !showTracknMe;
-
-    setShowTracknMe(next);
-
-    showTracknMeRef.current = next;
-
-    // TracknMe é mutuamente exclusivo com Multiportal — backend filtra automaticamente
-    await loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: next });
-
-    savePreference("show_tracknme", String(next)).catch(console.error);
-
-  }
-
-
   useEffect(() => {
+
+    // Painel de "sem rastreador ativo" e' um conceito Multiportal (vínculo
+    // de dispositivo) — nao existe pra TracknMe.
+    if (isTracknMeRoute) {
+      return;
+    }
 
     getNoLinkageVehicles()
       .then(setNoLinkageVehicles)
       .catch(console.error);
 
-  }, []);
+  }, [isTracknMeRoute]);
 
   useEffect(() => {
 
-    // Resolve os 3 toggles persistidos (kako/test/tracknme) ANTES de
-    // buscar o grid, numa única chamada combinada. Antes disso, cada
-    // toggle tinha seu próprio efeito que chamava loadGrid() assim que
-    // sua preferência resolvia — e havia ainda uma chamada solta sem
-    // filtro nenhum (loadGridIfStale()) aqui. Como as 3 preferências
-    // resolvem em paralelo e cada loadGrid() sobrescreve o mesmo estado
-    // sem ordem garantida, a última resposta a chegar "vencia": uma
-    // chamada sem includeTracknMe podia responder depois da correta e
-    // apagar o resultado certo — toggle TracknMe ligado, grid mostrando
-    // Multiportal.
+    // Na rota /tracknme/grid, includeTracknMe fica sempre true e KAKO/TEST
+    // sempre false — sem toggle nenhum, sem preferencia persistida. Em
+    // /grid, resolve os 2 toggles persistidos (kako/test) ANTES de buscar
+    // o grid, numa única chamada combinada — evita a corrida em que cada
+    // toggle tinha seu próprio efeito chamando loadGrid() assim que sua
+    // preferência resolvia, e a última resposta a chegar "vencia".
     async function loadFiltersAndGrid() {
 
-      const [kakoVal, testVal, tracknMeVal] = await Promise.all([
+      if (isTracknMeRoute) {
+        await loadGrid({ includeKako: false, includeTest: false, includeTracknMe: true });
+        return;
+      }
+
+      const [kakoVal, testVal] = await Promise.all([
         getPreference("show_kako").catch(() => null),
         getPreference("show_test").catch(() => null),
-        getPreference("show_tracknme").catch(() => null),
       ]);
 
       const kakoOn = kakoVal === "true" || kakoVal === true;
       const testOn = testVal === "true" || testVal === true;
-      const tracknMeOn = tracknMeVal === "true" || tracknMeVal === true;
 
       setShowKako(kakoOn);
       showKakoRef.current = kakoOn;
@@ -882,13 +874,10 @@ export default function Grid() {
       setShowTest(testOn);
       showTestRef.current = testOn;
 
-      setShowTracknMe(tracknMeOn);
-      showTracknMeRef.current = tracknMeOn;
-
       // loadGrid direto (não loadGridIfStale) — o cache do store não
       // sabe com quais filtros os dados foram buscados, então "não
       // stale" não implica "filtros certos".
-      await loadGrid({ includeKako: kakoOn, includeTest: testOn, includeTracknMe: tracknMeOn });
+      await loadGrid({ includeKako: kakoOn, includeTest: testOn, includeTracknMe: false });
 
     }
 
@@ -901,7 +890,7 @@ export default function Grid() {
 
       if (event?.type === "GRID_UPDATED") {
 
-        loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: showTracknMeRef.current });
+        loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: isTracknMeRoute });
 
       }
 
@@ -909,7 +898,7 @@ export default function Grid() {
 
     return () => unsubscribe();
 
-  }, []);
+  }, [isTracknMeRoute]);
 
   useEffect(() => {
     const interval = setInterval(
@@ -923,7 +912,7 @@ export default function Grid() {
 
     try {
 
-      await loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: showTracknMeRef.current });
+      await loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: isTracknMeRoute });
 
     } catch (error) {
 
@@ -1249,7 +1238,7 @@ export default function Grid() {
 
           {/* Colunas do modo TracknMe sao fixas — o sistema de
               ordenar/mostrar-ocultar colunas e' so pro modo Multiportal */}
-          {!showTracknMe && (
+          {!isTracknMeRoute && (
             <>
 
               <div
@@ -1334,59 +1323,42 @@ export default function Grid() {
                 Configurar colunas
               </button>
 
+              <button
+                onClick={handleKakoToggle}
+                title={showKako ? "Ocultar veículos KAKO" : "Mostrar veículos KAKO"}
+                className={`
+                  flex items-center gap-2
+                  rounded-2xl border px-5 py-3
+                  text-sm font-semibold transition
+                  ${showKako
+                    ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
+                    : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
+                  }
+                `}
+              >
+                <Car size={16} />
+                KAKO
+              </button>
+
+              <button
+                onClick={handleTestToggle}
+                title={showTest ? "Ocultar veículos de teste" : "Mostrar veículos de teste"}
+                className={`
+                  flex items-center gap-2
+                  rounded-2xl border px-5 py-3
+                  text-sm font-semibold transition
+                  ${showTest
+                    ? "border-violet-500/50 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
+                    : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
+                  }
+                `}
+              >
+                <FlaskConical size={16} />
+                Testes
+              </button>
+
             </>
           )}
-
-          <button
-            onClick={handleKakoToggle}
-            title={showKako ? "Ocultar veículos KAKO" : "Mostrar veículos KAKO"}
-            className={`
-              flex items-center gap-2
-              rounded-2xl border px-5 py-3
-              text-sm font-semibold transition
-              ${showKako
-                ? "border-yellow-500/50 bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20"
-                : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
-              }
-            `}
-          >
-            <Car size={16} />
-            KAKO
-          </button>
-
-          <button
-            onClick={handleTestToggle}
-            title={showTest ? "Ocultar veículos de teste" : "Mostrar veículos de teste"}
-            className={`
-              flex items-center gap-2
-              rounded-2xl border px-5 py-3
-              text-sm font-semibold transition
-              ${showTest
-                ? "border-violet-500/50 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20"
-                : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
-              }
-            `}
-          >
-            <FlaskConical size={16} />
-            Testes
-          </button>
-
-          <button
-            onClick={handleTracknMeToggle}
-            title={showTracknMe ? "Voltar para grid Multiportal" : "Ver veículos TracknMe"}
-            className={`
-              flex items-center gap-2
-              rounded-2xl border px-5 py-3
-              text-sm font-semibold transition
-              ${showTracknMe
-                ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20"
-                : "border-zinc-700 bg-zinc-950 hover:bg-zinc-800"
-              }
-            `}
-          >
-            <MapPin size={16} />
-            TracknMe
-          </button>
 
           <button
             onClick={handleRefreshFromEtl}
@@ -1598,7 +1570,7 @@ export default function Grid() {
 
       </div>
 
-      {noLinkageVehicles.length > 0 && (
+      {!isTracknMeRoute && noLinkageVehicles.length > 0 && (
 
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 overflow-hidden">
 

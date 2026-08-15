@@ -47,6 +47,8 @@ public class InstallationSyncService {
     @Scheduled(cron = "0 0 * * * *")
     public void scheduledSync() {
 
+        log.info("[INSTALLATION-SYNC] Iniciando sync - {}", LocalDateTime.now());
+
         try {
 
             InstallationSyncResult result = syncFromPortal();

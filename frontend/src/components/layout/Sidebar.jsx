@@ -37,7 +37,7 @@ import { getSignalControl } from "../../services/signalControlService";
 
 import { getInstallationsPendingCount } from "../../services/installationService";
 
-import { getPolicyBadgeCounts } from "../../services/policyService";
+import { getPolicyAlerts, getPolicyBadgeCounts } from "../../services/policyService";
 
 import { notifyInstallationsNew } from "../../services/notificationService";
 
@@ -81,7 +81,7 @@ const GROUPS = [
         icon: FileText,
         items: [
             { label: "Conferência", icon: ScrollText,    path: "/policies" },
-            { label: "Alertas",     icon: AlertTriangle, path: "/policies/alerts" },
+            { label: "Alertas",     icon: AlertTriangle, path: "/policies/alerts", badgeKey: "policyAlerts" },
         ],
     },
     {
@@ -93,7 +93,7 @@ const GROUPS = [
             { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
             { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
             { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
-            { label: "Auditoria",  icon: Shield,          path: "/service-orders/audit" },
+            { label: "Auditoria",  icon: Shield,          path: "/service-orders?tab=auditoria" },
         ],
     },
     {
@@ -149,6 +149,8 @@ export default function Sidebar() {
     const [policiesExpiredCount, setPoliciesExpiredCount] = useState(0);
 
     const [policiesExpiringCount, setPoliciesExpiringCount] = useState(0);
+
+    const [policyAlertsCount, setPolicyAlertsCount] = useState(0);
 
     const prevInstallationsCountRef = useRef(null);
 
@@ -229,11 +231,30 @@ export default function Sidebar() {
 
     }, [isAdmin]);
 
+    useEffect(() => {
+
+        async function loadPolicyAlertsCount() {
+            if (!isAdmin) return;
+            try {
+                const data = await getPolicyAlerts();
+                setPolicyAlertsCount(Array.isArray(data) ? data.length : 0);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        loadPolicyAlertsCount();
+        const interval = setInterval(loadPolicyAlertsCount, POLL_INTERVAL_MS);
+        return () => clearInterval(interval);
+
+    }, [isAdmin]);
+
     const badgeCounts = {
         signalControl: signalControlCount,
         installations: installationsCriticalCount,
         policiesExpired: policiesExpiredCount,
         policiesExpiring: policiesExpiringCount,
+        policyAlerts: policyAlertsCount,
     };
 
     // Filtra grupos e itens conforme o perfil do usuário

@@ -77,7 +77,7 @@ scheduleWithRetry(
     TWENTY_FOUR_HOURS_MS
 );
 
-// Instalações: gerenciado pelo InstallationSyncService no backend (@Scheduled a cada 15 min)
+// Instalações: gerenciado pelo InstallationSyncService no backend (@Scheduled 1x por hora, cron "0 0 * * * *")
 
 log('[CRON] Agendador iniciado.');
 log('[CRON] Última posição: 1x por hora (início de cada hora).');
