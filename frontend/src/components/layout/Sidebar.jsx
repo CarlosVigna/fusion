@@ -36,7 +36,13 @@ import { getSignalControl } from "../../services/signalControlService";
 
 import { getInstallationsPendingCount } from "../../services/installationService";
 
-import { getPolicyAlerts, getPolicyBadgeCounts } from "../../services/policyService";
+import {
+    getCancelledPolicies,
+    getClosedPolicies,
+    getExpiredPolicies,
+    getExpiringPolicies,
+    getPolicyBadgeCounts,
+} from "../../services/policyService";
 
 import { notifyInstallationsNew } from "../../services/notificationService";
 
@@ -231,11 +237,21 @@ export default function Sidebar() {
 
     useEffect(() => {
 
+        // Soma das 4 categorias da pagina /policies/alerts (Vencidas +
+        // Vencendo + Canceladas + Encerradas) — mesma fonte de dados da
+        // pagina, pra o numero do badge sempre bater com o que ela mostra.
         async function loadPolicyAlertsCount() {
             if (!isAdmin) return;
             try {
-                const data = await getPolicyAlerts();
-                setPolicyAlertsCount(Array.isArray(data) ? data.length : 0);
+                const [expired, expiring, cancelled, closed] = await Promise.all([
+                    getExpiredPolicies(),
+                    getExpiringPolicies(30),
+                    getCancelledPolicies(),
+                    getClosedPolicies(),
+                ]);
+                const total = [expired, expiring, cancelled, closed]
+                    .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+                setPolicyAlertsCount(total);
             } catch (error) {
                 console.error(error);
             }

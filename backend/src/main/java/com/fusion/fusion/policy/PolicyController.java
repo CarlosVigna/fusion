@@ -40,6 +40,16 @@ public class PolicyController {
         return service.findExpired();
     }
 
+    @GetMapping("/cancelled")
+    public List<PolicyResponse> findCancelled() {
+        return service.findCancelled();
+    }
+
+    @GetMapping("/closed")
+    public List<PolicyResponse> findClosed() {
+        return service.findClosed();
+    }
+
     @GetMapping("/inactive")
     public List<PolicyResponse> findInactive() {
         return service.findInactive();

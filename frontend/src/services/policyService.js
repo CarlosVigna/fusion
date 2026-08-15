@@ -24,6 +24,14 @@ export async function getExpiredPolicies() {
   return apiClient.get("/policies/expired");
 }
 
+export async function getCancelledPolicies() {
+  return apiClient.get("/policies/cancelled");
+}
+
+export async function getClosedPolicies() {
+  return apiClient.get("/policies/closed");
+}
+
 export async function getPolicyBadgeCounts() {
   return apiClient.get("/policies/badge-counts");
 }

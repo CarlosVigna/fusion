@@ -32,7 +32,7 @@ public record PolicyResponse(
         String desc = p.getStatusDescricao();
         if (desc != null) {
             String lower = desc.toLowerCase();
-            if (lower.contains("encerrada")) return PolicyStatus.EXPIRED;
+            if (lower.contains("encerrada")) return PolicyStatus.CLOSED;
             if (lower.contains("cancelada")) return PolicyStatus.CANCELLED;
         }
         LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));

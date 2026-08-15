@@ -1072,14 +1072,16 @@ export default function Grid() {
           EXPIRED: "Vencida",
           CANCELLED: "Cancelada",
           SUPERSEDED: "Substituída",
+          CLOSED: "Encerrada",
         };
         const POLICY_STATUS_CLASS = {
           ACTIVE: "bg-green-500/15 text-green-400",
           EXPIRING: "bg-yellow-500/15 text-yellow-400",
           FUTURE: "bg-blue-500/15 text-blue-400",
           EXPIRED: "bg-red-500/15 text-red-400",
-          CANCELLED: "bg-zinc-700/40 text-zinc-400",
+          CANCELLED: "bg-orange-500/15 text-orange-400",
           SUPERSEDED: "bg-zinc-700/40 text-zinc-400",
+          CLOSED: "bg-zinc-700/40 text-zinc-400",
         };
         if (!vehicle.policyStatus) {
           return <span className="text-zinc-500 text-xs">Sem apólice</span>;

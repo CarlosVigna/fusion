@@ -135,13 +135,33 @@ public class PolicyService {
 
     }
 
+    public List<PolicyResponse> findCancelled() {
+
+        return policyRepository.findAllActive()
+                .stream()
+                .filter(p -> PolicyResponse.computeStatus(p) == PolicyStatus.CANCELLED)
+                .map(PolicyResponse::from)
+                .toList();
+
+    }
+
+    public List<PolicyResponse> findClosed() {
+
+        return policyRepository.findAllActive()
+                .stream()
+                .filter(p -> PolicyResponse.computeStatus(p) == PolicyStatus.CLOSED)
+                .map(PolicyResponse::from)
+                .toList();
+
+    }
+
     public List<PolicyResponse> findInactive() {
 
         return policyRepository.findAllActive()
                 .stream()
                 .filter(p -> {
                     PolicyStatus s = PolicyResponse.computeStatus(p);
-                    return s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED;
+                    return s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED || s == PolicyStatus.CLOSED;
                 })
                 .sorted(Comparator.comparing(
                         (Policy p) -> p.getEndDate() != null ? p.getEndDate() : LocalDate.MIN,
@@ -176,7 +196,7 @@ public class PolicyService {
                 .filter(p -> {
                     if (p.getPlate() == null) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
-                    return (s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED)
+                    return (s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED || s == PolicyStatus.CLOSED)
                             && !activePlates.contains(p.getPlate().toUpperCase());
                 })
                 .map(p -> p.getPlate().toUpperCase())
@@ -481,7 +501,7 @@ public class PolicyService {
                 .filter(p -> {
                     if (today.equals(p.getAlertDismissedAt())) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
-                    if (s == PolicyStatus.EXPIRED) return true;
+                    if (s == PolicyStatus.EXPIRED || s == PolicyStatus.CLOSED) return true;
                     return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
                             && p.getEndDate() != null
                             && !p.getEndDate().isAfter(limit);
@@ -503,7 +523,7 @@ public class PolicyService {
                 .filter(p -> {
                     if (today.equals(p.getAlertDismissedAt())) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
-                    if (s == PolicyStatus.EXPIRED) return true;
+                    if (s == PolicyStatus.EXPIRED || s == PolicyStatus.CLOSED) return true;
                     return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
                             && p.getEndDate() != null
                             && !p.getEndDate().isAfter(limit);
@@ -517,7 +537,7 @@ public class PolicyService {
                             ? (int) (p.getEndDate().toEpochDay() - today.toEpochDay())
                             : null;
                     String alertType;
-                    if (s == PolicyStatus.EXPIRED) {
+                    if (s == PolicyStatus.EXPIRED || s == PolicyStatus.CLOSED) {
                         alertType = "EXPIRED";
                     } else if (p.getEndDate().isEqual(today)) {
                         alertType = "EXPIRING_TODAY";
@@ -636,11 +656,11 @@ public class PolicyService {
                             }
                     ));
 
-            // Fase 2: apólices encerradas (EXPIRED/CANCELLED) — mais recente por placa, excluindo placas já ativas
+            // Fase 2: apólices encerradas (EXPIRED/CANCELLED/CLOSED) — mais recente por placa, excluindo placas já ativas
             Map<String, Policy> inactivePoliciesByPlate = allPolicies.stream()
                     .filter(p -> {
                         PolicyStatus s = PolicyResponse.computeStatus(p);
-                        return (s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED)
+                        return (s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED || s == PolicyStatus.CLOSED)
                                 && !activePoliciesByPlate.containsKey(p.getPlate().toUpperCase());
                     })
                     .collect(Collectors.toMap(

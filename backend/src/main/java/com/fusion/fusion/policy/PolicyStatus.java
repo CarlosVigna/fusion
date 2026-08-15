@@ -6,5 +6,10 @@ public enum PolicyStatus {
     EXPIRING,
     EXPIRED,
     CANCELLED,
-    SUPERSEDED
+    SUPERSEDED,
+    // Portal manda statusDescricao contendo "encerrada" pra apolices que
+    // o segurado/corretora encerrou explicitamente — antes disso caia
+    // junto com EXPIRED (vencida por data), misturando dois conceitos
+    // diferentes na secao "Vencidas".
+    CLOSED
 }
