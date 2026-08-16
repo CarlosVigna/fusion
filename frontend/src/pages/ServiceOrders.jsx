@@ -528,7 +528,7 @@ export default function ServiceOrders() {
       if (technicianAddress) schedPayload.technicianAddress = technicianAddress;
       if (clientAddress) schedPayload.clientAddress = clientAddress;
 
-      if (isTech && calculatedDisplacement > 0) {
+      if (calculatedDisplacement > 0) {
         setDisplacementModal({
           km: calculatedKm,
           displacement: calculatedDisplacement,
@@ -793,6 +793,9 @@ export default function ServiceOrders() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge label={STATUS_LABEL[o.schedulingStatus]} colorClass={STATUS_COLOR[o.schedulingStatus]} />
+                      {o.schedulingStatus === "ABERTO" && o.financialApprovalStatus === "REPROVADO" && (
+                        <span className="rounded-full bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-red-400" title="Deslocamento reprovado — aguardando novo agendamento">⚠ Desl. reprovado</span>
+                      )}
                       {o.serviceValueChangedAfterScheduling && (
                         <span className="rounded-full bg-yellow-500/10 border border-yellow-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400" title="Valor do serviço alterado após agendamento">⚠️ Valor</span>
                       )}
@@ -858,6 +861,11 @@ export default function ServiceOrders() {
                   {selectedOrder.completedWithoutSignal && (
                     <span className="text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-full px-2 py-0.5">
                       Sem sinal
+                    </span>
+                  )}
+                  {selectedOrder.schedulingStatus === "ABERTO" && selectedOrder.financialApprovalStatus === "REPROVADO" && (
+                    <span className="text-xs bg-red-500/10 text-red-400 border border-red-500/30 rounded-full px-2 py-0.5">
+                      ⚠ Deslocamento reprovado — aguardando novo agendamento
                     </span>
                   )}
                   {selectedOrder.serviceValueChangedAfterScheduling && (

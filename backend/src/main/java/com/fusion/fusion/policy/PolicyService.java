@@ -523,7 +523,9 @@ public class PolicyService {
                 .filter(p -> {
                     if (today.equals(p.getAlertDismissedAt())) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
-                    if (s == PolicyStatus.EXPIRED || s == PolicyStatus.CLOSED) return true;
+                    if (s == PolicyStatus.EXPIRED
+                            || s == PolicyStatus.CLOSED
+                            || s == PolicyStatus.CANCELLED) return true;
                     return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
                             && p.getEndDate() != null
                             && !p.getEndDate().isAfter(limit);
@@ -537,7 +539,11 @@ public class PolicyService {
                             ? (int) (p.getEndDate().toEpochDay() - today.toEpochDay())
                             : null;
                     String alertType;
-                    if (s == PolicyStatus.EXPIRED || s == PolicyStatus.CLOSED) {
+                    if (s == PolicyStatus.CLOSED) {
+                        alertType = "CLOSED";
+                    } else if (s == PolicyStatus.CANCELLED) {
+                        alertType = "CANCELLED";
+                    } else if (s == PolicyStatus.EXPIRED) {
                         alertType = "EXPIRED";
                     } else if (p.getEndDate().isEqual(today)) {
                         alertType = "EXPIRING_TODAY";

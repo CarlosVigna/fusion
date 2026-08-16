@@ -22,6 +22,11 @@ const TRIGGERS = [
     label: "Atualizar Vínculos",
     description: "Sincroniza vínculos dispositivo-veículo Multiportal",
   },
+  {
+    type: "TRACKNME",
+    label: "Atualizar TracknMe",
+    description: "Sincroniza dispositivos TracknMe",
+  },
 ];
 
 export default function EtlTriggersCard() {

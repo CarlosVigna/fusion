@@ -285,6 +285,28 @@ public class ServiceOrderService {
                     so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null);
         }
 
+        // Notificações WhatsApp — agendamento realizado com técnico
+        if (techChanged && so.getTechnician() != null && so.getScheduledDate() != null) {
+            whatsAppService.sendSchedulingAlert(
+                    so.getPlate(),
+                    so.getServiceType() != null ? so.getServiceType().name() : "",
+                    so.getCustomerName(),
+                    so.getTechnician().getName(),
+                    so.getScheduledDate() != null ? so.getScheduledDate().toString() : "—",
+                    so.getScheduledTime() != null ? so.getScheduledTime() : "—",
+                    so.getAddress(), so.getCity(), so.getState());
+        }
+        // Notificação de deslocamento pendente de aprovação
+        if (effectiveDisplacement != null && effectiveDisplacement.compareTo(BigDecimal.ZERO) > 0
+                && so.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE) {
+            whatsAppService.sendDisplacementPendingAlert(
+                    so.getPlate(),
+                    so.getServiceType() != null ? so.getServiceType().name() : "",
+                    so.getTechnician() != null ? so.getTechnician().getName() : "—",
+                    so.getDistanceKm(),
+                    effectiveDisplacement);
+        }
+
         return saved;
     }
 
@@ -292,6 +314,37 @@ public class ServiceOrderService {
     public ServiceOrderResponse updateFinancialApproval(UUID id, FinancialApprovalRequest request) {
         ServiceOrder so = find(id);
         String oldStatus = so.getFinancialApprovalStatus() != null ? so.getFinancialApprovalStatus().name() : null;
+
+        if (request.financialApprovalStatus() == FinancialApprovalStatus.REPROVADO) {
+            // Notificar antes de limpar os dados do técnico
+            String techName = so.getTechnician() != null ? so.getTechnician().getName() : "—";
+            whatsAppService.sendDisplacementRejectedAlert(
+                    so.getPlate(),
+                    so.getServiceType() != null ? so.getServiceType().name() : "",
+                    techName);
+
+            // Reverter OS para aberto
+            so.setSchedulingStatus(SchedulingStatus.ABERTO);
+            so.setTechnician(null);
+            so.setScheduledDate(null);
+            so.setScheduledTime(null);
+            so.setServiceValue(null);
+            so.setDisplacementValue(null);
+            so.setDistanceKm(null);
+            so.setTotalValue(null);
+            so.setServiceValueChangedAfterScheduling(false);
+            audit(so, "REPROVADA", "schedulingStatus", "AGENDADO",
+                    "ABERTO — Deslocamento reprovado: OS retornada para agendamento");
+        } else if (request.financialApprovalStatus() == FinancialApprovalStatus.APROVADO) {
+            whatsAppService.sendDisplacementApprovedAlert(
+                    so.getPlate(),
+                    so.getServiceType() != null ? so.getServiceType().name() : "",
+                    so.getTechnician() != null ? so.getTechnician().getName() : "—",
+                    so.getScheduledDate() != null ? so.getScheduledDate().toString() : "—",
+                    so.getScheduledTime() != null ? so.getScheduledTime() : "—",
+                    so.getDisplacementValue());
+        }
+
         so.setFinancialApprovalStatus(request.financialApprovalStatus());
         ServiceOrderResponse saved = toResponse(repository.save(so));
         String action = request.financialApprovalStatus() == FinancialApprovalStatus.APROVADO ? "APROVADA" : "REPROVADA";
@@ -324,6 +377,13 @@ public class ServiceOrderService {
         if (so.getClosedAt() == null) so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
         ServiceOrderResponse saved = toResponse(repository.save(so));
         audit(so, "CONCLUIDA", "schedulingStatus", "AGENDADO", "CONCLUIDO");
+        whatsAppService.sendCompletionAlert(
+                so.getPlate(),
+                so.getServiceType() != null ? so.getServiceType().name() : "",
+                so.getCustomerName(),
+                so.getTechnician() != null ? so.getTechnician().getName() : "—",
+                so.getServiceValue(),
+                so.getTotalValue());
         return saved;
     }
 

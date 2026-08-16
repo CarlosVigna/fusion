@@ -74,8 +74,7 @@ public class WhatsAppService {
                 "*CEP:* %s\n" +
                 "*TELEFONE:* %s\n" +
                 "*PLACA:* %s\n" +
-                "*MODELO:* %s\n" +
-                "*CHASSI:* Não informado",
+                "*MODELO:* %s",
                 nullSafe(inst.getCustomerName()),
                 nullSafe(inst.getAddress()),
                 nullSafe(inst.getNeighborhood()),
@@ -118,6 +117,96 @@ public class WhatsAppService {
 
         sendText(number, text);
 
+    }
+
+    @Async
+    public void sendSchedulingAlert(String plate, String serviceType, String customerName,
+                                    String technicianName, String scheduledDate, String scheduledTime,
+                                    String address, String city, String state) {
+        String text = String.format(
+                "🔧 *AGENDAMENTO REALIZADO*\n" +
+                "*OS:* %s — %s\n" +
+                "*Cliente:* %s\n" +
+                "*Técnico:* %s\n" +
+                "*Data:* %s às %s\n" +
+                "*Endereço:* %s, %s/%s",
+                nullSafe(plate), nullSafe(serviceType),
+                nullSafe(customerName),
+                nullSafe(technicianName),
+                nullSafe(scheduledDate), nullSafe(scheduledTime),
+                nullSafe(address), nullSafe(city), nullSafe(state)
+        );
+        sendText(number, text);
+    }
+
+    @Async
+    public void sendDisplacementPendingAlert(String plate, String serviceType,
+                                             String technicianName, Double distanceKm,
+                                             java.math.BigDecimal displacementValue) {
+        String text = String.format(
+                "⏳ *APROVAÇÃO DE DESLOCAMENTO*\n" +
+                "*OS:* %s — %s\n" +
+                "*Técnico:* %s\n" +
+                "*Distância:* %.1f km\n" +
+                "*Valor deslocamento:* R$ %s\n" +
+                "*Aguardando aprovação para prosseguir*",
+                nullSafe(plate), nullSafe(serviceType),
+                nullSafe(technicianName),
+                distanceKm != null ? distanceKm : 0.0,
+                displacementValue != null ? displacementValue.toPlainString() : "0.00"
+        );
+        sendText(number, text);
+    }
+
+    @Async
+    public void sendDisplacementApprovedAlert(String plate, String serviceType,
+                                              String technicianName, String scheduledDate,
+                                              String scheduledTime, java.math.BigDecimal displacementValue) {
+        String text = String.format(
+                "✅ *DESLOCAMENTO APROVADO*\n" +
+                "*OS:* %s — %s\n" +
+                "*Técnico:* %s\n" +
+                "*Data:* %s às %s\n" +
+                "*Valor aprovado:* R$ %s",
+                nullSafe(plate), nullSafe(serviceType),
+                nullSafe(technicianName),
+                nullSafe(scheduledDate), nullSafe(scheduledTime),
+                displacementValue != null ? displacementValue.toPlainString() : "0.00"
+        );
+        sendText(number, text);
+    }
+
+    @Async
+    public void sendDisplacementRejectedAlert(String plate, String serviceType, String technicianName) {
+        String text = String.format(
+                "❌ *DESLOCAMENTO REPROVADO*\n" +
+                "*OS:* %s — %s\n" +
+                "*Técnico:* %s\n" +
+                "*Ordem retornada para agendamento*",
+                nullSafe(plate), nullSafe(serviceType),
+                nullSafe(technicianName)
+        );
+        sendText(number, text);
+    }
+
+    @Async
+    public void sendCompletionAlert(String plate, String serviceType, String customerName,
+                                    String technicianName, java.math.BigDecimal serviceValue,
+                                    java.math.BigDecimal totalValue) {
+        String text = String.format(
+                "🏁 *ORDEM CONCLUÍDA*\n" +
+                "*OS:* %s — %s\n" +
+                "*Cliente:* %s\n" +
+                "*Técnico:* %s\n" +
+                "*Valor serviço:* R$ %s\n" +
+                "*Valor total:* R$ %s",
+                nullSafe(plate), nullSafe(serviceType),
+                nullSafe(customerName),
+                nullSafe(technicianName),
+                serviceValue    != null ? serviceValue.toPlainString()    : "0.00",
+                totalValue      != null ? totalValue.toPlainString()      : "0.00"
+        );
+        sendText(number, text);
     }
 
     private String nullSafe(String value) {

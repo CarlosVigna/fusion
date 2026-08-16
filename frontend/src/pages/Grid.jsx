@@ -928,21 +928,19 @@ export default function Grid() {
 
     try {
 
-      await triggerImport("MULTIPORTAL_OPERATIONAL");
-
-      // O backend so enfileira o pedido — o ETL local busca em ate ~15s
-      // e o Grid se atualiza sozinho via WebSocket quando terminar.
-      toast.success(
-        "Atualização solicitada — o Grid vai atualizar automaticamente em breve"
-      );
+      if (isTracknMeRoute) {
+        await triggerImport("TRACKNME");
+        await triggerImport("TRACKNME_POSITION");
+        toast.success("Sync TracknMe solicitado — o Grid vai atualizar em breve");
+      } else {
+        await triggerImport("MULTIPORTAL_OPERATIONAL");
+        toast.success("Atualização solicitada — o Grid vai atualizar automaticamente em breve");
+      }
 
     } catch (error) {
 
       console.error(error);
-
-      toast.error(
-        "Falha ao solicitar atualização"
-      );
+      toast.error("Falha ao solicitar atualização");
 
     } finally {
 
