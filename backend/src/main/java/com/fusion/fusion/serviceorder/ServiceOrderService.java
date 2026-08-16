@@ -81,8 +81,9 @@ public class ServiceOrderService {
                 .build();
         ServiceOrderResponse saved = toResponse(repository.save(so));
         audit(so, "CRIADA", null, null, so.getPlate());
-        if (so.getServiceType() == ServiceType.INSTALACAO && isManual) {
-            whatsAppService.sendInstallationOsAlert(
+        if (isManual) {
+            whatsAppService.sendNewOrderAlert(
+                    so.getServiceType() != null ? so.getServiceType().name() : "INSTALACAO",
                     so.getPlate(), so.getCustomerName(), so.getAddress(),
                     so.getNeighborhood(), so.getCity(), so.getState(),
                     so.getZipCode(), so.getCustomerPhone());

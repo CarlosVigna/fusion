@@ -83,31 +83,30 @@ public class WhatsAppService {
     }
 
     @Async
-    public void sendInstallationOsAlert(
-            String plate, String customerName, String address,
-            String neighborhood, String city, String state,
-            String zipCode, String phone) {
+    public void sendNewOrderAlert(String serviceType, String plate, String customerName,
+                                   String address, String neighborhood, String city,
+                                   String state, String zipCode, String phone) {
 
-        String text = String.format(
-                "*OS INSTALAÇÃO (FUSION):*\n" +
-                "*NOME:* %s\n" +
-                "*ENDEREÇO:* %s\n" +
-                "*BAIRRO:* %s\n" +
-                "*CIDADE/UF:* %s/%s\n" +
-                "*CEP:* %s\n" +
-                "*TELEFONE:* %s\n" +
-                "*PLACA:* %s",
-                nullSafe(customerName),
-                nullSafe(address),
-                nullSafe(neighborhood),
-                nullSafe(city),
-                nullSafe(state),
-                nullSafe(zipCode),
-                nullSafe(phone),
-                plate != null ? plate : "—"
-        );
+        StringBuilder sb = new StringBuilder("*NOVA ORDEM DE SERVIÇO:*");
+        appendLine(sb, "TIPO",    serviceType);
+        appendLine(sb, "PLACA",   plate);
+        appendLine(sb, "CLIENTE", customerName);
 
-        sendText(number, text);
+        StringBuilder endLine = new StringBuilder();
+        if (hasValue(address)) endLine.append(address);
+        if (hasValue(neighborhood)) {
+            if (endLine.length() > 0) endLine.append(", ");
+            endLine.append(neighborhood);
+        }
+        if (endLine.length() > 0) sb.append("\n*ENDEREÇO:* ").append(endLine);
+
+        if (hasValue(city) || hasValue(state)) {
+            sb.append("\n*CIDADE/UF:* ").append(nullSafe(city)).append("/").append(nullSafe(state));
+        }
+        appendLine(sb, "CEP",      zipCode);
+        appendLine(sb, "TELEFONE", phone);
+
+        sendText(number, sb.toString());
 
     }
 
