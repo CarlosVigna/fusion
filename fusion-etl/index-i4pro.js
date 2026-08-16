@@ -133,7 +133,7 @@ async function processPlate(page, plate) {
         await page.selectOption('#id_ramo', '16');
         await page.fill('#nm_placa', plate);
         await page.click('#TRBTNC_a999996');
-        await page.waitForTimeout(3000);
+        await page.waitForSelector('table tbody tr', { timeout: 10000 }).catch(() => null);
 
         const rawRows = await page.evaluate(() => {
             return Array.from(document.querySelectorAll('table tbody tr')).map((row, idx) => {
@@ -175,14 +175,14 @@ async function processPlate(page, plate) {
         }
 
         await page.click(`#${latest.linkId}`);
-        await page.waitForTimeout(2000);
+        await page.waitForSelector('#nm_pessoa_segurado, [name="nm_pessoa"], #nr_cnpj_cpf, [name="nr_cnpj_cpf"]', { timeout: 8000 }).catch(() => null);
 
         await page.evaluate(() => {
             const tabs = Array.from(document.querySelectorAll('[role="tab"], .nav-tab, a.tab, a'));
             const tab  = tabs.find(t => t.innerText?.trim().toLowerCase() === 'cliente');
             tab?.click();
         });
-        await page.waitForTimeout(1000);
+        await page.waitForSelector('#nm_pessoa_segurado, [name="nm_pessoa"]', { timeout: 5000 }).catch(() => null);
 
         const clienteData = await page.evaluate(() => ({
             nome    : document.querySelector('#nm_pessoa_segurado, [name="nm_pessoa"]')?.value?.trim() || '',

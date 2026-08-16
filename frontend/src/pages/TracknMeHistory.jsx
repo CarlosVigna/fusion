@@ -4,6 +4,20 @@ import { getTracknMeHistory } from "../services/tracknmeService";
 import { triggerImport } from "../services/importStatusService";
 import toast from "react-hot-toast";
 
+function VehicleChips({ items, colorClass }) {
+  return (
+    <div className="space-y-1.5">
+      {items.map((item, i) => (
+        <div key={i} className={`rounded-lg px-3 py-1.5 text-xs font-mono ${colorClass}`}>
+          <span className="font-bold">{item.plate ?? JSON.stringify(item)}</span>
+          {item.model && <span className="ml-2 opacity-70">{item.model}</span>}
+          {item.imei  && <span className="ml-2 opacity-50">IMEI: {item.imei}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function parseDetails(log) {
   try {
     const d = typeof log.detailsJson === "string"
@@ -206,16 +220,7 @@ export default function TracknMeHistory() {
                 <p className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-2">
                   Entraram ({selectedDetails.added.length})
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedDetails.added.map((item, i) => (
-                    <span
-                      key={i}
-                      className="rounded-lg bg-green-500/10 px-2 py-1 text-xs font-mono text-green-300"
-                    >
-                      {item.plate ?? JSON.stringify(item)}
-                    </span>
-                  ))}
-                </div>
+                <VehicleChips items={selectedDetails.added} colorClass="bg-green-500/10 text-green-300" />
               </div>
             )}
 
@@ -224,16 +229,7 @@ export default function TracknMeHistory() {
                 <p className="text-xs font-semibold text-red-400 uppercase tracking-wider mb-2">
                   Saíram ({selectedDetails.removed.length})
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedDetails.removed.map((item, i) => (
-                    <span
-                      key={i}
-                      className="rounded-lg bg-red-500/10 px-2 py-1 text-xs font-mono text-red-300"
-                    >
-                      {item.plate ?? JSON.stringify(item)}
-                    </span>
-                  ))}
-                </div>
+                <VehicleChips items={selectedDetails.removed} colorClass="bg-red-500/10 text-red-300" />
               </div>
             )}
 
@@ -242,16 +238,7 @@ export default function TracknMeHistory() {
                 <p className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-2">
                   Alterados ({selectedDetails.changed.length})
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedDetails.changed.map((item, i) => (
-                    <span
-                      key={i}
-                      className="rounded-lg bg-yellow-500/10 px-2 py-1 text-xs font-mono text-yellow-300"
-                    >
-                      {item.plate ?? JSON.stringify(item)}
-                    </span>
-                  ))}
-                </div>
+                <VehicleChips items={selectedDetails.changed} colorClass="bg-yellow-500/10 text-yellow-300" />
               </div>
             )}
 

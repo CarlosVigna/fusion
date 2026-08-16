@@ -12,4 +12,9 @@ public interface ImportDiffLogRepository extends JpaRepository<ImportDiffLog, UU
 
     List<ImportDiffLog> findByImportTypeInOrderByCreatedAtDesc(Collection<ImportType> importTypes);
 
+    List<ImportDiffLog> findByImportTypeInAndCreatedAtBetweenOrderByCreatedAtDesc(
+            Collection<ImportType> importTypes,
+            java.time.LocalDateTime from,
+            java.time.LocalDateTime to);
+
 }

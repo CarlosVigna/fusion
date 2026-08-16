@@ -120,7 +120,7 @@ async function fetchCep(cep) {
   } catch { return null; }
 }
 
-const GEOCODE_KEY = '6a767720c9a23759209230ybg19c2d3';
+const GEOCODE_KEY = import.meta.env.VITE_GEOCODE_KEY || '6a767720c9a23759209230ybg19c2d3';
 
 async function geocodeAddress(query) {
   const url = `https://geocode.maps.co/search?q=${encodeURIComponent(query)}&api_key=${GEOCODE_KEY}&countrycodes=br&limit=1`;

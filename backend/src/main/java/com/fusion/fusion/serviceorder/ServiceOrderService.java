@@ -10,6 +10,7 @@ import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
+import com.fusion.fusion.whatsapp.WhatsAppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -37,6 +38,7 @@ public class ServiceOrderService {
     private final VehicleRepository vehicleRepository;
     private final VehicleOperationalStateRepository operationalStateRepository;
     private final ServiceOrderAuditLogRepository auditLogRepository;
+    private final WhatsAppService whatsAppService;
 
     public List<ServiceOrderResponse> listAll(boolean includeCompleted) {
         return repository.findAll().stream()
@@ -79,6 +81,12 @@ public class ServiceOrderService {
                 .build();
         ServiceOrderResponse saved = toResponse(repository.save(so));
         audit(so, "CRIADA", null, null, so.getPlate());
+        if (so.getServiceType() == ServiceType.INSTALACAO && isManual) {
+            whatsAppService.sendInstallationOsAlert(
+                    so.getPlate(), so.getCustomerName(), so.getAddress(),
+                    so.getNeighborhood(), so.getCity(), so.getState(),
+                    so.getZipCode(), so.getCustomerPhone());
+        }
         return saved;
     }
 

@@ -118,7 +118,7 @@ public class TracknMeSyncService {
                         v.setActive(true);
                         changed = true;
                         added++;
-                        addedDetails.add(Map.of("plate", plate));
+                        addedDetails.add(Map.of("plate", plate, "model", nullSafe(d.model()), "imei", nullSafe(d.imei())));
                     } else {
                         unchanged++;
                     }
@@ -139,7 +139,7 @@ public class TracknMeSyncService {
                             .build();
                     vehicleRepository.save(v);
                     added++;
-                    addedDetails.add(Map.of("plate", plate));
+                    addedDetails.add(Map.of("plate", plate, "model", nullSafe(d.model()), "imei", nullSafe(d.imei())));
                 }
             }
 
@@ -286,6 +286,10 @@ public class TracknMeSyncService {
     private String normalizePlate(String plate) {
         if (plate == null) return "";
         return plate.replace("-", "").replace(" ", "").trim().toUpperCase();
+    }
+
+    private String nullSafe(String value) {
+        return value != null ? value : "";
     }
 
 }

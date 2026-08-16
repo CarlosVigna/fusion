@@ -57,6 +57,7 @@ const GROUPS = [
             { label: "Grid",                      icon: LayoutGrid,      path: "/grid" },
             { label: "Relatório Multiportal",     icon: FileSpreadsheet, path: "/reports/multiportal" },
             { label: "Relatório de Dispositivos", icon: FileSpreadsheet, path: "/reports/devices" },
+            { label: "Histórico de Frota",        icon: History,         path: "/reports/fleet-history" },
         ],
     },
     {
@@ -85,8 +86,8 @@ const GROUPS = [
         label: "Apólices",
         icon: FileText,
         items: [
-            { label: "Conferência", icon: ScrollText,    path: "/policies" },
-            { label: "Alertas",     icon: AlertTriangle, path: "/policies/alerts", badgeKey: "policyAlerts" },
+            { label: "Conferência", icon: ScrollText,    path: "/policies", end: true, badgeKey: "policiesExpired" },
+            { label: "Alertas",     icon: AlertTriangle, path: "/policies/alerts", badgeKey: "policiesExpiring" },
         ],
     },
     {

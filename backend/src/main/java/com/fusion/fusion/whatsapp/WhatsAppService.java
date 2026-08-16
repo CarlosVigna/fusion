@@ -91,6 +91,35 @@ public class WhatsAppService {
 
     }
 
+    @Async
+    public void sendInstallationOsAlert(
+            String plate, String customerName, String address,
+            String neighborhood, String city, String state,
+            String zipCode, String phone) {
+
+        String text = String.format(
+                "*OS INSTALAÇÃO (FUSION):*\n" +
+                "*NOME:* %s\n" +
+                "*ENDEREÇO:* %s\n" +
+                "*BAIRRO:* %s\n" +
+                "*CIDADE/UF:* %s/%s\n" +
+                "*CEP:* %s\n" +
+                "*TELEFONE:* %s\n" +
+                "*PLACA:* %s",
+                nullSafe(customerName),
+                nullSafe(address),
+                nullSafe(neighborhood),
+                nullSafe(city),
+                nullSafe(state),
+                nullSafe(zipCode),
+                nullSafe(phone),
+                plate != null ? plate : "—"
+        );
+
+        sendText(number, text);
+
+    }
+
     private String nullSafe(String value) {
         return value != null ? value : "";
     }

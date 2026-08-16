@@ -143,7 +143,7 @@ public class VehicleGridService {
 
         Map<String, Policy> result = new HashMap<>();
 
-        for (Policy policy : policyRepository.findAll()) {
+        for (Policy policy : policyRepository.findAllActive()) {
 
             if (policy.getPlate() == null) continue;
 

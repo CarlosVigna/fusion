@@ -2,43 +2,49 @@ import { useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { Download, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 
-import {
-    getCancelledPolicies,
-    getClosedPolicies,
-    getExpiredPolicies,
-    getExpiringPolicies,
-} from "../services/policyService";
+import { dismissPolicyAlert, getPolicyAlerts } from "../services/policyService";
 
-import { todayForFilename } from "../utils/exportXlsx";
-
-const SECTIONS = [
-    { key: "expired",   label: "Vencidas",   emoji: "🔴", badgeClass: "bg-red-500/15 text-red-400" },
-    { key: "expiring",  label: "Vencendo",   emoji: "🟡", badgeClass: "bg-yellow-500/15 text-yellow-400" },
-    { key: "cancelled", label: "Canceladas", emoji: "🟠", badgeClass: "bg-orange-500/15 text-orange-400" },
-    { key: "closed",    label: "Encerradas", emoji: "⚫", badgeClass: "bg-zinc-700/40 text-zinc-300" },
+const TABS = [
+    { key: "expired",    label: "Vencidas",   color: "text-red-400",    dot: "bg-red-500",    match: (a) => a.alertType === "EXPIRED" },
+    { key: "expiring",   label: "Vencendo",   color: "text-yellow-400", dot: "bg-yellow-500", match: (a) => a.alertType?.startsWith("EXPIRING") },
+    { key: "cancelled",  label: "Canceladas", color: "text-orange-400", dot: "bg-orange-500", match: (a) => a.alertType === "CANCELLED" },
+    { key: "closed",     label: "Encerradas", color: "text-zinc-400",   dot: "bg-zinc-500",   match: (a) => a.alertType === "CLOSED" || a.alertType === "TERMINATED" },
 ];
 
-const STATUS_LABEL = {
-    ACTIVE: "Ativa",
-    EXPIRING: "Vencendo",
-    FUTURE: "Futura",
-    EXPIRED: "Vencida",
-    CANCELLED: "Cancelada",
-    SUPERSEDED: "Substituída",
-    CLOSED: "Encerrada",
-};
-
-function formatDate(value) {
-    if (!value) return "—";
-    return new Date(value + "T00:00:00").toLocaleDateString("pt-BR");
+function formatDate(raw) {
+    if (!raw) return "—";
+    return new Date(raw + "T00:00:00").toLocaleDateString("pt-BR");
 }
 
-function PoliciesTable({ rows }) {
+function badgeClass(a) {
+    if (a.alertType === "EXPIRED")          return "bg-red-500/15 text-red-400";
+    if (a.alertType === "EXPIRING_TODAY")   return "bg-orange-500/15 text-orange-400";
+    if (a.alertType === "EXPIRING_THIS_WEEK") return "bg-yellow-500/15 text-yellow-400";
+    if (a.alertType?.startsWith("EXPIRING")) return "bg-yellow-500/10 text-yellow-300";
+    if (a.alertType === "CANCELLED")        return "bg-orange-500/15 text-orange-400";
+    if (a.alertType === "CLOSED" || a.alertType === "TERMINATED") return "bg-zinc-800 text-zinc-400";
+    return "bg-zinc-800 text-zinc-400";
+}
 
-    if (rows.length === 0) {
-        return <p className="py-4 text-sm text-zinc-500">Nenhuma apólice nesta categoria</p>;
+function badgeLabel(a) {
+    if (a.alertType === "EXPIRED")            return "Vencida";
+    if (a.alertType === "EXPIRING_TODAY")     return "Vence hoje";
+    if (a.alertType === "EXPIRING_THIS_WEEK") return "Esta semana";
+    if (a.alertType?.startsWith("EXPIRING"))  return a.daysRemaining != null ? `${a.daysRemaining}d` : "Vencendo";
+    if (a.alertType === "CANCELLED")          return "Cancelada";
+    if (a.alertType === "CLOSED" || a.alertType === "TERMINATED") return "Encerrada";
+    return a.alertType ?? "—";
+}
+
+function AlertsTable({ alerts, dismissingId, onDismiss }) {
+    if (alerts.length === 0) {
+        return (
+            <p className="py-10 text-center text-zinc-500">
+                Nenhum alerta nesta categoria
+            </p>
+        );
     }
 
     return (
@@ -48,24 +54,30 @@ function PoliciesTable({ rows }) {
                     <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500">
                         <th className="pb-2 pr-4 font-medium">Placa</th>
                         <th className="pb-2 pr-4 font-medium">Segurado</th>
-                        <th className="pb-2 pr-4 font-medium">Nº Apólice</th>
-                        <th className="pb-2 pr-4 font-medium">Início</th>
-                        <th className="pb-2 pr-4 font-medium">Fim</th>
-                        <th className="pb-2 font-medium">Status</th>
+                        <th className="pb-2 pr-4 font-medium">Fim Vigência</th>
+                        <th className="pb-2 pr-4 font-medium">Status</th>
+                        <th className="pb-2 font-medium" />
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-800">
-                    {rows.map((p) => (
-                        <tr key={p.id}>
-                            <td className="py-2 pr-4 font-mono font-semibold">{p.plate}</td>
-                            <td className="py-2 pr-4 text-zinc-400">{p.insuredName || "—"}</td>
-                            <td className="py-2 pr-4 text-zinc-400">{p.policyNumber || "—"}</td>
-                            <td className="py-2 pr-4 text-zinc-400">{formatDate(p.startDate)}</td>
-                            <td className="py-2 pr-4 text-zinc-400">{formatDate(p.endDate)}</td>
-                            <td className="py-2">
-                                <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-semibold text-zinc-300">
-                                    {STATUS_LABEL[p.status] || p.status}
+                    {alerts.map((pa) => (
+                        <tr key={pa.id}>
+                            <td className="py-2 pr-4 font-mono font-semibold">{pa.plate}</td>
+                            <td className="py-2 pr-4 text-zinc-400">{pa.insuredName || "—"}</td>
+                            <td className="py-2 pr-4 text-zinc-400">{formatDate(pa.endDate)}</td>
+                            <td className="py-2 pr-4">
+                                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badgeClass(pa)}`}>
+                                    {badgeLabel(pa)}
                                 </span>
+                            </td>
+                            <td className="py-2 text-right">
+                                <button
+                                    onClick={() => onDismiss(pa.id)}
+                                    disabled={dismissingId === pa.id}
+                                    className="rounded-lg bg-zinc-800 px-3 py-1 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40"
+                                >
+                                    Dispensar
+                                </button>
                             </td>
                         </tr>
                     ))}
@@ -73,104 +85,43 @@ function PoliciesTable({ rows }) {
             </table>
         </div>
     );
-
-}
-
-async function buildWorkbook(sectionsData) {
-
-    const { default: ExcelJS } = await import("exceljs");
-
-    const workbook = new ExcelJS.Workbook();
-    workbook.creator = "Fusion";
-    workbook.created = new Date();
-
-    for (const section of SECTIONS) {
-
-        const sheet = workbook.addWorksheet(section.label);
-
-        const headerRow = sheet.addRow(["Placa", "Segurado", "Nº Apólice", "Início", "Fim", "Status"]);
-        headerRow.eachCell((cell) => {
-            cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-            cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF18181B" } };
-        });
-
-        for (const p of sectionsData[section.key]) {
-            sheet.addRow([
-                p.plate,
-                p.insuredName || "",
-                p.policyNumber || "",
-                formatDate(p.startDate),
-                formatDate(p.endDate),
-                STATUS_LABEL[p.status] || p.status,
-            ]);
-        }
-
-        sheet.columns.forEach((col) => { col.width = 20; });
-
-    }
-
-    return workbook;
-
-}
-
-function downloadWorkbook(workbook, filename) {
-    return workbook.xlsx.writeBuffer().then((buffer) => {
-        const blob = new Blob([buffer], {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
-    });
 }
 
 export default function PolicyAlerts() {
-
-    const [sections, setSections] = useState({ expired: [], expiring: [], cancelled: [], closed: [] });
-    const [loading, setLoading] = useState(true);
-    const [exporting, setExporting] = useState(false);
+    const [alerts, setAlerts]         = useState([]);
+    const [loading, setLoading]       = useState(true);
+    const [dismissingId, setDismissingId] = useState(null);
+    const [activeTab, setActiveTab]   = useState("expired");
 
     useEffect(() => {
-        Promise.all([
-            getExpiredPolicies(),
-            getExpiringPolicies(30),
-            getCancelledPolicies(),
-            getClosedPolicies(),
-        ])
-            .then(([expired, expiring, cancelled, closed]) => {
-                setSections({
-                    expired: Array.isArray(expired) ? expired : [],
-                    expiring: Array.isArray(expiring) ? expiring : [],
-                    cancelled: Array.isArray(cancelled) ? cancelled : [],
-                    closed: Array.isArray(closed) ? closed : [],
-                });
-            })
-            .catch((err) => {
-                console.error(err);
-                toast.error("Erro ao carregar alertas de apólices");
-            })
+        getPolicyAlerts()
+            .then(data => setAlerts(Array.isArray(data) ? data : []))
+            .catch(console.error)
             .finally(() => setLoading(false));
     }, []);
 
-    const total = sections.expired.length + sections.expiring.length
-        + sections.cancelled.length + sections.closed.length;
-
-    async function handleExport() {
-        setExporting(true);
+    async function handleDismiss(id) {
+        setDismissingId(id);
         try {
-            const workbook = await buildWorkbook(sections);
-            await downloadWorkbook(workbook, `alertas-apolices-${todayForFilename()}.xlsx`);
-            toast.success("Excel gerado com sucesso");
+            await dismissPolicyAlert(id);
+            setAlerts(curr => curr.filter(a => a.id !== id));
+            toast.success("Alerta dispensado");
         } catch (err) {
             console.error(err);
-            toast.error("Erro ao gerar Excel: " + err.message);
+            toast.error("Erro ao dispensar alerta");
         } finally {
-            setExporting(false);
+            setDismissingId(null);
         }
     }
+
+    const tabCounts = TABS.reduce((acc, tab) => {
+        acc[tab.key] = alerts.filter(tab.match).length;
+        return acc;
+    }, {});
+
+    const visibleAlerts = alerts.filter(
+        TABS.find(t => t.key === activeTab)?.match ?? (() => true)
+    );
 
     return (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
@@ -179,45 +130,54 @@ export default function PolicyAlerts() {
                 <ShieldAlert size={18} className="text-zinc-400" />
                 <h1 className="text-xl font-semibold">Alertas de Apólices</h1>
                 {!loading && (
-                    <span className="ml-2 rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-semibold text-zinc-300">
-                        {total}
+                    <span className="ml-auto rounded-full bg-zinc-800 px-2 py-0.5 text-xs font-semibold text-zinc-300">
+                        {alerts.length} total
                     </span>
                 )}
-                <button
-                    onClick={handleExport}
-                    disabled={loading || exporting || total === 0}
-                    className="
-                        ml-auto flex items-center gap-2
-                        rounded-xl border border-zinc-700
-                        bg-zinc-950 px-4 py-2
-                        text-sm font-semibold
-                        transition hover:bg-zinc-800
-                        disabled:cursor-not-allowed disabled:opacity-40
-                    "
-                >
-                    <Download size={15} />
-                    {exporting ? "Gerando..." : "Exportar Excel"}
-                </button>
+            </div>
+
+            {/* Abas */}
+            <div className="mb-6 flex gap-1 rounded-2xl border border-zinc-800 bg-zinc-950 p-1">
+                {TABS.map((tab) => {
+                    const count = tabCounts[tab.key] ?? 0;
+                    const isActive = activeTab === tab.key;
+                    return (
+                        <button
+                            key={tab.key}
+                            onClick={() => setActiveTab(tab.key)}
+                            className={`
+                                flex flex-1 items-center justify-center gap-2
+                                rounded-xl px-3 py-2.5 text-sm font-medium
+                                transition-all
+                                ${isActive
+                                    ? "bg-zinc-800 text-white shadow"
+                                    : "text-zinc-500 hover:text-zinc-300"
+                                }
+                            `}
+                        >
+                            <span className={`h-2 w-2 rounded-full ${tab.dot}`} />
+                            {tab.label}
+                            {count > 0 && (
+                                <span className={`
+                                    rounded-full px-1.5 py-0.5 text-xs font-bold
+                                    ${isActive ? "bg-zinc-700 text-white" : "bg-zinc-800 text-zinc-400"}
+                                `}>
+                                    {count}
+                                </span>
+                            )}
+                        </button>
+                    );
+                })}
             </div>
 
             {loading ? (
                 <p className="py-10 text-center text-zinc-500">Carregando...</p>
-            ) : total === 0 ? (
-                <p className="py-10 text-center text-zinc-500">Nenhuma apólice em alerta</p>
             ) : (
-                <div className="flex flex-col gap-8">
-                    {SECTIONS.map((section) => (
-                        <section key={section.key}>
-                            <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-300">
-                                {section.emoji} {section.label}
-                                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${section.badgeClass}`}>
-                                    {sections[section.key].length}
-                                </span>
-                            </h2>
-                            <PoliciesTable rows={sections[section.key]} />
-                        </section>
-                    ))}
-                </div>
+                <AlertsTable
+                    alerts={visibleAlerts}
+                    dismissingId={dismissingId}
+                    onDismiss={handleDismiss}
+                />
             )}
 
         </div>

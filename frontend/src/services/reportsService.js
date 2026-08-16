@@ -32,6 +32,14 @@ export async function downloadDeviceReport() {
   URL.revokeObjectURL(url);
 }
 
+export async function getFleetHistory({ dateFrom, dateTo } = {}) {
+  const params = new URLSearchParams();
+  if (dateFrom) params.set("dateFrom", dateFrom);
+  if (dateTo)   params.set("dateTo", dateTo);
+  const qs = params.toString();
+  return apiClient.get(`/reports/fleet-history${qs ? `?${qs}` : ""}`);
+}
+
 export async function downloadTracknMeReport() {
   const token = localStorage.getItem("fusion_token");
   const response = await fetch(`${API_BASE}/reports/tracknme-report/excel`, {
