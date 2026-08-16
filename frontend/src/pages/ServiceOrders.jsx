@@ -17,12 +17,13 @@ import {
 import { getTechnicians } from "../services/technicianService";
 import { useAuthStore } from "../store/authStore";
 
-const STATUS_LABEL    = { ABERTO: "Aberto", AGENDADO: "Agendado", CONCLUIDO: "Concluído" };
+const STATUS_LABEL    = { ABERTO: "Aberto", AGUARDANDO_APROVACAO: "Aguard. Aprovação", AGENDADO: "Agendado", CONCLUIDO: "Concluído" };
 const FINANCIAL_LABEL = { PENDENTE: "Pendente", APROVADO: "Aprovado", REPROVADO: "Reprovado" };
 const STATUS_COLOR = {
-  ABERTO:    "bg-blue-200 text-blue-900 border-blue-300 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30",
-  AGENDADO:  "bg-yellow-200 text-yellow-900 border-yellow-300 dark:bg-yellow-500/10 dark:text-yellow-400 dark:border-yellow-500/30",
-  CONCLUIDO: "bg-green-200 text-green-900 border-green-300 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30",
+  ABERTO:               "bg-blue-200 text-blue-900 border-blue-300 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30",
+  AGUARDANDO_APROVACAO: "bg-orange-200 text-orange-900 border-orange-300 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/30",
+  AGENDADO:             "bg-yellow-200 text-yellow-900 border-yellow-300 dark:bg-yellow-500/10 dark:text-yellow-400 dark:border-yellow-500/30",
+  CONCLUIDO:            "bg-green-200 text-green-900 border-green-300 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30",
 };
 const FIN_COLOR = {
   PENDENTE:  "bg-yellow-200 text-yellow-800 dark:bg-zinc-800 dark:text-zinc-400",
@@ -44,7 +45,7 @@ const ACTION_COLOR = {
 };
 const AUDIT_ACTIONS = ["CRIADA", "EDITADA", "AGENDADA", "APROVADA", "REPROVADA", "CONCLUIDA", "EXCLUIDA"];
 const SERVICE_TYPES       = ["INSTALACAO", "TROCA", "MANUTENCAO"];
-const SCHEDULING_STATUSES = ["ABERTO", "AGENDADO", "CONCLUIDO"];
+const SCHEDULING_STATUSES = ["ABERTO", "AGUARDANDO_APROVACAO", "AGENDADO", "CONCLUIDO"];
 
 const ITEMS_PER_PAGE = 20;
 
@@ -250,7 +251,7 @@ export default function ServiceOrders() {
       case "CONCLUIDO": result = result.filter(o => o.schedulingStatus === "CONCLUIDO"); break;
       case "LATE":      result = result.filter(o => o.late); break;
       // BUG 1: apenas OS com deslocamento > 0 e aprovação pendente
-      case "PEND_FIN":  result = result.filter(o => (o.displacementValue ?? 0) > 0 && o.financialApprovalStatus === "PENDENTE"); break;
+      case "PEND_FIN":  result = result.filter(o => o.schedulingStatus === "AGUARDANDO_APROVACAO" || ((o.displacementValue ?? 0) > 0 && o.financialApprovalStatus === "PENDENTE")); break;
       case "PEND_CONCLUSAO": {
         const today = new Date().toISOString().slice(0, 10);
         result = result.filter(o => o.technician && o.scheduledDate && o.scheduledDate <= today && o.serviceValue && o.schedulingStatus === "AGENDADO");

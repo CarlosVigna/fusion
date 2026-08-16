@@ -521,7 +521,6 @@ public class PolicyService {
 
         return policyRepository.findAllActive().stream()
                 .filter(p -> {
-                    if (today.equals(p.getAlertDismissedAt())) return false;
                     PolicyStatus s = PolicyResponse.computeStatus(p);
                     if (s == PolicyStatus.EXPIRED
                             || s == PolicyStatus.CLOSED

@@ -65,28 +65,20 @@ public class WhatsAppService {
     @Async
     public void sendInstallationAlert(Installation inst) {
 
-        String text = String.format(
-                "*INSTALAÇÃO NOVA:*\n" +
-                "*NOME:* %s\n" +
-                "*ENDEREÇO:* %s\n" +
-                "*BAIRRO:* %s\n" +
-                "*CIDADE/UF:* %s/%s\n" +
-                "*CEP:* %s\n" +
-                "*TELEFONE:* %s\n" +
-                "*PLACA:* %s\n" +
-                "*MODELO:* %s",
-                nullSafe(inst.getCustomerName()),
-                nullSafe(inst.getAddress()),
-                nullSafe(inst.getNeighborhood()),
-                nullSafe(inst.getCity()),
-                nullSafe(inst.getState()),
-                nullSafe(inst.getZipCode()),
-                nullSafe(inst.getPhone()),
-                inst.getPlate()  != null ? inst.getPlate()  : "—",
-                inst.getModel()  != null ? inst.getModel()  : "—"
-        );
+        StringBuilder sb = new StringBuilder("*INSTALAÇÃO NOVA:*");
+        appendLine(sb, "NOME",       inst.getCustomerName());
+        appendLine(sb, "ENDEREÇO",   inst.getAddress());
+        appendLine(sb, "BAIRRO",     inst.getNeighborhood());
+        if (hasValue(inst.getCity()) || hasValue(inst.getState())) {
+            sb.append("\n*CIDADE/UF:* ").append(nullSafe(inst.getCity()))
+              .append("/").append(nullSafe(inst.getState()));
+        }
+        appendLine(sb, "CEP",        inst.getZipCode());
+        appendLine(sb, "TELEFONE",   inst.getPhone());
+        appendLine(sb, "PLACA",      inst.getPlate());
+        appendLine(sb, "MODELO",     inst.getModel());
 
-        sendText(number, text);
+        sendText(number, sb.toString());
 
     }
 
@@ -211,6 +203,16 @@ public class WhatsAppService {
 
     private String nullSafe(String value) {
         return value != null ? value : "";
+    }
+
+    private boolean hasValue(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private void appendLine(StringBuilder sb, String label, String value) {
+        if (hasValue(value)) {
+            sb.append("\n*").append(label).append(":* ").append(value);
+        }
     }
 
 }
