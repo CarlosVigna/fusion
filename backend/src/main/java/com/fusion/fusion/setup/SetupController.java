@@ -70,6 +70,57 @@ public class SetupController {
 
     private final InstallationSyncService installationSyncService;
 
+    // Tabela e' "operational_snapshot" (singular) — Vehicle.java tem
+    // @Table(name = "vehicles") explicito, mas OperationalSnapshot nao
+    // tem @Table nenhum, entao usa o nome default do Hibernate (nome da
+    // classe em snake_case, sem pluralizar). Confirmado via comentarios
+    // em DashboardService.java/TimezoneDebugController.java que ja
+    // referenciam essa tabela pelo nome real.
+    //
+    // 'VERIFICACAO' na query de TEST nunca bate com nada — nao existe
+    // esse valor em VehicleGroup (so OPERATIONAL/KAKO/TEST/TRACKNME).
+    // Mantido porque nao quebra nada (so' nao filtra linha nenhuma por
+    // ele), mas o resultado dessa query na pratica so' reflete TEST.
+    @GetMapping("/vehicle-audit")
+    public Map<String, Object> vehicleAudit() {
+
+        List<Map<String, Object>> byGroup = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT
+                    vehicle_group,
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN deleted_at IS NULL THEN 1 END) as ativos,
+                    COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) as soft_deletados
+                FROM vehicles
+                GROUP BY vehicle_group
+                ORDER BY vehicle_group
+                """);
+
+        List<Map<String, Object>> testStaleInSignalControl = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT v.plate, v.vehicle_group, s.signal_delay_minutes, s.last_communication_at
+                FROM vehicles v
+                JOIN operational_snapshot s ON s.vehicle_id = v.id
+                WHERE v.vehicle_group IN ('TEST', 'VERIFICACAO')
+                AND s.signal_delay_minutes > 1440
+                AND v.deleted_at IS NULL
+                """);
+
+        List<Map<String, Object>> tracknmeStaleInSignalControl = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT v.plate, v.vehicle_group, s.signal_delay_minutes
+                FROM vehicles v
+                JOIN operational_snapshot s ON s.vehicle_id = v.id
+                WHERE v.vehicle_group = 'TRACKNME'
+                AND s.signal_delay_minutes > 1440
+                AND v.deleted_at IS NULL
+                """);
+
+        return Map.of(
+                "byGroup", byGroup,
+                "testStaleInSignalControl", testStaleInSignalControl,
+                "tracknmeStaleInSignalControl", tracknmeStaleInSignalControl
+        );
+
+    }
+
     // Chama scheduledSync() diretamente (nao syncFromPortal()) pra
     // reproduzir exatamente o que o cron faz, inclusive o try-catch que
     // engole exceptions — se o problema for algo que so aparece por essa

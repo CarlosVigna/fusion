@@ -15,6 +15,11 @@ const POLL_RETRY_DELAY_MS = 30000;
 // chamada de fora, o que so funcionava com um tunel ativo).
 function buildRunners() {
 
+    const ultimaPosicao = {
+        run: require('../index-ultima-posicao').run,
+        label: 'última posição',
+    };
+
     return {
         MULTIPORTAL_DEVICE: {
             run: require('../index').run,
@@ -24,10 +29,18 @@ function buildRunners() {
             run: require('../index-vinculo').run,
             label: 'vínculo',
         },
-        MULTIPORTAL_OPERATIONAL: {
-            run: require('../index-ultima-posicao').run,
-            label: 'última posição',
-        },
+        // Mesmo job, dois nomes de ImportType diferentes em uso: o cron
+        // deste arquivo (scheduler.js) reporta heartbeat como
+        // MULTIPORTAL_ULTIMA_POSICAO, mas so' MULTIPORTAL_OPERATIONAL
+        // estava registrado aqui. Um POST /imports/trigger?type=
+        // MULTIPORTAL_ULTIMA_POSICAO manual caia nesse buraco: o backend
+        // enfileirava normalmente, o ETL buscava via /etl/poll, mas
+        // `runners[data.type]` batia em undefined — sem runner, sem
+        // heartbeat, sem log, sem erro. Ficava pendurado ate' expirar
+        // sozinho, e o Monitor ETL nunca mostrava nada. Registrando as
+        // duas chaves pro mesmo runner ate' unificar em um nome so'.
+        MULTIPORTAL_OPERATIONAL: ultimaPosicao,
+        MULTIPORTAL_ULTIMA_POSICAO: ultimaPosicao,
     };
 
 }
