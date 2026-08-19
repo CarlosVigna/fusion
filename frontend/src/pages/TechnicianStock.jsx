@@ -8,6 +8,7 @@ import { getTechnicians } from "../services/technicianService";
 
 import {
     addToStock,
+    checkImei,
     downloadStockExcel,
     getAllStock,
     markStockAsReturned,
@@ -30,32 +31,71 @@ function formatDate(raw) {
     return new Date(raw + "T00:00:00").toLocaleDateString("pt-BR");
 }
 
-const isValidImei = (v) => /^\d{15}$/.test(v);
-const isValidMsisdn = (v) => /^55\d{11}$/.test(v);
+const IMEI_RE = /^\d{15}$/;
+const ICCID_RE = /^\d{20}$/;
+const MSISDN_RE = /^55\d{11}$/;
+
+// chipLine e' guardado como digitos puros (validado contra MSISDN_RE) —
+// isso so formata pra exibicao "55 (XX) XXXXX-XXXX" enquanto digita.
+function formatMsisdn(digits) {
+    const d = digits.replace(/\D/g, "").slice(0, 13);
+    if (d.length <= 2) return d;
+    if (d.length <= 4) return `${d.slice(0, 2)} (${d.slice(2)}`;
+    if (d.length <= 9) return `${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4)}`;
+    return `${d.slice(0, 2)} (${d.slice(2, 4)}) ${d.slice(4, 9)}-${d.slice(9, 13)}`;
+}
+
+function fieldBorder(touched, valid) {
+    if (!touched) return "border-zinc-800";
+    return valid ? "border-green-500/60" : "border-red-500/60";
+}
 
 function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
 
     const [technicianId, setTechnicianId] = useState(defaultTechnicianId || "");
     const [imei, setImei] = useState("");
-    const [chipLine, setChipLine] = useState("");
+    const [iccid, setIccid] = useState("");
+    const [chipLine, setChipLine] = useState(""); // dígitos puros — ver formatMsisdn()
     const [model, setModel] = useState("");
     const [receivedAt, setReceivedAt] = useState("");
     const [sentAt, setSentAt] = useState("");
     const [saving, setSaving] = useState(false);
+    const [checkingImei, setCheckingImei] = useState(false);
+    const [imeiDup, setImeiDup] = useState(null);
+
+    const imeiValid = IMEI_RE.test(imei);
+    const iccidValid = ICCID_RE.test(iccid);
+    const chipLineValid = !chipLine || MSISDN_RE.test(chipLine);
+    const modelValid = model.trim().length >= 2;
+    const datesOutOfOrder = receivedAt && sentAt && sentAt < receivedAt;
+
+    async function handleImeiBlur() {
+        setImeiDup(null);
+        if (!imeiValid) return;
+        setCheckingImei(true);
+        try {
+            const res = await checkImei(imei);
+            if (res?.exists) setImeiDup(res);
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setCheckingImei(false);
+        }
+    }
 
     async function handleSubmit(e) {
         e.preventDefault();
 
-        if (!technicianId || !imei) {
-            toast.error("Técnico e IMEI são obrigatórios");
-            return;
-        }
-        if (!isValidImei(imei)) {
-            toast.error("IMEI deve ter 15 dígitos numéricos");
-            return;
-        }
-        if (chipLine && !isValidMsisdn(chipLine)) {
-            toast.error("Linha deve ter 13 dígitos começando com 55");
+        if (!technicianId) { toast.error("Técnico é obrigatório"); return; }
+        if (!imeiValid) { toast.error("IMEI deve ter exatamente 15 dígitos"); return; }
+        if (!iccidValid) { toast.error("ICCID deve ter exatamente 20 dígitos"); return; }
+        if (!chipLineValid) { toast.error("Linha deve começar com 55 e ter 13 dígitos no total"); return; }
+        if (!modelValid) { toast.error("Modelo é obrigatório (mínimo 2 caracteres)"); return; }
+        if (!receivedAt) { toast.error("Data de recebimento é obrigatória"); return; }
+        if (!sentAt) { toast.error("Data de envio é obrigatória"); return; }
+        if (datesOutOfOrder) { toast.error("Data de envio não pode ser anterior à data de recebimento"); return; }
+        if (imeiDup?.exists) {
+            toast.error(`Este IMEI já está cadastrado no estoque do técnico ${imeiDup.technicianName}`);
             return;
         }
 
@@ -63,10 +103,11 @@ function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
         try {
             await addToStock(technicianId, {
                 imei,
+                iccid,
                 chipLine: chipLine || null,
-                model: model || null,
-                receivedAt: receivedAt || null,
-                sentAt: sentAt || null,
+                model: model.trim(),
+                receivedAt,
+                sentAt,
             });
             toast.success("Equipamento adicionado ao estoque");
             onSaved();
@@ -82,7 +123,7 @@ function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
             <form
                 onSubmit={handleSubmit}
-                className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
+                className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
             >
                 <h3 className="text-lg font-semibold">Adicionar Equipamento</h3>
 
@@ -102,24 +143,68 @@ function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
                     </div>
 
                     <div>
-                        <label className="mb-1 block text-xs font-semibold text-zinc-500">IMEI</label>
+                        <div className="mb-1 flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-zinc-500">IMEI</label>
+                            {imei && (
+                                <span className={`text-[11px] font-semibold ${imeiValid ? "text-green-400" : "text-red-400"}`}>
+                                    {imei.length}/15 dígitos
+                                </span>
+                            )}
+                        </div>
                         <input
                             type="text"
+                            inputMode="numeric"
                             value={imei}
-                            onChange={(e) => setImei(e.target.value)}
-                            className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                            onChange={(e) => { setImei(e.target.value.replace(/\D/g, "").slice(0, 15)); setImeiDup(null); }}
+                            onBlur={handleImeiBlur}
+                            className={`w-full rounded-xl border ${fieldBorder(imei, imeiValid)} bg-zinc-950 px-3 py-2 text-sm outline-none`}
                         />
+                        {imei && !imeiValid && (
+                            <p className="mt-1 text-[11px] text-red-400">IMEI deve ter exatamente 15 dígitos</p>
+                        )}
+                        {checkingImei && <p className="mt-1 text-[11px] text-zinc-500">Verificando duplicidade...</p>}
+                        {imeiDup?.exists && (
+                            <p className="mt-1 text-[11px] text-yellow-400">
+                                ⚠️ Este IMEI já está cadastrado no estoque do técnico {imeiDup.technicianName}
+                            </p>
+                        )}
+                    </div>
+
+                    <div>
+                        <div className="mb-1 flex items-center justify-between">
+                            <label className="block text-xs font-semibold text-zinc-500">ICCID / Serial do chip</label>
+                            {iccid && (
+                                <span className={`text-[11px] font-semibold ${iccidValid ? "text-green-400" : "text-red-400"}`}>
+                                    {iccid.length}/20 dígitos
+                                </span>
+                            )}
+                        </div>
+                        <input
+                            type="text"
+                            inputMode="numeric"
+                            value={iccid}
+                            onChange={(e) => setIccid(e.target.value.replace(/\D/g, "").slice(0, 20))}
+                            className={`w-full rounded-xl border ${fieldBorder(iccid, iccidValid)} bg-zinc-950 px-3 py-2 text-sm outline-none`}
+                        />
+                        {iccid && !iccidValid && (
+                            <p className="mt-1 text-[11px] text-red-400">ICCID deve ter exatamente 20 dígitos</p>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="mb-1 block text-xs font-semibold text-zinc-500">Linha do chip</label>
+                            <label className="mb-1 block text-xs font-semibold text-zinc-500">Linha do chip (opcional)</label>
                             <input
                                 type="text"
-                                value={chipLine}
-                                onChange={(e) => setChipLine(e.target.value)}
-                                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                                inputMode="numeric"
+                                placeholder="55 (XX) XXXXX-XXXX"
+                                value={formatMsisdn(chipLine)}
+                                onChange={(e) => setChipLine(e.target.value.replace(/\D/g, "").slice(0, 13))}
+                                className={`w-full rounded-xl border ${fieldBorder(chipLine, chipLineValid)} bg-zinc-950 px-3 py-2 text-sm outline-none`}
                             />
+                            {chipLine && !chipLineValid && (
+                                <p className="mt-1 text-[11px] text-red-400">Linha deve começar com 55 e ter 13 dígitos no total</p>
+                            )}
                         </div>
                         <div>
                             <label className="mb-1 block text-xs font-semibold text-zinc-500">Modelo</label>
@@ -127,8 +212,11 @@ function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
                                 type="text"
                                 value={model}
                                 onChange={(e) => setModel(e.target.value)}
-                                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                                className={`w-full rounded-xl border ${fieldBorder(model, modelValid)} bg-zinc-950 px-3 py-2 text-sm outline-none`}
                             />
+                            {model && !modelValid && (
+                                <p className="mt-1 text-[11px] text-red-400">Mínimo 2 caracteres</p>
+                            )}
                         </div>
                     </div>
 
@@ -148,8 +236,11 @@ function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
                                 type="date"
                                 value={sentAt}
                                 onChange={(e) => setSentAt(e.target.value)}
-                                className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                                className={`w-full rounded-xl border ${datesOutOfOrder ? "border-red-500/60" : "border-zinc-800"} bg-zinc-950 px-3 py-2 text-sm outline-none`}
                             />
+                            {datesOutOfOrder && (
+                                <p className="mt-1 text-[11px] text-red-400">Não pode ser anterior ao recebimento</p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -367,6 +458,7 @@ export default function TechnicianStock() {
                                                         <thead className="text-zinc-500">
                                                             <tr>
                                                                 <th className="pb-2 pr-4 text-left">IMEI</th>
+                                                                <th className="pb-2 pr-4 text-left">ICCID</th>
                                                                 <th className="pb-2 pr-4 text-left">Linha</th>
                                                                 <th className="pb-2 pr-4 text-left">Modelo</th>
                                                                 <th className="pb-2 pr-4 text-left">Recebido</th>
@@ -380,6 +472,7 @@ export default function TechnicianStock() {
                                                             {group.items.map((item) => (
                                                                 <tr key={item.id}>
                                                                     <td className="py-2 pr-4 font-mono">{item.imei}</td>
+                                                                    <td className="py-2 pr-4 font-mono">{item.iccid || "—"}</td>
                                                                     <td className="py-2 pr-4">{item.chipLine || "—"}</td>
                                                                     <td className="py-2 pr-4">{item.model || "—"}</td>
                                                                     <td className="py-2 pr-4">{formatDate(item.receivedAt)}</td>

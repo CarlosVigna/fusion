@@ -27,6 +27,8 @@ public class TechnicianStock {
 
     private String imei;
 
+    private String iccid;
+
     private String chipLine;
 
     private String model;

@@ -20,4 +20,6 @@ public interface TechnicianStockRepository extends JpaRepository<TechnicianStock
 
     boolean existsByImei(String imei);
 
+    Optional<TechnicianStock> findFirstByImeiOrderByCreatedAtDesc(String imei);
+
 }

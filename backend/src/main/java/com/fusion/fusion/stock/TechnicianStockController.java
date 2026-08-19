@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -48,6 +49,11 @@ public class TechnicianStockController {
     @PutMapping("/{id}/return")
     public TechnicianStockResponse markAsReturned(@PathVariable Long id) {
         return service.markAsReturned(id);
+    }
+
+    @GetMapping("/check-imei")
+    public Map<String, Object> checkImei(@RequestParam String imei) {
+        return service.checkImei(imei);
     }
 
     @GetMapping("/pending-confirmation")

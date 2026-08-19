@@ -21,6 +21,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -38,6 +39,7 @@ public class TechnicianStockService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private static final Pattern IMEI_PATTERN   = Pattern.compile("\\d{15}");
+    private static final Pattern ICCID_PATTERN  = Pattern.compile("\\d{20}");
     private static final Pattern MSISDN_PATTERN = Pattern.compile("55\\d{11}");
 
     public TechnicianStockResponse addToStock(UUID technicianId, StockRequest request) {
@@ -50,8 +52,9 @@ public class TechnicianStockService {
         TechnicianStock stock = TechnicianStock.builder()
                 .technician(technician)
                 .imei(request.imei())
+                .iccid(request.iccid())
                 .chipLine(request.chipLine())
-                .model(request.model())
+                .model(request.model().trim())
                 .receivedAt(request.receivedAt())
                 .sentAt(request.sentAt())
                 .status(StockStatus.EM_ESTOQUE)
@@ -61,27 +64,63 @@ public class TechnicianStockService {
 
     }
 
-    // MSISDN/linha do chip e' opcional no formulario (nem todo equipamento
+    // MSISDN/linha do chip e' o unico campo opcional (nem todo equipamento
     // ja tem chip vinculado no momento do cadastro) — so valida o formato
-    // quando preenchido. IMEI e' sempre obrigatorio e unico no estoque.
+    // quando preenchido. IMEI/ICCID/modelo/datas sao sempre obrigatorios.
     private void validateStockRequest(StockRequest request) {
 
         String imei = request.imei();
 
         if (imei == null || !IMEI_PATTERN.matcher(imei).matches()) {
-            throw new BusinessException("IMEI deve ter 15 dígitos");
+            throw new BusinessException("IMEI deve ter exatamente 15 dígitos");
         }
 
         if (stockRepository.existsByImei(imei)) {
             throw new BusinessException("IMEI já cadastrado no estoque");
         }
 
+        String iccid = request.iccid();
+
+        if (iccid == null || !ICCID_PATTERN.matcher(iccid).matches()) {
+            throw new BusinessException("ICCID deve ter exatamente 20 dígitos");
+        }
+
         String chipLine = request.chipLine();
 
         if (chipLine != null && !chipLine.isBlank()
                 && !MSISDN_PATTERN.matcher(chipLine).matches()) {
-            throw new BusinessException("Linha deve ter 13 dígitos começando com 55");
+            throw new BusinessException("Linha deve começar com 55 e ter 13 dígitos no total");
         }
+
+        if (request.model() == null || request.model().trim().length() < 2) {
+            throw new BusinessException("Modelo é obrigatório (mínimo 2 caracteres)");
+        }
+
+        if (request.receivedAt() == null) {
+            throw new BusinessException("Data de recebimento é obrigatória");
+        }
+
+        if (request.sentAt() == null) {
+            throw new BusinessException("Data de envio é obrigatória");
+        }
+
+        if (request.sentAt().isBefore(request.receivedAt())) {
+            throw new BusinessException("Data de envio não pode ser anterior à data de recebimento");
+        }
+
+    }
+
+    // Usado pelo frontend pra checar duplicidade de IMEI em tempo real
+    // (onBlur do campo), antes mesmo de tentar salvar o cadastro.
+    public Map<String, Object> checkImei(String imei) {
+
+        return stockRepository.findFirstByImeiOrderByCreatedAtDesc(imei)
+                .<Map<String, Object>>map(s -> Map.of(
+                        "exists", true,
+                        "technicianName", s.getTechnician() != null ? s.getTechnician().getName() : "—",
+                        "status", s.getStatus() != null ? s.getStatus().name() : "—"
+                ))
+                .orElse(Map.of("exists", false));
 
     }
 
@@ -251,7 +290,7 @@ public class TechnicianStockService {
             totalStyle.setFont(totalFont);
 
             String[] headers = {
-                    "Técnico", "IMEI", "Linha", "Modelo", "Recebido", "Enviado",
+                    "Técnico", "IMEI", "ICCID", "Linha", "Modelo", "Recebido", "Enviado",
                     "Status", "Instalado em", "Placa instalada"
             };
             int numCols = headers.length;
@@ -283,13 +322,14 @@ public class TechnicianStockService {
 
                 setCell(row, 0, s.getTechnician() != null ? s.getTechnician().getName() : "", rowStyle);
                 setCell(row, 1, s.getImei(), rowStyle);
-                setCell(row, 2, s.getChipLine(), rowStyle);
-                setCell(row, 3, s.getModel(), rowStyle);
-                setCell(row, 4, s.getReceivedAt() != null ? s.getReceivedAt().format(DATE_FMT) : "", rowStyle);
-                setCell(row, 5, s.getSentAt() != null ? s.getSentAt().format(DATE_FMT) : "", rowStyle);
-                setCell(row, 6, s.getStatus() != null ? s.getStatus().name() : "", rowStyle);
-                setCell(row, 7, s.getInstalledAt() != null ? s.getInstalledAt().format(DATE_FMT) : "", rowStyle);
-                setCell(row, 8, s.getInstalledPlate(), rowStyle);
+                setCell(row, 2, s.getIccid(), rowStyle);
+                setCell(row, 3, s.getChipLine(), rowStyle);
+                setCell(row, 4, s.getModel(), rowStyle);
+                setCell(row, 5, s.getReceivedAt() != null ? s.getReceivedAt().format(DATE_FMT) : "", rowStyle);
+                setCell(row, 6, s.getSentAt() != null ? s.getSentAt().format(DATE_FMT) : "", rowStyle);
+                setCell(row, 7, s.getStatus() != null ? s.getStatus().name() : "", rowStyle);
+                setCell(row, 8, s.getInstalledAt() != null ? s.getInstalledAt().format(DATE_FMT) : "", rowStyle);
+                setCell(row, 9, s.getInstalledPlate(), rowStyle);
 
                 dataIdx++;
 
@@ -301,7 +341,7 @@ public class TechnicianStockService {
             totCell.setCellStyle(totalStyle);
             sheet.addMergedRegion(new CellRangeAddress(totRow.getRowNum(), totRow.getRowNum(), 0, numCols - 1));
 
-            int[] colWidths = {24, 18, 14, 18, 12, 12, 14, 14, 16};
+            int[] colWidths = {24, 18, 20, 14, 18, 12, 12, 14, 14, 16};
             for (int i = 0; i < colWidths.length; i++) {
                 sheet.setColumnWidth(i, colWidths[i] * 256);
             }

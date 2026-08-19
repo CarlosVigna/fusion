@@ -14,6 +14,10 @@ export async function addToStock(technicianId, data) {
   return apiClient.post(`/stock/technician/${technicianId}`, data);
 }
 
+export async function checkImei(imei) {
+  return apiClient.get(`/stock/check-imei?imei=${encodeURIComponent(imei)}`);
+}
+
 export async function confirmInstallation(stockId, data) {
   return apiClient.put(`/stock/${stockId}/confirm`, data);
 }

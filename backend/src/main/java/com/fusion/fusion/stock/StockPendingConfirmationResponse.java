@@ -9,6 +9,8 @@ public record StockPendingConfirmationResponse(
         UUID technicianId,
         String technicianName,
         String imei,
+        String model,
+        String chipLine,
         String plate,
         LocalDateTime detectedAt
 ) {
@@ -21,6 +23,8 @@ public record StockPendingConfirmationResponse(
                 stock != null && stock.getTechnician() != null ? stock.getTechnician().getId() : null,
                 stock != null && stock.getTechnician() != null ? stock.getTechnician().getName() : null,
                 stock != null ? stock.getImei() : null,
+                stock != null ? stock.getModel() : null,
+                stock != null ? stock.getChipLine() : null,
                 p.getPlate(),
                 p.getDetectedAt()
         );
