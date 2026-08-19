@@ -5,6 +5,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -60,6 +62,13 @@ public class ServiceOrderController {
     @PutMapping("/{id}/confirm-completion")
     public ServiceOrderResponse confirmCompletion(@PathVariable UUID id) {
         return service.confirmCompletion(id);
+    }
+
+    @PostMapping("/{id}/conclude-legacy")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> concludeLegacy(@PathVariable UUID id, Authentication auth) {
+        service.concludeAsLegacy(id, auth.getName());
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{id}/vehicle-signal")

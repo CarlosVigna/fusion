@@ -424,6 +424,37 @@ public class ServiceOrderService {
         return saved;
     }
 
+    // Pra instalacoes feitas antes do Fusion existir — nao ha tecnico/
+    // agendamento pra passar pelo fluxo normal de confirmCompletion(), mas
+    // precisa constar como concluida. So permitido quando ainda nao entrou
+    // em nenhum fluxo (ABERTO, sem tecnico) e o veiculo prova que a
+    // instalacao aconteceu de fato (esta' posicionando).
+    @Transactional
+    public void concludeAsLegacy(UUID id, String performedBy) {
+        ServiceOrder so = find(id);
+
+        if (so.getSchedulingStatus() != SchedulingStatus.ABERTO || so.getTechnician() != null) {
+            throw new BusinessException("Só é possível concluir como legado uma OS aberta e sem técnico atribuído");
+        }
+
+        if (!checkVehicleSignal(so.getPlate())) {
+            throw new BusinessException("Veículo não está posicionando — não é possível concluir como legado");
+        }
+
+        String legacyNote = "Concluída como legado — instalação realizada antes da implantação do sistema";
+        so.setObservations(so.getObservations() != null && !so.getObservations().isBlank()
+                ? so.getObservations() + "\n" + legacyNote
+                : legacyNote);
+
+        so.setSchedulingStatus(SchedulingStatus.CONCLUIDO);
+        so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
+        so.setCompletionConfirmed(true);
+
+        repository.save(so);
+
+        audit(so, "CONCLUIDA_LEGADO", "schedulingStatus", "ABERTO", "CONCLUIDO");
+    }
+
     public Map<String, Object> dashboard(boolean showAnalytics) {
         List<ServiceOrder> all = repository.findAll();
 

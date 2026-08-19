@@ -28,6 +28,10 @@ export async function confirmCompletion(id) {
   return apiClient.put(`/service-orders/${id}/confirm-completion`, {});
 }
 
+export async function concludeLegacy(id) {
+  return apiClient.post(`/service-orders/${id}/conclude-legacy`, {});
+}
+
 export async function getVehicleSignal(id) {
   return apiClient.get(`/service-orders/${id}/vehicle-signal`);
 }

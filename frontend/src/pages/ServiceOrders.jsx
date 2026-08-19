@@ -9,6 +9,7 @@ import {
   updateScheduling,
   updateFinancialApproval,
   confirmCompletion,
+  concludeLegacy,
   getVehicleSignal,
   deleteServiceOrder,
   getServiceOrderAuditLog,
@@ -33,6 +34,7 @@ const FIN_COLOR = {
 const ACTION_LABEL = {
   CRIADA: "Criada", EDITADA: "Editada", AGENDADA: "Agendada",
   APROVADA: "Aprovada", REPROVADA: "Reprovada", CONCLUIDA: "Concluída", EXCLUIDA: "Excluída",
+  CONCLUIDA_LEGADO: "Concluída (Legado)",
 };
 const ACTION_COLOR = {
   CRIADA:   "bg-blue-500/10 text-blue-400",
@@ -42,8 +44,9 @@ const ACTION_COLOR = {
   REPROVADA:"bg-red-500/10 text-red-400",
   CONCLUIDA:"bg-teal-500/10 text-teal-400",
   EXCLUIDA: "bg-red-500/10 text-red-400",
+  CONCLUIDA_LEGADO: "bg-zinc-500/10 text-zinc-400",
 };
-const AUDIT_ACTIONS = ["CRIADA", "EDITADA", "AGENDADA", "APROVADA", "REPROVADA", "CONCLUIDA", "EXCLUIDA"];
+const AUDIT_ACTIONS = ["CRIADA", "EDITADA", "AGENDADA", "APROVADA", "REPROVADA", "CONCLUIDA", "CONCLUIDA_LEGADO", "EXCLUIDA"];
 const SERVICE_TYPES       = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 const SCHEDULING_STATUSES = ["ABERTO", "AGUARDANDO_APROVACAO", "AGENDADO", "CONCLUIDO"];
 
@@ -171,6 +174,7 @@ export default function ServiceOrders() {
   const [modal, setModal]             = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [displacementModal, setDisplacementModal] = useState(null);
+  const [legacyModalOpen, setLegacyModalOpen] = useState(false);
   const [displacementDetailModal, setDisplacementDetailModal] = useState(false);
   const [cepLoading, setCepLoading]         = useState(false);
   const [searchText, setSearchText]         = useState("");
@@ -620,6 +624,18 @@ export default function ServiceOrders() {
     } catch (e) {
       const msg = e?.response?.data?.message || "Verifique se técnico e valor do serviço estão preenchidos";
       toast.error(msg);
+    }
+  }
+
+  async function handleConcludeLegacy() {
+    try {
+      await concludeLegacy(selectedOrder.id);
+      toast.success("OS concluída como legado");
+      setLegacyModalOpen(false);
+      setSelectedOrder(null);
+      load();
+    } catch (e) {
+      toast.error(e?.message || "Erro ao concluir como legado");
     }
   }
 
@@ -1088,6 +1104,13 @@ export default function ServiceOrders() {
                 </button>
               )}
 
+              {isAdmin && selectedOrder.schedulingStatus === "ABERTO" && !selectedOrder.technician && (
+                <button onClick={() => setLegacyModalOpen(true)}
+                  className="rounded-xl border border-zinc-800 px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
+                  🗂️ Concluir como Legado
+                </button>
+              )}
+
               {canDelete(selectedOrder) && (
                 <button onClick={() => handleDelete(selectedOrder)}
                   className="rounded-lg p-2 text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10 ml-auto">
@@ -1136,6 +1159,30 @@ export default function ServiceOrders() {
               <button onClick={handleConfirmCompletion}
                 className="rounded-xl bg-yellow-600 px-5 py-2 text-sm font-semibold text-white hover:bg-yellow-500">
                 Concluir assim mesmo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Concluir como Legado (ADMIN) */}
+      {legacyModalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
+            <h2 className="text-lg font-semibold">🗂️ Concluir como Legado</h2>
+            <p className="text-sm text-zinc-400">
+              Esta OS será marcada como concluída sem passar pelo fluxo padrão.
+              Use apenas para instalações realizadas antes da implantação do sistema.
+              O veículo deve estar posicionando.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setLegacyModalOpen(false)}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+                Cancelar
+              </button>
+              <button onClick={handleConcludeLegacy}
+                className="rounded-xl bg-zinc-700 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-600">
+                Confirmar
               </button>
             </div>
           </div>
