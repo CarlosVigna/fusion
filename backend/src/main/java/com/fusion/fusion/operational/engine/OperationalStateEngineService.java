@@ -7,6 +7,9 @@ import com.fusion.fusion.operational.detector.OperationalDetector;
 import com.fusion.fusion.operational.detector.StaleUpdateDetector;
 import com.fusion.fusion.operational.rules.OperationalRulesService;
 import com.fusion.fusion.signalcontrol.SignalReturnAlertService;
+import com.fusion.fusion.stock.TechnicianStockService;
+import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
+import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
@@ -52,6 +55,12 @@ public class OperationalStateEngineService {
 
     private final SignalReturnAlertService
             signalReturnAlertService;
+
+    private final DeviceLinkageRepository
+            deviceLinkageRepository;
+
+    private final TechnicianStockService
+            technicianStockService;
 
     // Spring nao aplica @Transactional em chamadas diretas this.method()
     // (bypassa o proxy AOP). Self-injection via @Lazy garante que
@@ -163,6 +172,8 @@ public class OperationalStateEngineService {
                 existingSnapshot
         );
 
+        checkTechnicianStockPositioning(state);
+
         if (previousStatus != newStatus) {
 
             executeDetectors(state);
@@ -176,6 +187,28 @@ public class OperationalStateEngineService {
                 previousDelayMinutes,
                 lastObservation
         );
+
+    }
+
+    // Se o dispositivo ativo do veiculo tem IMEI cadastrado no estoque
+    // de algum tecnico (status EM_ESTOQUE), sinaliza uma possivel
+    // instalacao recem-feita — ver TechnicianStockService.
+    // checkImeiOnPositioning() e' idempotente (nao duplica pendencia se
+    // ja existe uma nao confirmada), entao chamar isso todo ciclo
+    // horario do motor pra todo veiculo com posicao e' seguro.
+    private void checkTechnicianStockPositioning(VehicleOperationalState state) {
+
+        if (state.getLastCommunicationAt() == null || state.getVehicle() == null) {
+            return;
+        }
+
+        deviceLinkageRepository.findByVehicleAndActiveTrue(state.getVehicle())
+                .map(DeviceLinkage::getDevice)
+                .map(device -> device != null ? device.getImei() : null)
+                .filter(imei -> imei != null && !imei.isBlank())
+                .ifPresent(imei -> technicianStockService.checkImeiOnPositioning(
+                        imei, state.getVehicle().getPlate()
+                ));
 
     }
 

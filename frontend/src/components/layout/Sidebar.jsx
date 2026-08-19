@@ -2,6 +2,7 @@ import {
     Activity,
     AlertTriangle,
     Bell,
+    CheckSquare,
     ChevronDown,
     ChevronLeft,
     ChevronRight,
@@ -14,6 +15,7 @@ import {
     Mail,
     MapPin,
     Monitor,
+    Package,
     Radio,
     Satellite,
     ScrollText,
@@ -45,6 +47,8 @@ import {
 } from "../../services/policyService";
 
 import { notifyInstallationsNew } from "../../services/notificationService";
+
+import { getPendingConfirmations } from "../../services/stockService";
 
 import { FusionLogo } from "../../assets/FusionLogo";
 
@@ -99,6 +103,8 @@ const GROUPS = [
             { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
             { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
             { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
+            { label: "Estoque",       icon: Package,     path: "/stock", badgeKey: "stockPending" },
+            { label: "Confirmações",  icon: CheckSquare, path: "/stock/confirmations" },
         ],
     },
     {
@@ -156,6 +162,8 @@ export default function Sidebar() {
     const [policiesExpiringCount, setPoliciesExpiringCount] = useState(0);
 
     const [policyAlertsCount, setPolicyAlertsCount] = useState(0);
+
+    const [stockPendingCount, setStockPendingCount] = useState(0);
 
     const prevInstallationsCountRef = useRef(null);
 
@@ -264,12 +272,34 @@ export default function Sidebar() {
 
     }, [isAdmin]);
 
+    useEffect(() => {
+
+        // Visivel pra todo mundo (ADMIN/OPERATOR/FIELD/TECHNICIAN) — o
+        // grupo "Ordens de Servico" (onde fica Estoque) ja e' liberado
+        // pra FIELD/TECHNICIAN, entao esse badge nao pode ficar preso a
+        // isAdmin como os outros.
+        async function loadStockPendingCount() {
+            try {
+                const data = await getPendingConfirmations();
+                setStockPendingCount(Array.isArray(data) ? data.length : 0);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        loadStockPendingCount();
+        const interval = setInterval(loadStockPendingCount, POLL_INTERVAL_MS);
+        return () => clearInterval(interval);
+
+    }, []);
+
     const badgeCounts = {
         signalControl: signalControlCount,
         installations: installationsCriticalCount,
         policiesExpired: policiesExpiredCount,
         policiesExpiring: policiesExpiringCount,
         policyAlerts: policyAlertsCount,
+        stockPending: stockPendingCount,
     };
 
     // Filtra grupos e itens conforme o perfil do usuário

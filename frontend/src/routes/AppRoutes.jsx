@@ -48,6 +48,8 @@ import ServiceOrderDashboard from "../pages/ServiceOrderDashboard";
 import ServiceOrders from "../pages/ServiceOrders";
 import Technicians from "../pages/Technicians";
 import ServiceOrdersReports from "../pages/ServiceOrdersReports";
+import TechnicianStock from "../pages/TechnicianStock";
+import StockPendingConfirmations from "../pages/StockPendingConfirmations";
 
 import TracknMePending from "../pages/TracknMePending";
 import TracknMeHistory from "../pages/TracknMeHistory";
@@ -107,6 +109,18 @@ export default function AppRoutes() {
                 <Route
                     path="technicians"
                     element={<Technicians />}
+                />
+
+                {/* FIELD/TECHNICIAN precisam de acesso — fora do
+                    FullAccessOnly, igual service-orders/technicians */}
+                <Route
+                    path="stock"
+                    element={<TechnicianStock />}
+                />
+
+                <Route
+                    path="stock/confirmations"
+                    element={<StockPendingConfirmations />}
                 />
 
                 {/* Rotas bloqueadas para FIELD e TECHNICIAN */}

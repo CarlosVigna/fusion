@@ -20,6 +20,12 @@ import {
 
 import { dismissAllPolicyAlerts, dismissPolicyAlert, getPolicyAlerts } from "../../services/policyService";
 
+import {
+  confirmInstallation,
+  getPendingConfirmations,
+  ignorePendingConfirmation,
+} from "../../services/stockService";
+
 import { formatDelay } from "../../utils/formatDelay";
 
 const POLL_INTERVAL_MS = 60000;
@@ -107,7 +113,61 @@ export default function Header() {
   const [diffModalData, setDiffModalData] =
     useState(null);
 
+  const [stockPending, setStockPending] =
+    useState([]);
+
+  const [stockActionId, setStockActionId] =
+    useState(null);
+
   const alertsRef = useRef(null);
+
+  // Ao contrario dos outros alertas (admin/operator), confirmacao de
+  // estoque e' justamente pro tecnico de campo — sem o early-return de
+  // isFieldOrTech que loadAlerts() usa pros demais.
+  async function loadStockPending() {
+    try {
+      const data = await getPendingConfirmations();
+      setStockPending(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  useEffect(() => {
+    loadStockPending();
+    const interval = setInterval(loadStockPending, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  async function handleConfirmStock(item) {
+    setStockActionId(item.stockId);
+    try {
+      await confirmInstallation(item.stockId, {
+        plate: item.plate,
+        installedAt: new Date().toISOString().slice(0, 10),
+      });
+      setStockPending((current) => current.filter((i) => i.id !== item.id));
+      toast.success("Instalação confirmada");
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao confirmar instalação");
+    } finally {
+      setStockActionId(null);
+    }
+  }
+
+  async function handleIgnoreStock(item) {
+    setStockActionId(item.stockId);
+    try {
+      await ignorePendingConfirmation(item.id);
+      setStockPending((current) => current.filter((i) => i.id !== item.id));
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao ignorar confirmação");
+    } finally {
+      setStockActionId(null);
+    }
+  }
 
   async function loadAlerts() {
     if (isFieldOrTech) return;
@@ -354,7 +414,7 @@ export default function Header() {
           >
             <Bell size={18} />
 
-            {(alerts.length + policyAlerts.length + importDiffs.length) > 0 && (
+            {(alerts.length + policyAlerts.length + importDiffs.length + stockPending.length) > 0 && (
               <span
                 className="
                   absolute -right-1 -top-1
@@ -363,7 +423,7 @@ export default function Header() {
                   text-xs font-bold text-white
                 "
               >
-                {alerts.length + policyAlerts.length + importDiffs.length}
+                {alerts.length + policyAlerts.length + importDiffs.length + stockPending.length}
               </span>
             )}
           </button>
@@ -378,6 +438,43 @@ export default function Header() {
                 bg-zinc-950 p-3 shadow-xl
               "
             >
+
+              {stockPending.length > 0 && (
+                <div className="mb-2">
+                  <p className="mb-1 px-2 text-xs font-semibold text-zinc-500">ESTOQUE DE EQUIPAMENTOS</p>
+                  <div className="space-y-1">
+                    {stockPending.slice(0, 5).map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm"
+                      >
+                        <p className="text-xs text-zinc-300">
+                          📦 Equipamento do técnico {item.technicianName || "—"} detectado em{" "}
+                          <span className="font-mono font-semibold text-white">{item.plate}</span>
+                          {" — confirmar instalação?"}
+                        </p>
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button
+                            onClick={() => handleIgnoreStock(item)}
+                            disabled={stockActionId === item.stockId}
+                            className="rounded-lg bg-zinc-800 px-2 py-1 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-700 disabled:opacity-40"
+                          >
+                            Ignorar
+                          </button>
+                          <button
+                            onClick={() => handleConfirmStock(item)}
+                            disabled={stockActionId === item.stockId}
+                            className="rounded-lg bg-white px-2 py-1 text-xs font-semibold text-black transition hover:bg-zinc-200 disabled:opacity-40"
+                          >
+                            Confirmar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="my-2 border-t border-zinc-800" />
+                </div>
+              )}
 
               {policyAlerts.length > 0 && (
                 <div className="mb-2">
@@ -500,7 +597,7 @@ export default function Header() {
                 </div>
               )}
 
-              {alerts.length === 0 && policyAlerts.length === 0 && importDiffs.length === 0 ? (
+              {alerts.length === 0 && policyAlerts.length === 0 && importDiffs.length === 0 && stockPending.length === 0 ? (
 
                 <p className="px-2 py-4 text-center text-sm text-zinc-500">
                   Nenhum alerta ativo

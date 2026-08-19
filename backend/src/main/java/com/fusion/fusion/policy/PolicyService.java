@@ -539,6 +539,7 @@ public class PolicyService {
             boolean alertWorthy = isAlertWorthy(p, limit);
             if (alertWorthy && p.getFirstAlertAt() == null) {
                 p.setFirstAlertAt(today);
+                log.info("[POLICY-ALERT] firstAlertAt gravado para apólice {}: {}", p.getPolicyNumber(), today);
                 toStamp.add(p);
             } else if (!alertWorthy && p.getFirstAlertAt() != null) {
                 p.setFirstAlertAt(null);

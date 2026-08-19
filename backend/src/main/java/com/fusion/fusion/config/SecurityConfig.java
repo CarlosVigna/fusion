@@ -116,6 +116,21 @@ public class SecurityConfig {
                                 "/service-orders/**"
                         ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
 
+                        // Visao geral (lista tudo) e exportacao ficam so
+                        // pra ADMIN/OPERATOR — o resto de /stock/** (ver
+                        // regra abaixo) e' liberado tambem pra FIELD/
+                        // TECHNICIAN, que cadastram/confirmam o proprio
+                        // estoque.
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/stock",
+                                "/stock/export"
+                        ).hasAnyRole("ADMIN", "OPERATOR")
+
+                        .requestMatchers(
+                                "/stock/**"
+                        ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
+
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/technicians",
