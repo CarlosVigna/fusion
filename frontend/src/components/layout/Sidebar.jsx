@@ -103,7 +103,7 @@ const GROUPS = [
             { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
             { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
             { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
-            { label: "Estoque",       icon: Package,     path: "/stock", badgeKey: "stockPending" },
+            { label: "Estoque",       icon: Package,     path: "/stock", end: true, badgeKey: "stockPending" },
             { label: "Confirmações",  icon: CheckSquare, path: "/stock/confirmations" },
         ],
     },

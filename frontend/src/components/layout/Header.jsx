@@ -18,8 +18,6 @@ import {
   getRecentImportDiffs,
 } from "../../services/importStatusService";
 
-import { dismissAllPolicyAlerts, dismissPolicyAlert, getPolicyAlerts } from "../../services/policyService";
-
 import {
   confirmInstallation,
   getPendingConfirmations,
@@ -86,9 +84,6 @@ export default function Header() {
   const [alerts, setAlerts] =
     useState([]);
 
-  const [policyAlerts, setPolicyAlerts] =
-    useState([]);
-
   const [alertsOpen, setAlertsOpen] =
     useState(false);
 
@@ -96,12 +91,6 @@ export default function Header() {
     useState(null);
 
   const [dismissingAll, setDismissingAll] =
-    useState(false);
-
-  const [dismissingPolicyId, setDismissingPolicyId] =
-    useState(null);
-
-  const [dismissingAllPolicy, setDismissingAllPolicy] =
     useState(false);
 
   const [importDiffs, setImportDiffs] =
@@ -172,17 +161,11 @@ export default function Header() {
   async function loadAlerts() {
     if (isFieldOrTech) return;
     try {
-      const [signalResult, polResult, diffsResult] = await Promise.allSettled([
+      const [signalResult, diffsResult] = await Promise.allSettled([
         getActiveSignalReturnAlerts(),
-        getPolicyAlerts(),
         getRecentImportDiffs(),
       ]);
       setAlerts(signalResult.status === "fulfilled" ? (signalResult.value || []) : []);
-      // Sino só mostra apólices que entraram em alerta hoje pela
-      // primeira vez (isNewToday) — a página /policies/alerts continua
-      // mostrando todas, novas ou não.
-      const allPolicyAlerts = polResult.status === "fulfilled" && Array.isArray(polResult.value) ? polResult.value : [];
-      setPolicyAlerts(allPolicyAlerts.filter((pa) => pa.isNewToday));
       setImportDiffs(diffsResult.status === "fulfilled" && Array.isArray(diffsResult.value) ? diffsResult.value : []);
     } catch (error) {
       console.error(error);
@@ -248,34 +231,6 @@ export default function Header() {
 
   }
 
-  async function handleDismissPolicy(id) {
-
-    setDismissingPolicyId(id);
-
-    try {
-
-      await dismissPolicyAlert(id);
-
-      setPolicyAlerts((current) =>
-        current.filter((pa) => pa.id !== id)
-      );
-
-      toast.success("Alerta de apólice dispensado");
-
-    } catch (error) {
-
-      console.error(error);
-
-      toast.error("Erro ao dispensar alerta");
-
-    } finally {
-
-      setDismissingPolicyId(null);
-
-    }
-
-  }
-
   async function handleDismissDiff(id) {
 
     setDismissingDiffId(id);
@@ -295,32 +250,6 @@ export default function Header() {
     } finally {
 
       setDismissingDiffId(null);
-
-    }
-
-  }
-
-  async function handleDismissAllPolicy() {
-
-    setDismissingAllPolicy(true);
-
-    try {
-
-      await dismissAllPolicyAlerts();
-
-      setPolicyAlerts([]);
-
-      toast.success("Alertas de apólice dispensados");
-
-    } catch (error) {
-
-      console.error(error);
-
-      toast.error("Erro ao dispensar alertas de apólice");
-
-    } finally {
-
-      setDismissingAllPolicy(false);
 
     }
 
@@ -414,7 +343,7 @@ export default function Header() {
           >
             <Bell size={18} />
 
-            {(alerts.length + policyAlerts.length + importDiffs.length + stockPending.length) > 0 && (
+            {(alerts.length + importDiffs.length + stockPending.length) > 0 && (
               <span
                 className="
                   absolute -right-1 -top-1
@@ -423,7 +352,7 @@ export default function Header() {
                   text-xs font-bold text-white
                 "
               >
-                {alerts.length + policyAlerts.length + importDiffs.length + stockPending.length}
+                {alerts.length + importDiffs.length + stockPending.length}
               </span>
             )}
           </button>
@@ -469,68 +398,6 @@ export default function Header() {
                             Confirmar
                           </button>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="my-2 border-t border-zinc-800" />
-                </div>
-              )}
-
-              {policyAlerts.length > 0 && (
-                <div className="mb-2">
-                  <div className="flex items-center justify-between px-2 mb-1">
-                    <p className="text-xs font-semibold text-zinc-500">APÓLICES</p>
-                    <button
-                      onClick={handleDismissAllPolicy}
-                      disabled={dismissingAllPolicy}
-                      className="text-xs font-semibold text-zinc-400 transition hover:text-white disabled:opacity-50"
-                    >
-                      Dispensar todas
-                    </button>
-                  </div>
-                  <div className="space-y-1">
-                    {policyAlerts.slice(0, 5).map((pa) => (
-                      <div
-                        key={pa.id}
-                        className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono font-semibold">{pa.plate}</span>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`text-xs font-semibold ${
-                                pa.alertType === "EXPIRED"
-                                  ? "text-red-400"
-                                  : pa.alertType === "EXPIRING_TODAY"
-                                    ? "text-orange-400"
-                                    : "text-yellow-400"
-                              }`}
-                            >
-                              {pa.alertType === "EXPIRED"
-                                ? "Vencida"
-                                : pa.alertType === "EXPIRING_TODAY"
-                                  ? "Hoje"
-                                  : pa.alertType === "EXPIRING_THIS_WEEK"
-                                    ? "Esta semana"
-                                    : `${pa.daysRemaining}d`}
-                            </span>
-                            <button
-                              onClick={() => handleDismissPolicy(pa.id)}
-                              disabled={dismissingPolicyId === pa.id}
-                              title="Dispensar"
-                              className="
-                                text-zinc-500 hover:text-white
-                                disabled:opacity-40 transition
-                                leading-none
-                              "
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                        {pa.insuredName && (
-                          <p className="text-xs text-zinc-400">{pa.insuredName}</p>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -597,7 +464,7 @@ export default function Header() {
                 </div>
               )}
 
-              {alerts.length === 0 && policyAlerts.length === 0 && importDiffs.length === 0 && stockPending.length === 0 ? (
+              {alerts.length === 0 && importDiffs.length === 0 && stockPending.length === 0 ? (
 
                 <p className="px-2 py-4 text-center text-sm text-zinc-500">
                   Nenhum alerta ativo
