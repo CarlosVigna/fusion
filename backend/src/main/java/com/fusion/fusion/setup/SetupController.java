@@ -194,6 +194,40 @@ public class SetupController {
         return value != null && !value.isBlank();
     }
 
+    private static final List<String> LEGACY_ORDER_CHECK_PLATES = List.of("IXT1675", "TDC5B69");
+
+    // Diagnostico pontual — "completed_at" nao existe no schema (a coluna
+    // real e' "closed_at", vinda do campo closedAt de ServiceOrder.java);
+    // usa o nome real da coluna aqui.
+    @GetMapping("/check-legacy-orders")
+    public Map<String, Object> checkLegacyOrders() {
+
+        List<Map<String, Object>> serviceOrders = jdbcTemplate.queryForList("""
+                SELECT plate, scheduling_status, financial_approval_status,
+                       technician_id, scheduled_date, closed_at,
+                       created_at, service_type
+                FROM service_orders
+                WHERE plate IN (:plates)
+                ORDER BY created_at DESC
+                """,
+                new MapSqlParameterSource("plates", LEGACY_ORDER_CHECK_PLATES));
+
+        List<Map<String, Object>> signalStatus = jdbcTemplate.queryForList("""
+                SELECT v.plate, s.last_communication_at, s.signal_delay_minutes, s.online
+                FROM vehicles v
+                JOIN operational_snapshot s ON s.vehicle_id = v.id
+                WHERE v.plate IN (:plates)
+                """,
+                new MapSqlParameterSource("plates", LEGACY_ORDER_CHECK_PLATES));
+
+        return Map.of(
+                "plates", LEGACY_ORDER_CHECK_PLATES,
+                "serviceOrders", serviceOrders,
+                "signalStatus", signalStatus
+        );
+
+    }
+
     @GetMapping("/ping")
     public Map<String, Object> ping() {
         return Map.of("pong", true, "v", "2");
