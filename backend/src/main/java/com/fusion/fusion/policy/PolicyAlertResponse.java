@@ -9,5 +9,6 @@ public record PolicyAlertResponse(
         String policyNumber,
         LocalDate endDate,
         String alertType,
-        Integer daysRemaining
+        Integer daysRemaining,
+        boolean isNewToday
 ) {}

@@ -118,7 +118,11 @@ export default function Header() {
         getRecentImportDiffs(),
       ]);
       setAlerts(signalResult.status === "fulfilled" ? (signalResult.value || []) : []);
-      setPolicyAlerts(polResult.status === "fulfilled" && Array.isArray(polResult.value) ? polResult.value : []);
+      // Sino só mostra apólices que entraram em alerta hoje pela
+      // primeira vez (isNewToday) — a página /policies/alerts continua
+      // mostrando todas, novas ou não.
+      const allPolicyAlerts = polResult.status === "fulfilled" && Array.isArray(polResult.value) ? polResult.value : [];
+      setPolicyAlerts(allPolicyAlerts.filter((pa) => pa.isNewToday));
       setImportDiffs(diffsResult.status === "fulfilled" && Array.isArray(diffsResult.value) ? diffsResult.value : []);
     } catch (error) {
       console.error(error);

@@ -52,6 +52,13 @@ public class Policy {
 
     private LocalDate alertDismissedAt;
 
+    // Data em que a apolice entrou em estado de alerta pela primeira
+    // vez (ver PolicyService.getAlerts()) — usado pra distinguir "alerta
+    // novo hoje" (mostra no sino) de "alerta ja conhecido" (so aparece
+    // na pagina /policies/alerts). Zerado quando deixa de ser alerta,
+    // pra contar como novo de novo se voltar a entrar em alerta depois.
+    private LocalDate firstAlertAt;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private PolicySource source = PolicySource.MANUAL;

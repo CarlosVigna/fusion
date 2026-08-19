@@ -498,19 +498,26 @@ public class PolicyService {
         LocalDate limit = today.plusDays(30);
 
         List<Policy> toUpdate = policyRepository.findAllActive().stream()
-                .filter(p -> {
-                    if (today.equals(p.getAlertDismissedAt())) return false;
-                    PolicyStatus s = PolicyResponse.computeStatus(p);
-                    if (s == PolicyStatus.EXPIRED || s == PolicyStatus.CLOSED) return true;
-                    return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
-                            && p.getEndDate() != null
-                            && !p.getEndDate().isAfter(limit);
-                })
+                .filter(p -> !today.equals(p.getAlertDismissedAt()) && isAlertWorthy(p, limit))
                 .collect(Collectors.toList());
 
         toUpdate.forEach(p -> p.setAlertDismissedAt(today));
         policyRepository.saveAll(toUpdate);
 
+    }
+
+    // Alerta "de verdade" independente de dispensa — usado tanto pra
+    // filtrar a lista quanto pra manter firstAlertAt em dia (ver
+    // getAlerts()), que precisa saber se uma apolice E' alerta mesmo
+    // que ja tenha sido dispensada hoje.
+    private boolean isAlertWorthy(Policy p, LocalDate limit) {
+        PolicyStatus s = PolicyResponse.computeStatus(p);
+        if (s == PolicyStatus.EXPIRED
+                || s == PolicyStatus.CLOSED
+                || s == PolicyStatus.CANCELLED) return true;
+        return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
+                && p.getEndDate() != null
+                && !p.getEndDate().isAfter(limit);
     }
 
     public List<PolicyAlertResponse> getAlerts() {
@@ -519,16 +526,31 @@ public class PolicyService {
         LocalDate fimSemana = today.with(DayOfWeek.SUNDAY);
         LocalDate limit = today.plusDays(30);
 
-        return policyRepository.findAllActive().stream()
-                .filter(p -> {
-                    PolicyStatus s = PolicyResponse.computeStatus(p);
-                    if (s == PolicyStatus.EXPIRED
-                            || s == PolicyStatus.CLOSED
-                            || s == PolicyStatus.CANCELLED) return true;
-                    return (s == PolicyStatus.ACTIVE || s == PolicyStatus.EXPIRING)
-                            && p.getEndDate() != null
-                            && !p.getEndDate().isAfter(limit);
-                })
+        List<Policy> allPolicies = policyRepository.findAllActive();
+
+        // Mantem firstAlertAt em dia a cada chamada: carimba a primeira
+        // vez que uma apolice entra em alerta (pra distinguir "novo hoje"
+        // no sino) e zera quando ela deixa de ser alerta — por exemplo
+        // renovacao (volta pra ACTIVE fora da janela de 30 dias) ou
+        // correcao de data. Zerar garante que, se ela entrar em alerta
+        // de novo no futuro, conte como novo outra vez.
+        List<Policy> toStamp = new ArrayList<>();
+        for (Policy p : allPolicies) {
+            boolean alertWorthy = isAlertWorthy(p, limit);
+            if (alertWorthy && p.getFirstAlertAt() == null) {
+                p.setFirstAlertAt(today);
+                toStamp.add(p);
+            } else if (!alertWorthy && p.getFirstAlertAt() != null) {
+                p.setFirstAlertAt(null);
+                toStamp.add(p);
+            }
+        }
+        if (!toStamp.isEmpty()) {
+            policyRepository.saveAll(toStamp);
+        }
+
+        return allPolicies.stream()
+                .filter(p -> isAlertWorthy(p, limit))
                 .sorted(Comparator.comparing(
                         p -> p.getEndDate() != null ? p.getEndDate() : LocalDate.MAX
                 ))
@@ -551,9 +573,10 @@ public class PolicyService {
                     } else {
                         alertType = "EXPIRING";
                     }
+                    boolean isNewToday = today.equals(p.getFirstAlertAt());
                     return new PolicyAlertResponse(
                             p.getId(), p.getPlate(), p.getInsuredName(),
-                            p.getPolicyNumber(), p.getEndDate(), alertType, days
+                            p.getPolicyNumber(), p.getEndDate(), alertType, days, isNewToday
                     );
                 })
                 .toList();
