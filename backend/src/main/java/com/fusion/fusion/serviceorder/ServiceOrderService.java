@@ -1,5 +1,6 @@
 package com.fusion.fusion.serviceorder;
 
+import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLog;
@@ -26,6 +27,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -39,6 +41,15 @@ public class ServiceOrderService {
     private final VehicleOperationalStateRepository operationalStateRepository;
     private final ServiceOrderAuditLogRepository auditLogRepository;
     private final WhatsAppService whatsAppService;
+
+    // Mesmos padrões usados no formulário do frontend (ServiceOrders.jsx) —
+    // mantidos aqui só como rede de segurança para quem chamar a API
+    // diretamente; o placa não entra aqui porque, assim como no frontend,
+    // placa fora do padrão não bloqueia a OS (só é sinalizada visualmente).
+    private static final Pattern CHASSIS_PATTERN = Pattern.compile("[A-HJ-NPR-Z0-9]{17}");
+    private static final Pattern PHONE_PATTERN   = Pattern.compile("\\(\\d{2}\\)\\s\\d{4,5}-\\d{4}");
+    private static final Pattern NAME_PATTERN    = Pattern.compile("[A-Za-zÀ-ÿ\\s]+");
+    private static final Pattern CEP_PATTERN     = Pattern.compile("\\d{5}-?\\d{3}");
 
     public List<ServiceOrderResponse> listAll(boolean includeCompleted) {
         return repository.findAll().stream()
@@ -61,6 +72,12 @@ public class ServiceOrderService {
         boolean isManual = !"PORTAL".equals(createdBy) && !"SISTEMA".equals(createdBy);
         if (isManual && (request.customerName() == null || request.customerName().isBlank())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nome do cliente é obrigatório");
+        }
+        // Só valida formato pra entrada manual — OS vindas do portal/sync
+        // automático não passam por formulário e não devem ser rejeitadas
+        // por formato (mesmo critério do check de customerName acima).
+        if (isManual) {
+            validateFields(request);
         }
         ServiceOrder so = ServiceOrder.builder()
                 .requestedBy(request.requestedBy() != null ? request.requestedBy() : createdBy)
@@ -130,6 +147,8 @@ public class ServiceOrderService {
     @Transactional
     public ServiceOrderResponse update(UUID id, ServiceOrderRequest request) {
         ServiceOrder so = find(id);
+
+        validateFields(request);
 
         so.setPlate(request.plate());
         so.setChassis(request.chassis());
@@ -571,6 +590,30 @@ public class ServiceOrderService {
             log.warn("[OS] Erro ao verificar sinal do veiculo {}: {}", plate, e.getMessage());
             return false;
         }
+    }
+
+    private void validateFields(ServiceOrderRequest request) {
+
+        if (request.chassis() != null && !request.chassis().isBlank()
+                && !CHASSIS_PATTERN.matcher(request.chassis().trim().toUpperCase()).matches()) {
+            throw new BusinessException("Chassi inválido — deve ter 17 caracteres (sem I, O, Q)");
+        }
+
+        if (request.customerPhone() != null && !request.customerPhone().isBlank()
+                && !PHONE_PATTERN.matcher(request.customerPhone().trim()).matches()) {
+            throw new BusinessException("Telefone inválido — use o formato (00) 00000-0000");
+        }
+
+        if (request.customerName() != null && !request.customerName().isBlank()
+                && !NAME_PATTERN.matcher(request.customerName().trim()).matches()) {
+            throw new BusinessException("Nome do cliente deve conter apenas letras e espaços");
+        }
+
+        if (request.zipCode() != null && !request.zipCode().isBlank()
+                && !CEP_PATTERN.matcher(request.zipCode().trim()).matches()) {
+            throw new BusinessException("CEP inválido — deve ter 8 dígitos");
+        }
+
     }
 
     private ServiceOrder find(UUID id) {

@@ -6,6 +6,7 @@ import com.fusion.fusion.importation.ImportDiffLogRepository;
 import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
+import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehiclePlatform;
@@ -57,9 +58,14 @@ public class TracknMeSyncService {
                 }
             }
 
-            // Veículos TRACKNME já existentes no banco
+            // Veículos TRACKNME já existentes no banco — filtra por platform,
+            // não por vehicleGroup, porque veículos com placa fora do padrão
+            // (ex: lixo de planilha) são marcados como TEST na criação (ver
+            // abaixo) mas continuam sendo desta plataforma; filtrar por
+            // vehicleGroup faria o sync tentar recriá-los a cada execução e
+            // colidir com a constraint unique de plate.
             List<Vehicle> existing = vehicleRepository.findAll().stream()
-                    .filter(v -> v.getVehicleGroup() == VehicleGroup.TRACKNME)
+                    .filter(v -> v.getPlatform() == VehiclePlatform.TRACKNME)
                     .toList();
 
             Map<String, Vehicle> dbByPlate = new LinkedHashMap<>();
@@ -125,11 +131,17 @@ public class TracknMeSyncService {
 
                     if (changed) vehicleRepository.save(v);
                 } else {
-                    // Novo veículo TracknMe
+                    // Novo veículo TracknMe — placa fora do padrão oficial
+                    // (ver PlateValidator.isStandardFormat) vira TEST em vez
+                    // de TRACKNME, mesma lógica do LinkageImportService.
                     Vehicle v = Vehicle.builder()
                             .plate(plate)
                             .platform(VehiclePlatform.TRACKNME)
-                            .vehicleGroup(VehicleGroup.TRACKNME)
+                            .vehicleGroup(
+                                    PlateValidator.isStandardFormat(plate)
+                                            ? VehicleGroup.TRACKNME
+                                            : VehicleGroup.TEST
+                            )
                             .tracknmeDeviceId(d.id())
                             .tracknmeImei(d.imei())
                             .tracknmeModel(d.model())
@@ -192,7 +204,7 @@ public class TracknMeSyncService {
             String token = apiService.authenticate();
 
             List<Vehicle> tracknmeVehicles = vehicleRepository.findAll().stream()
-                    .filter(v -> v.getVehicleGroup() == VehicleGroup.TRACKNME
+                    .filter(v -> v.getPlatform() == VehiclePlatform.TRACKNME
                             && v.getDeletedAt() == null
                             && v.getTracknmeDeviceId() != null)
                     .toList();

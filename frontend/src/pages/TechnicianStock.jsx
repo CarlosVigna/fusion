@@ -30,6 +30,9 @@ function formatDate(raw) {
     return new Date(raw + "T00:00:00").toLocaleDateString("pt-BR");
 }
 
+const isValidImei = (v) => /^\d{15}$/.test(v);
+const isValidMsisdn = (v) => /^55\d{11}$/.test(v);
+
 function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
 
     const [technicianId, setTechnicianId] = useState(defaultTechnicianId || "");
@@ -47,6 +50,14 @@ function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
             toast.error("Técnico e IMEI são obrigatórios");
             return;
         }
+        if (!isValidImei(imei)) {
+            toast.error("IMEI deve ter 15 dígitos numéricos");
+            return;
+        }
+        if (chipLine && !isValidMsisdn(chipLine)) {
+            toast.error("Linha deve ter 13 dígitos começando com 55");
+            return;
+        }
 
         setSaving(true);
         try {
@@ -61,7 +72,7 @@ function AddStockModal({ technicians, defaultTechnicianId, onClose, onSaved }) {
             onSaved();
         } catch (err) {
             console.error(err);
-            toast.error("Erro ao adicionar equipamento");
+            toast.error(err.message || "Erro ao adicionar equipamento");
         } finally {
             setSaving(false);
         }

@@ -1,5 +1,6 @@
 package com.fusion.fusion.stock;
 
+import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.technician.Technician;
 import com.fusion.fusion.technician.TechnicianRepository;
@@ -21,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -35,10 +37,15 @@ public class TechnicianStockService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
+    private static final Pattern IMEI_PATTERN   = Pattern.compile("\\d{15}");
+    private static final Pattern MSISDN_PATTERN = Pattern.compile("55\\d{11}");
+
     public TechnicianStockResponse addToStock(UUID technicianId, StockRequest request) {
 
         Technician technician = technicianRepository.findById(technicianId)
                 .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado"));
+
+        validateStockRequest(request);
 
         TechnicianStock stock = TechnicianStock.builder()
                 .technician(technician)
@@ -51,6 +58,30 @@ public class TechnicianStockService {
                 .build();
 
         return TechnicianStockResponse.from(stockRepository.save(stock));
+
+    }
+
+    // MSISDN/linha do chip e' opcional no formulario (nem todo equipamento
+    // ja tem chip vinculado no momento do cadastro) — so valida o formato
+    // quando preenchido. IMEI e' sempre obrigatorio e unico no estoque.
+    private void validateStockRequest(StockRequest request) {
+
+        String imei = request.imei();
+
+        if (imei == null || !IMEI_PATTERN.matcher(imei).matches()) {
+            throw new BusinessException("IMEI deve ter 15 dígitos");
+        }
+
+        if (stockRepository.existsByImei(imei)) {
+            throw new BusinessException("IMEI já cadastrado no estoque");
+        }
+
+        String chipLine = request.chipLine();
+
+        if (chipLine != null && !chipLine.isBlank()
+                && !MSISDN_PATTERN.matcher(chipLine).matches()) {
+            throw new BusinessException("Linha deve ter 13 dígitos começando com 55");
+        }
 
     }
 

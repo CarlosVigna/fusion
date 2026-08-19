@@ -14,6 +14,9 @@ const EMPTY = {
   city: "", state: "", defaultServiceValue: "",
 };
 
+const isValidPhone = (p) => /^\(\d{2}\)\s\d{4,5}-\d{4}$/.test(p);
+const isValidCep   = (c) => /^\d{5}-?\d{3}$/.test(c);
+
 const GEOCODE_KEY = "6a767720c9a23759209230ybg19c2d3";
 async function geocode(address) {
   try {
@@ -85,6 +88,14 @@ export default function Technicians() {
 
   async function handleSave() {
     if (!form.name?.trim()) { toast.error("Nome é obrigatório"); return; }
+    if (form.phone?.trim() && !isValidPhone(form.phone.trim())) {
+      toast.error("Telefone inválido — use o formato (00) 00000-0000");
+      return;
+    }
+    if (form.zipCode?.trim() && !isValidCep(form.zipCode.trim())) {
+      toast.error("CEP inválido — deve ter 8 dígitos");
+      return;
+    }
     setSaving(true);
     try {
       const payload = { ...form, defaultServiceValue: form.defaultServiceValue || null };
@@ -103,8 +114,8 @@ export default function Technicians() {
       toast.success(modal.mode === "create" ? "Técnico criado" : "Técnico atualizado");
       closeModal();
       await load();
-    } catch {
-      toast.error("Erro ao salvar técnico");
+    } catch (e) {
+      toast.error(e?.message || "Erro ao salvar técnico");
     } finally {
       setSaving(false);
     }

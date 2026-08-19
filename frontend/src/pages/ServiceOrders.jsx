@@ -57,6 +57,21 @@ const EMPTY_ORDER = {
 
 function fmt(v) { return v != null ? `R$ ${Number(v).toFixed(2)}` : null; }
 
+const isValidPlate  = (p) => /^[A-Z]{3}[0-9]{4}$/.test(p) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(p);
+const isValidChassi = (c) => /^[A-HJ-NPR-Z0-9]{17}$/.test(c);
+const isValidPhone  = (p) => /^\(\d{2}\)\s\d{4,5}-\d{4}$/.test(p);
+const isValidName   = (n) => /^[A-Za-zÀ-ÿ\s]+$/.test(n);
+const isValidCep    = (c) => /^\d{5}-?\d{3}$/.test(c);
+
+function PlateTestBadge({ plate }) {
+  if (!plate || !plate.trim() || isValidPlate(plate.trim().toUpperCase())) return null;
+  return (
+    <span className="ml-1.5 rounded bg-yellow-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-yellow-400" title="Placa fora do padrão — será tratada como TEST">
+      TEST
+    </span>
+  );
+}
+
 function Badge({ label, colorClass }) {
   return <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${colorClass}`}>{label}</span>;
 }
@@ -433,6 +448,22 @@ export default function ServiceOrders() {
       toast.error("Nome do cliente é obrigatório");
       return;
     }
+    if (!isValidName(modal.form.customerName.trim())) {
+      toast.error("Nome do cliente deve conter apenas letras e espaços");
+      return;
+    }
+    if (modal.form.chassis?.trim() && !isValidChassi(modal.form.chassis.trim().toUpperCase())) {
+      toast.error("Chassi inválido — deve ter 17 caracteres (sem I, O, Q)");
+      return;
+    }
+    if (modal.form.customerPhone?.trim() && !isValidPhone(modal.form.customerPhone.trim())) {
+      toast.error("Telefone inválido — use o formato (00) 00000-0000");
+      return;
+    }
+    if (modal.form.zipCode?.trim() && !isValidCep(modal.form.zipCode.trim())) {
+      toast.error("CEP inválido — deve ter 8 dígitos");
+      return;
+    }
     try {
       await createServiceOrder(modal.form);
       toast.success("OS criada");
@@ -456,12 +487,35 @@ export default function ServiceOrders() {
       setSelectedOrder(null);
       setDisplacementModal(null);
       load();
-    } catch { toast.error("Erro ao salvar"); }
+    } catch (e) { toast.error(e?.message || "Erro ao salvar"); }
   }
 
   async function handleSaveEdit() {
     try {
       const f = modal.form;
+
+      // isTech não envia basePayload (ver doSave) — validar esses campos
+      // pra ele bloquearia o agendamento por causa de dado legado que nem
+      // está sendo submetido.
+      if (!isTech) {
+        if (f.chassis?.trim() && !isValidChassi(f.chassis.trim().toUpperCase())) {
+          toast.error("Chassi inválido — deve ter 17 caracteres (sem I, O, Q)");
+          return;
+        }
+        if (f.customerPhone?.trim() && !isValidPhone(f.customerPhone.trim())) {
+          toast.error("Telefone inválido — use o formato (00) 00000-0000");
+          return;
+        }
+        if (f.customerName?.trim() && !isValidName(f.customerName.trim())) {
+          toast.error("Nome do cliente deve conter apenas letras e espaços");
+          return;
+        }
+        if (f.zipCode?.trim() && !isValidCep(f.zipCode.trim())) {
+          toast.error("CEP inválido — deve ter 8 dígitos");
+          return;
+        }
+      }
+
       const basePayload = {
         requestedBy: f.requestedBy, plate: f.plate, chassis: f.chassis,
         equipment: f.equipment, serviceType: f.serviceType,
@@ -1154,7 +1208,7 @@ export default function ServiceOrders() {
               <button onClick={() => setModal(null)}><X size={20} className="text-zinc-400" /></button>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <Field label="Placa">
+              <Field label={<>Placa<PlateTestBadge plate={modal.form.plate} /></>}>
                 <input value={modal.form.plate ?? ""} onChange={e => setForm(f => ({...f, plate: e.target.value}))} className={INPUT} />
               </Field>
               <Field label="Chassi">
@@ -1258,7 +1312,7 @@ export default function ServiceOrders() {
               <div className="grid grid-cols-2 gap-3">
                 {!isTech && (
                   <>
-                    <Field label="Placa">
+                    <Field label={<>Placa<PlateTestBadge plate={modal.form.plate} /></>}>
                       <input value={modal.form.plate} onChange={e => setForm(f => ({...f, plate: e.target.value}))} className={INPUT} />
                     </Field>
                     <Field label="Chassi">

@@ -25,6 +25,7 @@ import com.fusion.fusion.policy.PolicyRepository;
 import com.fusion.fusion.policy.PolicyResponse;
 import com.fusion.fusion.policy.PolicyStatus;
 import com.fusion.fusion.signalcontrol.SignalControlService;
+import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
@@ -390,6 +391,38 @@ public class SetupController {
                 "setupVehiclesDeleted", setupDeleted,
                 "testPlates", TEST_VEHICLE_PLATES_FIX,
                 "deletedPlates", SETUP_PLATES_TO_DELETE
+        );
+
+    }
+
+    // Corrige veiculos que ficaram como OPERATIONAL com placa fora do
+    // padrao oficial (ex: CAMPFRANCK, JEFFLONDRINA) — geralmente entraram
+    // assim porque foram criados antes do fix em LinkageImportService/
+    // TracknMeSyncService, ou por nao baterem em nenhum prefixo bloqueado
+    // de PlateValidator.isValidPlate() (que so filtra lixo conhecido de
+    // planilha, nao exige o formato oficial de placa).
+    @GetMapping("/fix-invalid-plates")
+    public Map<String, Object> fixInvalidPlates() {
+
+        List<Vehicle> operational = vehicleRepository.findAll().stream()
+                .filter(v -> v.getDeletedAt() == null)
+                .filter(v -> v.getVehicleGroup() == VehicleGroup.OPERATIONAL)
+                .toList();
+
+        List<String> fixedPlates = new java.util.ArrayList<>();
+
+        for (Vehicle vehicle : operational) {
+            if (!PlateValidator.isStandardFormat(vehicle.getPlate())) {
+                vehicle.setVehicleGroup(VehicleGroup.TEST);
+                vehicleRepository.save(vehicle);
+                fixedPlates.add(vehicle.getPlate());
+            }
+        }
+
+        return Map.of(
+                "checkedOperational", operational.size(),
+                "fixedCount", fixedPlates.size(),
+                "fixedPlates", fixedPlates
         );
 
     }

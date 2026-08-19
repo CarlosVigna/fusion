@@ -18,4 +18,6 @@ public interface TechnicianStockRepository extends JpaRepository<TechnicianStock
 
     List<TechnicianStock> findByStatus(StockStatus status);
 
+    boolean existsByImei(String imei);
+
 }

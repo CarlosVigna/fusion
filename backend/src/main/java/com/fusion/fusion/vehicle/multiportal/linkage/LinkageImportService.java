@@ -14,6 +14,7 @@ import com.fusion.fusion.pendingchange.PendingChangeService;
 import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.PlateValidator;
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehiclePlatform;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.device.Device;
@@ -160,6 +161,15 @@ public class LinkageImportService {
                                                         .plate(plate)
                                                         .platform(
                                                                 VehiclePlatform.MULTIPORTAL
+                                                        )
+                                                        // Placa fora do padrao oficial (ex:
+                                                        // "CAMPFRANCK", "JEFFLONDRINA") nao e'
+                                                        // frota real — vai pra TEST em vez de
+                                                        // OPERATIONAL (default do Vehicle).
+                                                        .vehicleGroup(
+                                                                PlateValidator.isStandardFormat(plate)
+                                                                        ? VehicleGroup.OPERATIONAL
+                                                                        : VehicleGroup.TEST
                                                         )
                                                         .build()
                                         )
