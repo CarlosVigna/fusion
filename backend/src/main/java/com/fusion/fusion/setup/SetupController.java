@@ -7,6 +7,8 @@ import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
 import com.fusion.fusion.installation.InstallationSyncService;
+import com.fusion.fusion.vehicle.tracknme.TracknMeApiService;
+import com.fusion.fusion.vehicle.tracknme.TracknMeDeviceItem;
 import com.fusion.fusion.vehicle.tracknme.TracknMeSyncService;
 import com.fusion.fusion.whatsapp.WhatsAppService;
 import com.fusion.fusion.installation.InstallationStatus;
@@ -113,10 +115,37 @@ public class SetupController {
                 AND v.deleted_at IS NULL
                 """);
 
+        List<Map<String, Object>> testVehicles = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT v.plate, v.vehicle_group,
+                       s.signal_delay_minutes, s.last_communication_at
+                FROM vehicles v
+                LEFT JOIN operational_snapshot s ON s.vehicle_id = v.id
+                WHERE v.vehicle_group = 'TEST' AND v.deleted_at IS NULL
+                ORDER BY v.plate
+                """);
+
+        List<Map<String, Object>> recentInstallations = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT id, external_id, customer_name, plate, created_at, status
+                FROM installations
+                ORDER BY created_at DESC
+                LIMIT 10
+                """);
+
+        List<Map<String, Object>> installationSyncHistory = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT updated_at, status, last_error, last_records_processed
+                FROM etl_status
+                WHERE type = 'INSTALACOES'
+                ORDER BY updated_at DESC
+                LIMIT 24
+                """);
+
         return Map.of(
                 "byGroup", byGroup,
                 "testStaleInSignalControl", testStaleInSignalControl,
-                "tracknmeStaleInSignalControl", tracknmeStaleInSignalControl
+                "tracknmeStaleInSignalControl", tracknmeStaleInSignalControl,
+                "testVehicles", testVehicles,
+                "recentInstallations", recentInstallations,
+                "installationSyncHistory", installationSyncHistory
         );
 
     }
@@ -179,8 +208,76 @@ public class SetupController {
     private final InstallationRepository installationRepository;
     private final ServiceOrderService serviceOrderService;
     private final TracknMeSyncService tracknMeSyncService;
+    private final TracknMeApiService tracknMeApiService;
     private final WhatsAppService whatsAppService;
     private final EtlStatusService etlStatusService;
+
+    private static final List<String> TRACKNME_STALE_CANDIDATES = List.of(
+            "SHE1J03", "PYC0H76", "IYL7E09", "GHE9I46", "FJO4527"
+    );
+
+    // Confere cada candidato contra a API TracknMe ao vivo (nao confia
+    // so no signal_delay_minutes local) antes de soft-deletar — evita
+    // apagar por engano um veiculo que so estava com posicao atrasada,
+    // nao cancelado de verdade no portal.
+    @GetMapping("/fix-tracknme-stale")
+    public Map<String, Object> fixTracknmeStale() {
+
+        String token = tracknMeApiService.authenticate();
+        List<TracknMeDeviceItem> apiDevices = tracknMeApiService.fetchDevices(token);
+
+        Set<String> activeInApi = apiDevices.stream()
+                .map(d -> normalizePlate(d.label()))
+                .filter(p -> !p.isBlank())
+                .collect(Collectors.toSet());
+
+        List<String> softDeleted = new java.util.ArrayList<>();
+        List<String> stillActiveInApi = new java.util.ArrayList<>();
+        List<String> notFoundInFusion = new java.util.ArrayList<>();
+
+        for (String plate : TRACKNME_STALE_CANDIDATES) {
+
+            String normalized = normalizePlate(plate);
+
+            if (activeInApi.contains(normalized)) {
+                stillActiveInApi.add(plate);
+                continue;
+            }
+
+            Optional<Vehicle> vOpt = vehicleRepository.findByPlate(plate);
+
+            if (vOpt.isEmpty()) {
+                notFoundInFusion.add(plate);
+                continue;
+            }
+
+            Vehicle vehicle = vOpt.get();
+
+            if (vehicle.getDeletedAt() == null) {
+                log.info("[TRACKNME-SYNC] Soft-deletando veículo ausente da API: {} (IMEI: {})",
+                        vehicle.getPlate(), vehicle.getTracknmeImei());
+                vehicle.setDeletedAt(LocalDateTime.now(java.time.ZoneOffset.UTC));
+                vehicle.setActive(false);
+                vehicleRepository.save(vehicle);
+                softDeleted.add(plate);
+            } else {
+                softDeleted.add(plate + " (já estava soft-deletado)");
+            }
+
+        }
+
+        return Map.of(
+                "softDeleted", softDeleted,
+                "stillActiveInApi", stillActiveInApi,
+                "notFoundInFusion", notFoundInFusion
+        );
+
+    }
+
+    private String normalizePlate(String plate) {
+        if (plate == null) return "";
+        return plate.replace("-", "").replace(" ", "").trim().toUpperCase();
+    }
 
     private static final Set<String> MULTIPORTAL_PLATES = Set.of(
         "FXZ9249", "QXX8I71", "FWQ9D54", "QWY7149", "QYJ4B61", "RXZ5F74", "SIE4D31", "TAP2C19", "PDH5I98", "TQU9E05",

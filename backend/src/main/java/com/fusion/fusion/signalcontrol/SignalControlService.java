@@ -171,6 +171,17 @@ public class SignalControlService {
 
             }
 
+            // Controle de sinais e' so pra frota real (OPERATIONAL/KAKO) —
+            // TEST e TRACKNME nao tem vinculo de equipamento Multiportal
+            // de verdade, entao "sinal atrasado" nao significa nada pra
+            // eles (ex: PAROBE0101, TEST, aparecia com 69.937min).
+            if (vehicle.getVehicleGroup() == VehicleGroup.TEST
+                    || vehicle.getVehicleGroup() == VehicleGroup.TRACKNME) {
+
+                continue;
+
+            }
+
             VehicleOperationalState state =
                     statesByVehicleId.get(vehicle.getId());
 

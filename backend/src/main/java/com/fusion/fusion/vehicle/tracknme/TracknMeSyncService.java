@@ -149,6 +149,8 @@ public class TracknMeSyncService {
                 if (!apiByPlate.containsKey(plate)) {
                     Vehicle v = entry.getValue();
                     if (v.getDeletedAt() == null) {
+                        log.info("[TRACKNME-SYNC] Soft-deletando veículo ausente da API: {} (IMEI: {})",
+                                v.getPlate(), v.getTracknmeImei());
                         v.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
                         v.setActive(false);
                         vehicleRepository.save(v);

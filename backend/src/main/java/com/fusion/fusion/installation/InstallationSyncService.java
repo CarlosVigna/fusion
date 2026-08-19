@@ -49,18 +49,43 @@ public class InstallationSyncService {
 
         log.info("[INSTALLATION-SYNC] Iniciando sync - {}", LocalDateTime.now());
 
+        InstallationSyncResult result;
+
         try {
 
-            InstallationSyncResult result = syncFromPortal();
-
-            log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas, {} fechadas, {} reabertas",
-                    result.found(), result.inserted(), result.skipped(), result.closed(), result.reopened());
+            result = syncFromPortal();
 
         } catch (Exception e) {
 
-            log.error("[INSTALACOES] Erro no sync agendado: {}", e.getMessage(), e);
+            // 1 retry apos falha transitoria do portal (rate limit,
+            // timeout, instabilidade) — o cron so roda de hora em hora,
+            // entao uma unica falha ja custava ~1h de atraso visivel
+            // (foi o caso da instalacao das 16:44 que so apareceu as 23h).
+            log.warn("[INSTALACOES] Falha na primeira tentativa, aguardando 60s para retry: {}", e.getMessage());
+
+            try {
+                Thread.sleep(60000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                log.error("[INSTALACOES] Retry interrompido: {}", ie.getMessage());
+                return;
+            }
+
+            try {
+
+                result = syncFromPortal();
+
+            } catch (Exception e2) {
+
+                log.error("[INSTALACOES] Erro no sync agendado (apos retry): {}", e2.getMessage(), e2);
+                return;
+
+            }
 
         }
+
+        log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas, {} fechadas, {} reabertas",
+                result.found(), result.inserted(), result.skipped(), result.closed(), result.reopened());
 
     }
 
