@@ -72,6 +72,11 @@ async function pollOnce(runners) {
 
     }
 
+    if (data?.type) {
+        log(`[POLL] Trigger recebido: type=${data.type}`);
+        log(`[POLL] Runner encontrado: ${!!runners[data.type]}`);
+    }
+
     const runner = data?.type && runners[data.type];
 
     if (runner) {
