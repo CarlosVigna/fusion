@@ -68,7 +68,14 @@ function fmt(v) { return v != null ? `R$ ${Number(v).toFixed(2)}` : null; }
 
 const isValidPlate  = (p) => /^[A-Z]{3}[0-9]{4}$/.test(p) || /^[A-Z]{3}[0-9][A-Z][0-9]{2}$/.test(p);
 const isValidChassi = (c) => /^[A-HJ-NPR-Z0-9]{17}$/.test(c);
-const isValidPhone  = (p) => /^\(\d{2}\)\s\d{4,5}-\d{4}$/.test(p);
+// Celular: (XX) XXXXX-XXXX — 9 dígitos. Fixo: (XX) XXXX-XXXX — 8 dígitos.
+// Aceita também sem formatação (sem parênteses/espaço/hífen) — valida
+// pela quantidade de dígitos (DDD + número), não pelo formato exato.
+const isValidPhone  = (p) => {
+  if (!p) return true; // opcional
+  const digits = p.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 11;
+};
 const isValidName   = (n) => /^[A-Za-zÀ-ÿ\s]+$/.test(n);
 const isValidCep    = (c) => /^\d{5}-?\d{3}$/.test(c);
 
