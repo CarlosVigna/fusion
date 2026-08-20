@@ -50,6 +50,8 @@ import { notifyInstallationsNew } from "../../services/notificationService";
 
 import { getPendingConfirmations } from "../../services/stockService";
 
+import { getOverdueMaintenanceRecords } from "../../services/maintenanceService";
+
 import { FusionLogo } from "../../assets/FusionLogo";
 
 const GROUPS = [
@@ -82,7 +84,7 @@ const GROUPS = [
         items: [
             { label: "Controle de Sinais",  icon: Radio,  path: "/signal-control", badgeKey: "signalControl" },
             { label: "Cartas de Suspensão", icon: Mail,   path: "/letters" },
-            { label: "Manutenções",         icon: Wrench, path: "/maintenance" },
+            { label: "Manutenções",         icon: Wrench, path: "/maintenance", badgeKey: "maintenanceOverdue" },
         ],
     },
     {
@@ -165,6 +167,8 @@ export default function Sidebar() {
 
     const [stockPendingCount, setStockPendingCount] = useState(0);
 
+    const [maintenanceOverdueCount, setMaintenanceOverdueCount] = useState(0);
+
     const prevInstallationsCountRef = useRef(null);
 
     const [collapsedGroups, setCollapsedGroups] = useState(loadGroupState);
@@ -196,6 +200,24 @@ export default function Sidebar() {
 
         loadCount();
         const interval = setInterval(loadCount, POLL_INTERVAL_MS);
+        return () => clearInterval(interval);
+
+    }, [isFieldOrTech]);
+
+    useEffect(() => {
+        if (isFieldOrTech) return;
+
+        async function loadMaintenanceOverdueCount() {
+            try {
+                const data = await getOverdueMaintenanceRecords();
+                setMaintenanceOverdueCount(Array.isArray(data) ? data.length : 0);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        loadMaintenanceOverdueCount();
+        const interval = setInterval(loadMaintenanceOverdueCount, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
 
     }, [isFieldOrTech]);
@@ -300,6 +322,7 @@ export default function Sidebar() {
         policiesExpiring: policiesExpiringCount,
         policyAlerts: policyAlertsCount,
         stockPending: stockPendingCount,
+        maintenanceOverdue: maintenanceOverdueCount,
     };
 
     // Filtra grupos e itens conforme o perfil do usuário

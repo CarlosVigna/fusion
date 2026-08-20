@@ -18,6 +18,8 @@ import {
 
 import MaintenanceModal from "../components/maintenance/MaintenanceModal";
 
+import MaintenanceOverduePanel from "../components/operational/panels/MaintenanceOverduePanel";
+
 import Pagination from "../components/ui/Pagination";
 
 import { usePagination } from "../hooks/usePagination";
@@ -442,6 +444,8 @@ export default function Maintenance() {
           </div>
         </div>
       )}
+
+      <MaintenanceOverduePanel onChanged={load} />
 
       <div className="flex flex-wrap items-center justify-end gap-4">
 
