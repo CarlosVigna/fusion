@@ -228,6 +228,28 @@ public class SetupController {
 
     }
 
+    // Diagnostico pontual — OS de instalacao sem placa que apareceu pro
+    // botao "Concluir como Legado" (que so checa schedulingStatus/tecnico,
+    // nao plate — ver ServiceOrders.jsx). Cliente "joao cardoso filho",
+    // CEP 64014220, criada em 31/07/2026.
+    @GetMapping("/check-os-sem-placa")
+    public List<Map<String, Object>> checkOsSemPlaca() {
+        return jdbcTemplate.queryForList("""
+                SELECT id, plate, scheduling_status, financial_approval_status,
+                       technician_id, scheduled_date, closed_at, created_at,
+                       service_type, customer_name, zip_code, equipment,
+                       observations
+                FROM service_orders
+                WHERE customer_name ILIKE :customerNamePattern
+                OR zip_code = :zipCode
+                ORDER BY created_at DESC
+                LIMIT 5
+                """,
+                new MapSqlParameterSource()
+                        .addValue("customerNamePattern", "%joao cardoso%")
+                        .addValue("zipCode", "64014220"));
+    }
+
     @GetMapping("/ping")
     public Map<String, Object> ping() {
         return Map.of("pong", true, "v", "2");
