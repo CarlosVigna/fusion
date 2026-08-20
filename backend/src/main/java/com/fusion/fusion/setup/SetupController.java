@@ -250,6 +250,56 @@ public class SetupController {
                         .addValue("zipCode", "64014220"));
     }
 
+    // Diagnostico generico por placa. Alem das duas queries pedidas, inclui
+    // uma terceira contra vehicle_operational_state — checkVehicleSignal()
+    // em ServiceOrderService (usado por concludeAsLegacy()) le dessa
+    // tabela, NAO de operational_snapshot. Sao tabelas paralelas/distintas
+    // (ver VehicleOperationalState.java vs OperationalSnapshot.java);
+    // operational_snapshot sozinha pode nao explicar um true/false
+    // inesperado de checkVehicleSignal().
+    @GetMapping("/check-plate")
+    public Map<String, Object> checkPlate(@RequestParam String plate) {
+
+        String normalized = plate.trim().toUpperCase();
+
+        List<Map<String, Object>> serviceOrders = jdbcTemplate.queryForList("""
+                SELECT id, plate, scheduling_status, financial_approval_status,
+                       technician_id, scheduled_date, closed_at, created_at,
+                       service_type, customer_name
+                FROM service_orders
+                WHERE plate = :plate
+                ORDER BY created_at DESC
+                """,
+                new MapSqlParameterSource("plate", normalized));
+
+        List<Map<String, Object>> operationalSnapshot = jdbcTemplate.queryForList("""
+                SELECT v.plate, v.vehicle_group, v.deleted_at,
+                       s.last_communication_at, s.signal_delay_minutes, s.online
+                FROM vehicles v
+                LEFT JOIN operational_snapshot s ON s.vehicle_id = v.id
+                WHERE v.plate = :plate
+                """,
+                new MapSqlParameterSource("plate", normalized));
+
+        List<Map<String, Object>> vehicleOperationalState = jdbcTemplate.queryForList("""
+                SELECT v.plate,
+                       os.last_communication_at, os.signal_delay_minutes,
+                       os.online, os.communication_status, os.updated_at
+                FROM vehicles v
+                LEFT JOIN vehicle_operational_state os ON os.vehicle_id = v.id
+                WHERE v.plate = :plate
+                """,
+                new MapSqlParameterSource("plate", normalized));
+
+        return Map.of(
+                "plate", normalized,
+                "serviceOrders", serviceOrders,
+                "operationalSnapshot", operationalSnapshot,
+                "vehicleOperationalState", vehicleOperationalState
+        );
+
+    }
+
     @GetMapping("/ping")
     public Map<String, Object> ping() {
         return Map.of("pong", true, "v", "2");
