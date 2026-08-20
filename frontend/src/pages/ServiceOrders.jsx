@@ -1225,7 +1225,8 @@ export default function ServiceOrders() {
               {isAdmin &&
                selectedOrder.schedulingStatus === "ABERTO" &&
                !selectedOrder.technician &&
-               selectedOrder.plate && (
+               selectedOrder.plate &&
+               selectedOrder.hasEverCommunicated && (
                 <button onClick={() => setLegacyModalOpen(true)}
                   className="rounded-xl border border-zinc-800 px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
                   🗂️ Concluir como Legado

@@ -2,6 +2,7 @@ package com.fusion.fusion.serviceorder;
 
 import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
+import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLog;
 import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLogRepository;
@@ -40,6 +41,7 @@ public class ServiceOrderService {
     private final OrsService orsService;
     private final VehicleRepository vehicleRepository;
     private final VehicleOperationalStateRepository operationalStateRepository;
+    private final OperationalSnapshotRepository operationalSnapshotRepository;
     private final ServiceOrderAuditLogRepository auditLogRepository;
     private final WhatsAppService whatsAppService;
 
@@ -731,6 +733,18 @@ public class ServiceOrderService {
     }
 
     ServiceOrderResponse toResponse(ServiceOrder so) {
+
+        // Usado pelo botao "Concluir como Legado" no frontend pra nao nem
+        // oferecer a acao quando o veiculo nunca mandou posicao — evita um
+        // clique que so vai falhar la' na frente em checkVehicleSignal().
+        boolean hasEverCommunicated = false;
+        if (so.getPlate() != null) {
+            hasEverCommunicated = operationalSnapshotRepository
+                    .findFirstByVehiclePlate(so.getPlate())
+                    .map(s -> s.getLastCommunicationAt() != null)
+                    .orElse(false);
+        }
+
         return new ServiceOrderResponse(
                 so.getId(),
                 so.getExternalInstallationId(),
@@ -769,7 +783,8 @@ public class ServiceOrderService {
                 so.getCompletedWithoutSignal(),
                 so.getSlaDays(),
                 so.isLate(),
-                so.getServiceValueChangedAfterScheduling()
+                so.getServiceValueChangedAfterScheduling(),
+                hasEverCommunicated
         );
     }
 

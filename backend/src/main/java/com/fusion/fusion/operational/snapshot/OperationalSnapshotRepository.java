@@ -13,6 +13,10 @@ public interface OperationalSnapshotRepository
             Vehicle vehicle
     );
 
+    Optional<OperationalSnapshot> findFirstByVehiclePlate(
+            String plate
+    );
+
     @Query("SELECT COUNT(s) FROM OperationalSnapshot s " +
            "JOIN s.vehicle v " +
            "WHERE v.deletedAt IS NULL " +

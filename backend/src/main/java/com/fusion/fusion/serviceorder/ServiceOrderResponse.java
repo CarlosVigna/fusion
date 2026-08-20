@@ -45,5 +45,6 @@ public record ServiceOrderResponse(
         Boolean completedWithoutSignal,
         long slaDays,
         boolean late,
-        Boolean serviceValueChangedAfterScheduling
+        Boolean serviceValueChangedAfterScheduling,
+        boolean hasEverCommunicated
 ) {}
