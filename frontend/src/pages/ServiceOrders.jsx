@@ -4,6 +4,7 @@ import { Eye, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   getServiceOrders,
+  getCompletedServiceOrders,
   createServiceOrder,
   updateServiceOrder,
   updateScheduling,
@@ -294,7 +295,15 @@ export default function ServiceOrders() {
   const [filterTechnicianId, setFilterTechnicianId] = useState("");
   const [selectedIds, setSelectedIds]       = useState(new Set());
   const [displayPage, setDisplayPage]       = useState(0);
-  const [activeTab, setActiveTab]           = useState(searchParams.get("tab") === "auditoria" ? "auditoria" : "ordens");
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab]           = useState(
+    tabParam === "auditoria" || tabParam === "concluidas" ? tabParam : "ordens"
+  );
+
+  const [completedOrders, setCompletedOrders]     = useState([]);
+  const [completedLoading, setCompletedLoading]   = useState(false);
+  const [completedSearchText, setCompletedSearchText] = useState("");
+  const [completedPage, setCompletedPage]         = useState(0);
 
   // Drawer: histórico de auditoria por OS
   const [orderAuditLog, setOrderAuditLog]   = useState([]);
@@ -317,9 +326,11 @@ export default function ServiceOrders() {
 
   useEffect(() => { load(); }, []);
   useEffect(() => { setDisplayPage(0); }, [filter, searchText, filterServiceType, filterTechnicianId]);
+  useEffect(() => { setCompletedPage(0); }, [completedSearchText]);
 
   useEffect(() => {
     if (activeTab === "auditoria" && isAdmin) loadAuditLog();
+    if (activeTab === "concluidas") loadCompleted();
   }, [activeTab]);
 
   useEffect(() => {
@@ -372,6 +383,19 @@ export default function ServiceOrders() {
       setAuditLogs(data);
     } catch { toast.error("Erro ao carregar auditoria"); }
     finally { setAuditLoading(false); }
+  }
+
+  async function loadCompleted() {
+    setCompletedLoading(true);
+    try {
+      const data = await getCompletedServiceOrders();
+      setCompletedOrders(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao carregar OS concluídas");
+    } finally {
+      setCompletedLoading(false);
+    }
   }
 
   function applyFilter(list) {
@@ -428,6 +452,12 @@ export default function ServiceOrders() {
   const totalPages = Math.ceil(visible.length / ITEMS_PER_PAGE);
   const pagedVisible = visible.slice(displayPage * ITEMS_PER_PAGE, (displayPage + 1) * ITEMS_PER_PAGE);
   const allSelected = visible.length > 0 && visible.every(o => selectedIds.has(o.id));
+
+  const completedVisible = completedSearchText.trim()
+    ? completedOrders.filter(o => (o.plate || "").toLowerCase().includes(completedSearchText.trim().toLowerCase()))
+    : completedOrders;
+  const completedTotalPages = Math.ceil(completedVisible.length / ITEMS_PER_PAGE);
+  const completedPaged = completedVisible.slice(completedPage * ITEMS_PER_PAGE, (completedPage + 1) * ITEMS_PER_PAGE);
 
   function toggleSelect(id) {
     setSelectedIds(prev => {
@@ -786,9 +816,15 @@ export default function ServiceOrders() {
       setRevertModalOpen(false);
       setSelectedOrder(null);
       load();
+      if (activeTab === "concluidas") loadCompleted();
     } catch (e) {
       toast.error(e?.message || "Erro ao reverter conclusão");
     }
+  }
+
+  function openRevertFromRow(o) {
+    setSelectedOrder(o);
+    setRevertModalOpen(true);
   }
 
   // Backend agora exige ADMIN pra excluir (DELETE /{id} é
@@ -829,19 +865,23 @@ export default function ServiceOrders() {
           </div>
         </div>
 
-        {/* Tabs — só ADMIN vê Auditoria */}
-        {isAdmin && (
-          <div className="flex gap-1">
-            <button onClick={() => setActiveTab("ordens")}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold ${activeTab === "ordens" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900"}`}>
-              Ordens
-            </button>
+        {/* Tabs — Auditoria só ADMIN */}
+        <div className="flex gap-1">
+          <button onClick={() => setActiveTab("ordens")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold ${activeTab === "ordens" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900"}`}>
+            Ordens
+          </button>
+          <button onClick={() => setActiveTab("concluidas")}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold ${activeTab === "concluidas" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900"}`}>
+            Concluídas
+          </button>
+          {isAdmin && (
             <button onClick={() => setActiveTab("auditoria")}
               className={`rounded-xl px-4 py-2 text-sm font-semibold ${activeTab === "auditoria" ? "bg-white text-black" : "text-zinc-400 hover:bg-zinc-900"}`}>
               Auditoria
             </button>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Filtros da lista de ordens */}
         {activeTab === "ordens" && (
@@ -876,6 +916,21 @@ export default function ServiceOrders() {
               <option value="">Todos os técnicos</option>
               {technicians.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+          </div>
+        )}
+
+        {/* Busca da lista de concluídas */}
+        {activeTab === "concluidas" && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+              <input
+                value={completedSearchText}
+                onChange={e => setCompletedSearchText(e.target.value)}
+                placeholder="Buscar placa…"
+                className="rounded-xl border border-zinc-800 bg-zinc-900 pl-8 pr-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none w-56"
+              />
+            </div>
           </div>
         )}
       </div>
@@ -1052,6 +1107,79 @@ export default function ServiceOrders() {
                 <button
                   onClick={() => setDisplayPage(p => Math.min(totalPages - 1, p + 1))}
                   disabled={displayPage >= totalPages - 1}
+                  className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  Próxima ›
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ===== TAB: CONCLUÍDAS ===== */}
+      {activeTab === "concluidas" && (
+        <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-zinc-800 text-left text-xs text-zinc-500 uppercase tracking-wider">
+                <th className="px-4 py-3">Placa</th>
+                <th className="px-4 py-3">Cliente</th>
+                <th className="px-4 py-3">Tipo</th>
+                <th className="px-4 py-3">Data Conclusão</th>
+                <th className="px-4 py-3">Técnico</th>
+                <th className="px-4 py-3">Valor Total</th>
+                <th className="px-4 py-3">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {completedLoading && <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Carregando...</td></tr>}
+              {!completedLoading && completedVisible.length === 0 && <tr><td colSpan={7} className="px-4 py-8 text-center text-zinc-500">Nenhuma OS concluída</td></tr>}
+              {completedPaged.map((o) => (
+                <tr key={o.id}
+                  onClick={() => setSelectedOrder(o)}
+                  className="border-b border-zinc-900 transition-colors hover:bg-zinc-900/40 cursor-pointer">
+                  <td className="px-4 py-3 font-mono font-semibold">{o.plate || <span className="text-zinc-600">—</span>}</td>
+                  <td className="px-4 py-3 text-zinc-400">{o.customerName || "—"}</td>
+                  <td className="px-4 py-3 text-zinc-400">{o.serviceType}</td>
+                  <td className="px-4 py-3 text-zinc-400 whitespace-nowrap">{o.closedAt ? new Date(o.closedAt).toLocaleDateString("pt-BR") : "—"}</td>
+                  <td className="px-4 py-3 text-zinc-400">{o.technician?.name || "—"}</td>
+                  <td className="px-4 py-3 text-zinc-400">{fmt(o.totalValue) || "—"}</td>
+                  <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                    <div className="flex gap-1 items-center">
+                      <button onClick={() => setSelectedOrder(o)}
+                        className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white" title="Ver detalhes">
+                        <Eye size={14} />
+                      </button>
+                      {isAdmin && (
+                        <button onClick={() => openRevertFromRow(o)}
+                          className="rounded-lg px-2 py-1 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 hover:text-white" title="Reverter conclusão">
+                          ↩️ Reverter
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {completedTotalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-zinc-800 px-4 py-3">
+              <span className="text-xs text-zinc-500">
+                {completedVisible.length} resultado(s) · página {completedPage + 1} de {completedTotalPages}
+              </span>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setCompletedPage(p => Math.max(0, p - 1))}
+                  disabled={completedPage === 0}
+                  className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  ‹ Anterior
+                </button>
+                <button
+                  onClick={() => setCompletedPage(p => Math.min(completedTotalPages - 1, p + 1))}
+                  disabled={completedPage >= completedTotalPages - 1}
                   className="rounded-lg border border-zinc-800 px-3 py-1.5 text-xs font-semibold text-zinc-400 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   Próxima ›
