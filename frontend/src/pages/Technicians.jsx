@@ -14,8 +14,22 @@ const EMPTY = {
   city: "", state: "", defaultServiceValue: "",
 };
 
-const isValidPhone = (p) => /^\(\d{2}\)\s\d{4,5}-\d{4}$/.test(p);
+// Valida pela quantidade de dígitos (DDD + número), não pelo formato
+// exato — aceita com ou sem máscara.
+const isValidPhone = (p) => {
+  const digits = p.replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 11;
+};
 const isValidCep   = (c) => /^\d{5}-?\d{3}$/.test(c);
+
+// Celular: (XX) XXXXX-XXXX — 9 dígitos. Fixo: (XX) XXXX-XXXX — 8 dígitos.
+const formatPhone = (value) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 10) {
+    return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim();
+  }
+  return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
+};
 
 const GEOCODE_KEY = "6a767720c9a23759209230ybg19c2d3";
 async function geocode(address) {
@@ -48,6 +62,7 @@ export default function Technicians() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [cepLoading, setCepLoading] = useState(false);
+  const [phoneChanged, setPhoneChanged] = useState(false);
 
   useEffect(() => { load(); }, []);
 
@@ -55,7 +70,7 @@ export default function Technicians() {
     try { setTechnicians(await getTechnicians()); } catch (e) { console.error(e); }
   }
 
-  function openCreate() { setForm(EMPTY); setModal({ mode: "create" }); }
+  function openCreate() { setForm(EMPTY); setPhoneChanged(false); setModal({ mode: "create" }); }
   function openEdit(t) {
     setForm({
       name: t.name ?? "", phone: t.phone ?? "", zipCode: t.zipCode ?? "",
@@ -63,6 +78,7 @@ export default function Technicians() {
       city: t.city ?? "", state: t.state ?? "",
       defaultServiceValue: t.defaultServiceValue ?? "",
     });
+    setPhoneChanged(false);
     setModal({ mode: "edit", id: t.id });
   }
   function closeModal() { setModal(null); }
@@ -88,7 +104,7 @@ export default function Technicians() {
 
   async function handleSave() {
     if (!form.name?.trim()) { toast.error("Nome é obrigatório"); return; }
-    if (form.phone?.trim() && !isValidPhone(form.phone.trim())) {
+    if (phoneChanged && form.phone?.trim() && !isValidPhone(form.phone.trim())) {
       toast.error("Telefone inválido — use o formato (00) 00000-0000");
       return;
     }
@@ -200,7 +216,7 @@ export default function Technicians() {
               </div>
               <div>
                 <label className="block text-xs text-zinc-400 mb-1">Telefone</label>
-                <input value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))}
+                <input value={form.phone} onChange={e => { setForm(f => ({...f, phone: formatPhone(e.target.value)})); setPhoneChanged(true); }}
                   className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
               </div>
               <div>

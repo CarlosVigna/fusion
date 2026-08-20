@@ -76,6 +76,13 @@ const isValidPhone  = (p) => {
   const digits = p.replace(/\D/g, "");
   return digits.length >= 10 && digits.length <= 11;
 };
+const formatPhone = (value) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 10) {
+    return digits.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim();
+  }
+  return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
+};
 const isValidName   = (n) => /^[A-Za-zÀ-ÿ\s]+$/.test(n);
 const isValidCep    = (c) => /^\d{5}-?\d{3}$/.test(c);
 
@@ -295,6 +302,7 @@ export default function ServiceOrders() {
   const [linkPlateModalOpen, setLinkPlateModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [revertModalOpen, setRevertModalOpen] = useState(false);
+  const [phoneChanged, setPhoneChanged] = useState(false);
   const [displacementDetailModal, setDisplacementDetailModal] = useState(false);
   const [cepLoading, setCepLoading]         = useState(false);
   const [searchText, setSearchText]         = useState("");
@@ -553,10 +561,12 @@ export default function ServiceOrders() {
   }
 
   function openCreate() {
+    setPhoneChanged(false);
     setModal({ type: "create", form: { ...EMPTY_ORDER, requestedBy: user?.name || "" } });
   }
 
   function openEdit(o) {
+    setPhoneChanged(false);
     setModal({
       type: "edit",
       id: o.id,
@@ -609,7 +619,7 @@ export default function ServiceOrders() {
       toast.error("Chassi inválido — deve ter 17 caracteres (sem I, O, Q)");
       return;
     }
-    if (modal.form.customerPhone?.trim() && !isValidPhone(modal.form.customerPhone.trim())) {
+    if (phoneChanged && modal.form.customerPhone?.trim() && !isValidPhone(modal.form.customerPhone.trim())) {
       toast.error("Telefone inválido — use o formato (00) 00000-0000");
       return;
     }
@@ -655,7 +665,7 @@ export default function ServiceOrders() {
           toast.error("Chassi inválido — deve ter 17 caracteres (sem I, O, Q)");
           return;
         }
-        if (f.customerPhone?.trim() && !isValidPhone(f.customerPhone.trim())) {
+        if (phoneChanged && f.customerPhone?.trim() && !isValidPhone(f.customerPhone.trim())) {
           toast.error("Telefone inválido — use o formato (00) 00000-0000");
           return;
         }
@@ -1659,7 +1669,7 @@ export default function ServiceOrders() {
                 <input value={modal.form.customerName ?? ""} onChange={e => setForm(f => ({...f, customerName: e.target.value}))} className={INPUT} />
               </Field>
               <Field label="Telefone">
-                <input value={modal.form.customerPhone ?? ""} onChange={e => setForm(f => ({...f, customerPhone: e.target.value}))} className={INPUT} />
+                <input value={modal.form.customerPhone ?? ""} onChange={e => { setForm(f => ({...f, customerPhone: formatPhone(e.target.value)})); setPhoneChanged(true); }} className={INPUT} />
               </Field>
               <Field label="Observações" span={3}>
                 <textarea value={modal.form.observations ?? ""} onChange={e => setForm(f => ({...f, observations: e.target.value}))} rows={2} className={INPUT} />
@@ -1744,7 +1754,7 @@ export default function ServiceOrders() {
                       <input value={modal.form.customerName} onChange={e => setForm(f => ({...f, customerName: e.target.value}))} className={INPUT} />
                     </Field>
                     <Field label="Telefone">
-                      <input value={modal.form.customerPhone} onChange={e => setForm(f => ({...f, customerPhone: e.target.value}))} className={INPUT} />
+                      <input value={modal.form.customerPhone} onChange={e => { setForm(f => ({...f, customerPhone: formatPhone(e.target.value)})); setPhoneChanged(true); }} className={INPUT} />
                     </Field>
                     <Field label={<>CEP{cepLoading && <span className="text-zinc-500 font-normal ml-1">(buscando...)</span>}</>}>
                       <input value={modal.form.zipCode} maxLength={9} placeholder="00000-000"
