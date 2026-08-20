@@ -56,6 +56,7 @@ public class ServiceOrderService {
 
     public List<ServiceOrderResponse> listAll(boolean includeCompleted) {
         return repository.findAll().stream()
+                .filter(o -> o.getDeletedAt() == null)
                 .filter(o -> includeCompleted || o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO)
                 .sorted(Comparator.comparing(ServiceOrder::getRequestedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(this::toResponse)
@@ -64,6 +65,7 @@ public class ServiceOrderService {
 
     public List<ServiceOrderResponse> listCompleted() {
         return repository.findAll().stream()
+                .filter(o -> o.getDeletedAt() == null)
                 .filter(o -> o.getSchedulingStatus() == SchedulingStatus.CONCLUIDO)
                 .sorted(Comparator.comparing(ServiceOrder::getClosedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(this::toResponse)
@@ -493,7 +495,9 @@ public class ServiceOrderService {
     }
 
     public Map<String, Object> dashboard(boolean showAnalytics) {
-        List<ServiceOrder> all = repository.findAll();
+        List<ServiceOrder> all = repository.findAll().stream()
+                .filter(o -> o.getDeletedAt() == null)
+                .toList();
 
         long abertas = all.stream()
                 .filter(o -> o.getTechnician() == null
@@ -597,15 +601,40 @@ public class ServiceOrderService {
     }
 
     public List<ServiceOrder> findPendingInstallations() {
-        return repository.findByServiceTypeAndSchedulingStatusNotAndCompletionConfirmedFalse(
+        return repository.findByServiceTypeAndSchedulingStatusNotAndCompletionConfirmedFalseAndDeletedAtIsNull(
                 ServiceType.INSTALACAO, SchedulingStatus.CONCLUIDO);
     }
 
+    // Soft-delete — mantem o registro (e o historico de auditoria que
+    // aponta pra ele) pra fins de rastreabilidade, so tira da listagem
+    // (ver filtros getDeletedAt() == null em listAll/listCompleted/
+    // dashboard/find()).
     @Transactional
-    public void delete(UUID id) {
+    public void delete(UUID id, String performedBy) {
         ServiceOrder so = find(id);
+        so.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
+        repository.save(so);
         audit(so, "EXCLUIDA", null, so.getPlate(), null);
-        repository.deleteById(id);
+    }
+
+    // ADMIN corrige uma conclusao feita por engano — volta pro fluxo normal
+    // sem perder o que ja foi preenchido (tecnico/data/valores), so desfaz
+    // o que confirmCompletion()/concludeAsLegacy() setam na conclusao.
+    @Transactional
+    public void revertCompletion(UUID id, String performedBy) {
+        ServiceOrder so = find(id);
+
+        if (so.getSchedulingStatus() != SchedulingStatus.CONCLUIDO) {
+            throw new BusinessException("Só é possível reverter uma OS concluída");
+        }
+
+        so.setSchedulingStatus(SchedulingStatus.ABERTO);
+        so.setClosedAt(null);
+        so.setCompletionConfirmed(false);
+
+        repository.save(so);
+
+        audit(so, "CONCLUSAO_REVERTIDA", "schedulingStatus", "CONCLUIDO", "ABERTO");
     }
 
     @Transactional
@@ -686,6 +715,7 @@ public class ServiceOrderService {
 
     private ServiceOrder find(UUID id) {
         return repository.findById(id)
+                .filter(so -> so.getDeletedAt() == null)
                 .orElseThrow(() -> new ResourceNotFoundException("OS não encontrada: " + id));
     }
 

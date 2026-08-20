@@ -16,10 +16,10 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
     @Query("SELECT so FROM ServiceOrder so WHERE so.scheduledDate BETWEEN :start AND :end ORDER BY so.scheduledDate")
     List<ServiceOrder> findByScheduledDateBetween(LocalDate start, LocalDate end);
 
-    @Query("SELECT so FROM ServiceOrder so WHERE so.schedulingStatus = 'CONCLUIDO' AND FUNCTION('to_char', so.closedAt, 'YYYY-MM') = :month")
+    @Query("SELECT so FROM ServiceOrder so WHERE so.schedulingStatus = 'CONCLUIDO' AND so.deletedAt IS NULL AND FUNCTION('to_char', so.closedAt, 'YYYY-MM') = :month")
     List<ServiceOrder> findConcludedByMonth(String month);
 
-    List<ServiceOrder> findByServiceTypeAndSchedulingStatusNotAndCompletionConfirmedFalse(
+    List<ServiceOrder> findByServiceTypeAndSchedulingStatusNotAndCompletionConfirmedFalseAndDeletedAtIsNull(
             ServiceType serviceType, SchedulingStatus status);
 
     boolean existsByExternalInstallationId(String externalInstallationId);

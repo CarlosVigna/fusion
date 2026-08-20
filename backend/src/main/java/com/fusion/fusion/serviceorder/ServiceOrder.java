@@ -91,6 +91,7 @@ public class ServiceOrder {
     private LocalDateTime updatedAt;
     private LocalDateTime closedAt;
     private LocalDateTime scheduledAt;
+    private LocalDateTime deletedAt;
 
     @Builder.Default
     @Column(name = "completed_without_signal", nullable = false,

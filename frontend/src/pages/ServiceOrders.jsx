@@ -11,6 +11,7 @@ import {
   confirmCompletion,
   concludeLegacy,
   linkPlate,
+  revertCompletion,
   getVehicleSignal,
   deleteServiceOrder,
   getServiceOrderAuditLog,
@@ -37,6 +38,7 @@ const ACTION_LABEL = {
   CRIADA: "Criada", EDITADA: "Editada", AGENDADA: "Agendada",
   APROVADA: "Aprovada", REPROVADA: "Reprovada", CONCLUIDA: "Concluída", EXCLUIDA: "Excluída",
   CONCLUIDA_LEGADO: "Concluída (Legado)",
+  CONCLUSAO_REVERTIDA: "Conclusão Revertida",
 };
 const ACTION_COLOR = {
   CRIADA:   "bg-blue-500/10 text-blue-400",
@@ -47,8 +49,9 @@ const ACTION_COLOR = {
   CONCLUIDA:"bg-teal-500/10 text-teal-400",
   EXCLUIDA: "bg-red-500/10 text-red-400",
   CONCLUIDA_LEGADO: "bg-zinc-500/10 text-zinc-400",
+  CONCLUSAO_REVERTIDA: "bg-orange-500/10 text-orange-400",
 };
-const AUDIT_ACTIONS = ["CRIADA", "EDITADA", "AGENDADA", "APROVADA", "REPROVADA", "CONCLUIDA", "CONCLUIDA_LEGADO", "EXCLUIDA"];
+const AUDIT_ACTIONS = ["CRIADA", "EDITADA", "AGENDADA", "APROVADA", "REPROVADA", "CONCLUIDA", "CONCLUIDA_LEGADO", "CONCLUSAO_REVERTIDA", "EXCLUIDA"];
 const SERVICE_TYPES       = ["INSTALACAO", "TROCA", "MANUTENCAO"];
 const SCHEDULING_STATUSES = ["ABERTO", "AGUARDANDO_APROVACAO", "AGENDADO", "CONCLUIDO"];
 
@@ -282,6 +285,8 @@ export default function ServiceOrders() {
   const [displacementModal, setDisplacementModal] = useState(null);
   const [legacyModalOpen, setLegacyModalOpen] = useState(false);
   const [linkPlateModalOpen, setLinkPlateModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [revertModalOpen, setRevertModalOpen] = useState(false);
   const [displacementDetailModal, setDisplacementDetailModal] = useState(false);
   const [cepLoading, setCepLoading]         = useState(false);
   const [searchText, setSearchText]         = useState("");
@@ -753,17 +758,44 @@ export default function ServiceOrders() {
   }
 
   async function handleDelete(o) {
-    if (!confirm(`Excluir OS de ${o.customerName || o.plate || "?"}? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir OS de ${o.customerName || o.plate || "?"}? Isso remove da listagem mas mantém o histórico.`)) return;
     try {
       await deleteServiceOrder(o.id);
       toast.success("OS excluída");
       setSelectedOrder(null);
       load();
-    } catch { toast.error("Erro ao excluir"); }
+    } catch (e) { toast.error(e?.message || "Erro ao excluir"); }
   }
 
+  async function handleDeleteConfirm() {
+    try {
+      await deleteServiceOrder(selectedOrder.id);
+      toast.success("OS excluída");
+      setDeleteModalOpen(false);
+      setSelectedOrder(null);
+      load();
+    } catch (e) {
+      toast.error(e?.message || "Erro ao excluir OS");
+    }
+  }
+
+  async function handleRevertConfirm() {
+    try {
+      await revertCompletion(selectedOrder.id);
+      toast.success("Conclusão revertida");
+      setRevertModalOpen(false);
+      setSelectedOrder(null);
+      load();
+    } catch (e) {
+      toast.error(e?.message || "Erro ao reverter conclusão");
+    }
+  }
+
+  // Backend agora exige ADMIN pra excluir (DELETE /{id} é
+  // @PreAuthorize hasRole('ADMIN')) — sem isso o ícone de lixeira
+  // apareceria pra FIELD/OPERATOR e sempre falharia com 403.
   function canDelete(o) {
-    return isField && !isTech &&
+    return isAdmin && !isTech &&
       o.requestedBy !== "PORTAL" &&
       !o.technician &&
       !o.scheduledDate &&
@@ -1240,10 +1272,24 @@ export default function ServiceOrders() {
                 </button>
               )}
 
+              {isAdmin && selectedOrder.schedulingStatus === "CONCLUIDO" && (
+                <button onClick={() => setRevertModalOpen(true)}
+                  className="rounded-xl border border-zinc-800 px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
+                  ↩️ Reverter Conclusão
+                </button>
+              )}
+
               {canDelete(selectedOrder) && (
                 <button onClick={() => handleDelete(selectedOrder)}
-                  className="rounded-lg p-2 text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10 ml-auto">
+                  className="rounded-lg p-2 text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-500/10">
                   <Trash2 size={14} />
+                </button>
+              )}
+
+              {isAdmin && (
+                <button onClick={() => setDeleteModalOpen(true)}
+                  className="rounded-xl border border-red-500/30 px-4 py-2 text-sm text-red-400/80 hover:bg-red-500/10 hover:text-red-400 ml-auto">
+                  🗑️ Excluir OS
                 </button>
               )}
             </div>
@@ -1319,6 +1365,50 @@ export default function ServiceOrders() {
                 Cancelar
               </button>
               <button onClick={handleConcludeLegacy}
+                className="rounded-xl bg-zinc-700 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-600">
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Excluir OS (ADMIN) */}
+      {deleteModalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-red-500/30 bg-zinc-950 p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-red-400">🗑️ Excluir OS</h2>
+            <p className="text-sm text-zinc-400">
+              Deseja excluir esta OS? Esta ação remove da listagem mas mantém o histórico.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteModalOpen(false)}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+                Cancelar
+              </button>
+              <button onClick={handleDeleteConfirm}
+                className="rounded-xl bg-red-600 px-5 py-2 text-sm font-semibold text-white hover:bg-red-500">
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reverter Conclusão (ADMIN) */}
+      {revertModalOpen && selectedOrder && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
+            <h2 className="text-lg font-semibold">↩️ Reverter Conclusão</h2>
+            <p className="text-sm text-zinc-400">
+              Esta OS voltará para o status Aberto. Técnico, agendamento e valores são mantidos.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setRevertModalOpen(false)}
+                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+                Cancelar
+              </button>
+              <button onClick={handleRevertConfirm}
                 className="rounded-xl bg-zinc-700 px-5 py-2 text-sm font-semibold text-white hover:bg-zinc-600">
                 Confirmar
               </button>

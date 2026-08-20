@@ -82,9 +82,17 @@ public class ServiceOrderController {
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable UUID id) {
-        service.delete(id);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> delete(@PathVariable UUID id, Authentication auth) {
+        service.delete(id, auth.getName());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/{id}/revert-completion")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> revertCompletion(@PathVariable UUID id, Authentication auth) {
+        service.revertCompletion(id, auth.getName());
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/audit-log")
