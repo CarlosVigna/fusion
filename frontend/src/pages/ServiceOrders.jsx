@@ -10,12 +10,14 @@ import {
   updateFinancialApproval,
   confirmCompletion,
   concludeLegacy,
+  linkPlate,
   getVehicleSignal,
   deleteServiceOrder,
   getServiceOrderAuditLog,
   getFullAuditLog,
 } from "../services/serviceOrderService";
 import { getTechnicians } from "../services/technicianService";
+import { searchActiveVehicles } from "../services/vehicleService";
 import { useAuthStore } from "../store/authStore";
 
 const STATUS_LABEL    = { ABERTO: "Aberto", AGUARDANDO_APROVACAO: "Aguard. Aprovação", AGENDADO: "Agendado", CONCLUIDO: "Concluído" };
@@ -128,6 +130,110 @@ function DrawerRow({ label, value, children }) {
   );
 }
 
+function LinkPlateModal({ order, onClose, onLinked }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [selectedPlate, setSelectedPlate] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const data = await searchActiveVehicles(q);
+        setResults(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  async function handleConfirm() {
+    if (!selectedPlate) { toast.error("Selecione uma placa"); return; }
+    setSaving(true);
+    try {
+      await linkPlate(order.id, selectedPlate);
+      toast.success("Placa vinculada");
+      onLinked();
+    } catch (err) {
+      toast.error(err?.message || "Erro ao vincular placa");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-950 p-6 space-y-4">
+
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">🔗 Vincular Placa</h2>
+          <button onClick={onClose}><X size={18} className="text-zinc-400" /></button>
+        </div>
+
+        <div className="space-y-1.5 rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-sm">
+          <div><span className="text-zinc-500">Cliente: </span><span className="font-medium">{order.customerName || "—"}</span></div>
+          <div><span className="text-zinc-500">Telefone: </span><span className="font-medium">{order.customerPhone || "—"}</span></div>
+          <div><span className="text-zinc-500">Endereço: </span><span className="font-medium">{[order.address, order.city, order.state].filter(Boolean).join(", ") || "—"}</span></div>
+          <div><span className="text-zinc-500">Equipamento: </span><span className="font-medium">{order.equipment || "—"}</span></div>
+          <div><span className="text-zinc-500">Data: </span><span className="font-medium">{order.requestedAt ? new Date(order.requestedAt).toLocaleDateString("pt-BR") : "—"}</span></div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-zinc-500">Buscar placa</label>
+          <input
+            value={query}
+            onChange={(e) => { setQuery(e.target.value.toUpperCase()); setSelectedPlate(""); }}
+            placeholder="Digite ao menos 2 caracteres"
+            className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:outline-none"
+          />
+        </div>
+
+        {searching && <p className="text-xs text-zinc-500">Buscando...</p>}
+
+        {!searching && results.length > 0 && (
+          <div className="max-h-40 space-y-1 overflow-y-auto">
+            {results.map((v) => (
+              <button
+                key={v.plate}
+                onClick={() => setSelectedPlate(v.plate)}
+                className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm transition ${
+                  selectedPlate === v.plate ? "border-white bg-zinc-800" : "border-zinc-800 hover:bg-zinc-900"
+                }`}
+              >
+                <span className="font-mono font-semibold">{v.plate}</span>
+                <span className="text-xs text-zinc-500">{v.insuredName || "—"}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {!searching && query.trim().length >= 2 && results.length === 0 && (
+          <p className="text-xs text-zinc-500">Nenhum veículo ativo encontrado</p>
+        )}
+
+        <div className="flex justify-end gap-3">
+          <button onClick={onClose}
+            className="rounded-xl border border-zinc-700 px-4 py-2 text-sm hover:bg-zinc-900">
+            Cancelar
+          </button>
+          <button onClick={handleConfirm} disabled={!selectedPlate || saving}
+            className="rounded-xl bg-white px-5 py-2 text-sm font-semibold text-black hover:bg-zinc-200 disabled:opacity-40">
+            {saving ? "Vinculando..." : "Vincular Placa"}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 async function fetchCep(cep) {
   const clean = cep.replace(/\D/g, "");
   if (clean.length !== 8) return null;
@@ -175,6 +281,7 @@ export default function ServiceOrders() {
   const [confirmModal, setConfirmModal] = useState(null);
   const [displacementModal, setDisplacementModal] = useState(null);
   const [legacyModalOpen, setLegacyModalOpen] = useState(false);
+  const [linkPlateModalOpen, setLinkPlateModalOpen] = useState(false);
   const [displacementDetailModal, setDisplacementDetailModal] = useState(false);
   const [cepLoading, setCepLoading]         = useState(false);
   const [searchText, setSearchText]         = useState("");
@@ -639,6 +746,12 @@ export default function ServiceOrders() {
     }
   }
 
+  function handlePlateLinked() {
+    setLinkPlateModalOpen(false);
+    setSelectedOrder(null);
+    load();
+  }
+
   async function handleDelete(o) {
     if (!confirm(`Excluir OS de ${o.customerName || o.plate || "?"}? Esta ação não pode ser desfeita.`)) return;
     try {
@@ -928,6 +1041,11 @@ export default function ServiceOrders() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <span className="font-mono text-xl font-bold">{selectedOrder.plate || "Sem placa"}</span>
                   <Badge label={STATUS_LABEL[selectedOrder.schedulingStatus]} colorClass={STATUS_COLOR[selectedOrder.schedulingStatus]} />
+                  {!selectedOrder.plate && (
+                    <span className="text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-full px-2 py-0.5">
+                      ⚠️ Aguardando placa
+                    </span>
+                  )}
                   {selectedOrder.late && <span className="text-xs text-red-400 font-semibold">⚠ Atrasada</span>}
                   {selectedOrder.completedWithoutSignal && (
                     <span className="text-xs bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded-full px-2 py-0.5">
@@ -1104,10 +1222,20 @@ export default function ServiceOrders() {
                 </button>
               )}
 
-              {isAdmin && selectedOrder.schedulingStatus === "ABERTO" && !selectedOrder.technician && (
+              {isAdmin &&
+               selectedOrder.schedulingStatus === "ABERTO" &&
+               !selectedOrder.technician &&
+               selectedOrder.plate && (
                 <button onClick={() => setLegacyModalOpen(true)}
                   className="rounded-xl border border-zinc-800 px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300">
                   🗂️ Concluir como Legado
+                </button>
+              )}
+
+              {canEdit(selectedOrder) && !selectedOrder.plate && (
+                <button onClick={() => setLinkPlateModalOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-400 hover:bg-yellow-500/20">
+                  🔗 Vincular Placa
                 </button>
               )}
 
@@ -1163,6 +1291,15 @@ export default function ServiceOrders() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Vincular Placa (OS sem placa) */}
+      {linkPlateModalOpen && selectedOrder && (
+        <LinkPlateModal
+          order={selectedOrder}
+          onClose={() => setLinkPlateModalOpen(false)}
+          onLinked={handlePlateLinked}
+        />
       )}
 
       {/* Concluir como Legado (ADMIN) */}

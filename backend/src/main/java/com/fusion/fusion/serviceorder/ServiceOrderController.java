@@ -64,6 +64,11 @@ public class ServiceOrderController {
         return service.confirmCompletion(id);
     }
 
+    @PutMapping("/{id}/link-plate")
+    public ServiceOrderResponse linkPlate(@PathVariable UUID id, @RequestBody LinkPlateRequest request) {
+        return service.linkPlate(id, request.plate());
+    }
+
     @PostMapping("/{id}/conclude-legacy")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> concludeLegacy(@PathVariable UUID id, Authentication auth) {

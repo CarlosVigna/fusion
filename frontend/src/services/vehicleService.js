@@ -14,6 +14,14 @@ export async function getVehicleByPlate(
   );
 }
 
+export async function searchActiveVehicles(
+  plate
+) {
+  return apiClient.get(
+    `/vehicles?plate=${encodeURIComponent(plate)}&active=true`
+  );
+}
+
 export async function getVehicleDetail(
   plate
 ) {

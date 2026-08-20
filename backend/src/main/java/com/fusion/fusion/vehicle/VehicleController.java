@@ -35,9 +35,12 @@ public class VehicleController {
     }
 
     @GetMapping
-    public List<VehicleResponse> findAll() {
+    public List<VehicleResponse> findAll(
+            @RequestParam(required = false) String plate,
+            @RequestParam(required = false) Boolean active
+    ) {
 
-        return service.findAll();
+        return service.findAll(plate, active);
 
     }
 

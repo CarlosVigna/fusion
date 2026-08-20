@@ -32,6 +32,10 @@ export async function concludeLegacy(id) {
   return apiClient.post(`/service-orders/${id}/conclude-legacy`, {});
 }
 
+export async function linkPlate(id, plate) {
+  return apiClient.put(`/service-orders/${id}/link-plate`, { plate });
+}
+
 export async function getVehicleSignal(id) {
   return apiClient.get(`/service-orders/${id}/vehicle-signal`);
 }

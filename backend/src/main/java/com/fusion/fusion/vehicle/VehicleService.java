@@ -77,13 +77,31 @@ public class VehicleService {
 
     }
 
-    public List<VehicleResponse> findAll() {
+    public List<VehicleResponse> findAll(
+            String plate,
+            Boolean active
+    ) {
+
+        String normalizedPlate = plate != null && !plate.isBlank()
+                ? normalizePlate(plate)
+                : null;
 
         return repository.findAll()
                 .stream()
 
                 .filter(vehicle ->
                         vehicle.getDeletedAt() == null
+                )
+
+                .filter(vehicle ->
+                        active == null
+                                || active.equals(vehicle.getActive())
+                )
+
+                .filter(vehicle ->
+                        normalizedPlate == null
+                                || (vehicle.getPlate() != null
+                                        && vehicle.getPlate().toUpperCase().contains(normalizedPlate))
                 )
 
                 .map(this::mapToResponse)

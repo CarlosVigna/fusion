@@ -7,6 +7,7 @@ import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLog;
 import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLogRepository;
 import com.fusion.fusion.technician.Technician;
 import com.fusion.fusion.technician.TechnicianService;
+import com.fusion.fusion.vehicle.PlateNormalizer;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
@@ -424,6 +425,36 @@ public class ServiceOrderService {
         return saved;
     }
 
+    // OS de instalacao as vezes chega/e' criada sem placa (ex: portal ainda
+    // nao tinha o dado no momento). So permite vincular enquanto a OS
+    // ainda esta' ABERTO — depois de agendada/concluida a placa devia vir
+    // de outro fluxo (edicao normal), nao desse atalho.
+    @Transactional
+    public ServiceOrderResponse linkPlate(UUID id, String plate) {
+        ServiceOrder so = find(id);
+
+        if (so.getSchedulingStatus() != SchedulingStatus.ABERTO) {
+            throw new BusinessException("Só é possível vincular placa a uma OS aberta");
+        }
+
+        if (plate == null || plate.isBlank()) {
+            throw new BusinessException("Informe uma placa");
+        }
+
+        String normalizedPlate = PlateNormalizer.normalize(plate);
+
+        Vehicle vehicle = vehicleRepository.findByPlate(normalizedPlate)
+                .filter(v -> v.getDeletedAt() == null)
+                .orElseThrow(() -> new BusinessException("Placa não encontrada no cadastro de veículos"));
+
+        String oldPlate = so.getPlate();
+        so.setPlate(vehicle.getPlate());
+
+        ServiceOrderResponse saved = toResponse(repository.save(so));
+        audit(so, "PLACA_VINCULADA", "plate", oldPlate != null && !oldPlate.isBlank() ? oldPlate : "—", so.getPlate());
+        return saved;
+    }
+
     // Pra instalacoes feitas antes do Fusion existir — nao ha tecnico/
     // agendamento pra passar pelo fluxo normal de confirmCompletion(), mas
     // precisa constar como concluida. So permitido quando ainda nao entrou
@@ -435,6 +466,10 @@ public class ServiceOrderService {
 
         if (so.getSchedulingStatus() != SchedulingStatus.ABERTO || so.getTechnician() != null) {
             throw new BusinessException("Só é possível concluir como legado uma OS aberta e sem técnico atribuído");
+        }
+
+        if (so.getPlate() == null || so.getPlate().isBlank()) {
+            throw new BusinessException("OS sem placa — vincule uma placa antes de concluir");
         }
 
         if (!checkVehicleSignal(so.getPlate())) {
