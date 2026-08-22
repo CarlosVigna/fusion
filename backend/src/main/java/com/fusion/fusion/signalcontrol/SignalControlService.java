@@ -252,7 +252,7 @@ public class SignalControlService {
 
         Map<String, Policy> result = new HashMap<>();
 
-        for (Policy policy : policyRepository.findAll()) {
+        for (Policy policy : policyRepository.findAllActive()) {
 
             if (policy.getPlate() == null) continue;
 
@@ -349,10 +349,23 @@ public class SignalControlService {
 
                 activePolicy != null ? activePolicy.getEndDate() : null,
 
-                activePolicy != null ? activePolicy.getStatusDescricao() : null
+                activePolicy != null ? translateStatus(PolicyResponse.computeStatus(activePolicy)) : null
 
         );
 
+    }
+
+    private String translateStatus(PolicyStatus status) {
+        return switch (status) {
+            case ACTIVE -> "Apólice vigente";
+            case EXPIRING -> "Vencendo em breve";
+            case EXPIRED -> "Apólice vencida";
+            case CANCELLED -> "Apólice cancelada";
+            case CLOSED -> "Apólice encerrada";
+            case FUTURE -> "Apólice futura";
+            case SUPERSEDED -> "Apólice substituída";
+            default -> "Status desconhecido";
+        };
     }
 
 }
