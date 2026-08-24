@@ -1,6 +1,7 @@
 package com.fusion.fusion.whatsapp;
 
 import com.fusion.fusion.installation.Installation;
+import com.fusion.fusion.vehicle.Vehicle;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +10,11 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
 
 @Slf4j
@@ -29,6 +35,12 @@ public class WhatsAppService {
 
     @Value("${evolution.whatsapp.number}")
     private String number;
+
+    private static final DateTimeFormatter DATETIME_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+    private static final DateTimeFormatter DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     public void sendText(String to, String text) {
 
@@ -198,6 +210,49 @@ public class WhatsAppService {
                 totalValue      != null ? totalValue.toPlainString()      : "0.00"
         );
         sendText(number, text);
+    }
+
+    // lastCommunicationAt/letterDate nao entram no signature pedido
+    // originalmente (so Vehicle/daysOffline/hasLetter) — sem eles nao da
+    // pra montar "Última comunicação"/"Carta emitida em", que o template
+    // exige. Seguindo o padrao ja usado pelos outros metodos aqui (o
+    // chamador manda os dados prontos, este servico so formata texto).
+    @Async
+    public void sendSignalReturnedAlert(
+            Vehicle vehicle,
+            int daysOffline,
+            boolean hasLetter,
+            LocalDateTime lastCommunicationAt,
+            LocalDate letterDate
+    ) {
+
+        StringBuilder sb = new StringBuilder(
+                hasLetter
+                        ? "📬 *SINAL RETORNADO — CARTA EMITIDA*"
+                        : "📡 *SINAL RETORNADO*"
+        );
+
+        appendLine(sb, "PLACA", vehicle.getPlate());
+        appendLine(sb, "SEGURADO", vehicle.getInsuredName());
+        appendLine(sb, "Estava sem sinal há", daysOffline + " dias");
+
+        if (hasLetter && letterDate != null) {
+            appendLine(sb, "Carta emitida em", letterDate.format(DATE_FORMATTER));
+        }
+
+        if (lastCommunicationAt != null) {
+            appendLine(
+                    sb,
+                    "Última comunicação",
+                    lastCommunicationAt
+                            .atZone(ZoneOffset.UTC)
+                            .withZoneSameInstant(ZoneId.of("America/Sao_Paulo"))
+                            .format(DATETIME_FORMATTER)
+            );
+        }
+
+        sendText(number, sb.toString());
+
     }
 
     private String nullSafe(String value) {

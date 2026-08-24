@@ -1,5 +1,8 @@
 package com.fusion.fusion.operational.engine;
 
+import com.fusion.fusion.letter.LetterRecord;
+import com.fusion.fusion.letter.LetterRecordRepository;
+import com.fusion.fusion.letter.LetterStatus;
 import com.fusion.fusion.observation.VehicleObservation;
 import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.detector.LowBatteryDetector;
@@ -8,11 +11,13 @@ import com.fusion.fusion.operational.detector.StaleUpdateDetector;
 import com.fusion.fusion.operational.rules.OperationalRulesService;
 import com.fusion.fusion.signalcontrol.SignalReturnAlertService;
 import com.fusion.fusion.stock.TechnicianStockService;
+import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import com.fusion.fusion.vehicle.operational.CommunicationStatus;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
+import com.fusion.fusion.whatsapp.WhatsAppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +67,12 @@ public class OperationalStateEngineService {
     private final TechnicianStockService
             technicianStockService;
 
+    private final LetterRecordRepository
+            letterRecordRepository;
+
+    private final WhatsAppService
+            whatsAppService;
+
     // Spring nao aplica @Transactional em chamadas diretas this.method()
     // (bypassa o proxy AOP). Self-injection via @Lazy garante que
     // processSingle() seja chamado pelo proxy e receba REQUIRES_NEW.
@@ -70,6 +81,14 @@ public class OperationalStateEngineService {
     private OperationalStateEngineService self;
 
     private static final int SIGNAL_RETURN_THRESHOLD_MINUTES = 2880;
+
+    // Limiar do alerta de WhatsApp — mais estrito que SIGNAL_RETURN_
+    // THRESHOLD_MINUTES acima (que so cria o alerta da tela, a partir de
+    // 48h). Aqui e' 3 dias sem sinal (>= 4320min) voltando a comunicar
+    // ha menos de 24h (< 1440min) — evita notificar o time por oscilacao
+    // curta, so por ausencias longas de verdade.
+    private static final int WHATSAPP_SIGNAL_RETURN_PREVIOUS_THRESHOLD_MINUTES = 4320;
+    private static final int WHATSAPP_SIGNAL_RETURN_CURRENT_THRESHOLD_MINUTES = 1440;
 
     // Carrega todos os dados necessarios na sessao readOnly e delega
     // cada veiculo a processSingle() via proxy (REQUIRES_NEW = conn propria).
@@ -188,6 +207,11 @@ public class OperationalStateEngineService {
                 lastObservation
         );
 
+        notifySignalReturnedWhatsApp(
+                state,
+                previousDelayMinutes
+        );
+
     }
 
     // Se o dispositivo ativo do veiculo tem IMEI cadastrado no estoque
@@ -248,6 +272,46 @@ public class OperationalStateEngineService {
         signalReturnAlertService.create(
                 state.getVehicle(),
                 previousDelayMinutes
+        );
+
+    }
+
+    // Notifica via WhatsApp quando o veiculo ficou 3+ dias sem sinal e
+    // acabou de voltar a comunicar ha menos de 24h. LetterStatus nao tem
+    // valor EMITIDA — ATIVA e' o status real usado pra "carta emitida e
+    // ainda em aberto" no resto do sistema (ver LetterRecord/LetterStatus),
+    // entao e' o que usamos aqui pra decidir hasLetter.
+    private void notifySignalReturnedWhatsApp(
+            VehicleOperationalState state,
+            Integer previousDelayMinutes
+    ) {
+
+        boolean wasLongOffline =
+                previousDelayMinutes != null
+                        && previousDelayMinutes >= WHATSAPP_SIGNAL_RETURN_PREVIOUS_THRESHOLD_MINUTES;
+
+        boolean nowOnline =
+                state.getSignalDelayMinutes() != null
+                        && state.getSignalDelayMinutes() < WHATSAPP_SIGNAL_RETURN_CURRENT_THRESHOLD_MINUTES;
+
+        if (!wasLongOffline || !nowOnline || state.getVehicle() == null) {
+            return;
+        }
+
+        Vehicle vehicle = state.getVehicle();
+
+        LetterRecord letter = letterRecordRepository
+                .findTopByVehicleAndStatusOrderByCreatedAtDesc(vehicle, LetterStatus.ATIVA)
+                .orElse(null);
+
+        int daysOffline = previousDelayMinutes / (24 * 60);
+
+        whatsAppService.sendSignalReturnedAlert(
+                vehicle,
+                daysOffline,
+                letter != null,
+                state.getLastCommunicationAt(),
+                letter != null ? letter.getDataEnvio() : null
         );
 
     }

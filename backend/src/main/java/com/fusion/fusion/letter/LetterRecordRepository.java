@@ -29,4 +29,9 @@ public interface LetterRecordRepository
 
     List<LetterRecord> findByVehicleOrderByDataEnvioDesc(Vehicle vehicle);
 
+    Optional<LetterRecord> findTopByVehicleAndStatusOrderByCreatedAtDesc(
+            Vehicle vehicle,
+            LetterStatus status
+    );
+
 }
