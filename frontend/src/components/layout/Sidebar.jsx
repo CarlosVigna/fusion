@@ -52,6 +52,8 @@ import { getPendingConfirmations } from "../../services/stockService";
 
 import { getOverdueMaintenanceRecords } from "../../services/maintenanceService";
 
+import { getLettersPendingBaixa } from "../../services/letterService";
+
 import { FusionLogo } from "../../assets/FusionLogo";
 
 const GROUPS = [
@@ -83,7 +85,7 @@ const GROUPS = [
         icon: Bell,
         items: [
             { label: "Controle de Sinais",  icon: Radio,  path: "/signal-control", badgeKey: "signalControl" },
-            { label: "Cartas de Suspensão", icon: Mail,   path: "/letters" },
+            { label: "Cartas de Suspensão", icon: Mail,   path: "/letters", badgeKey: "lettersPending" },
             { label: "Manutenções",         icon: Wrench, path: "/maintenance", badgeKey: "maintenanceOverdue" },
         ],
     },
@@ -169,6 +171,8 @@ export default function Sidebar() {
 
     const [maintenanceOverdueCount, setMaintenanceOverdueCount] = useState(0);
 
+    const [lettersPendingCount, setLettersPendingCount] = useState(0);
+
     const prevInstallationsCountRef = useRef(null);
 
     const [collapsedGroups, setCollapsedGroups] = useState(loadGroupState);
@@ -218,6 +222,24 @@ export default function Sidebar() {
 
         loadMaintenanceOverdueCount();
         const interval = setInterval(loadMaintenanceOverdueCount, POLL_INTERVAL_MS);
+        return () => clearInterval(interval);
+
+    }, [isFieldOrTech]);
+
+    useEffect(() => {
+        if (isFieldOrTech) return;
+
+        async function loadLettersPendingCount() {
+            try {
+                const data = await getLettersPendingBaixa();
+                setLettersPendingCount(Array.isArray(data) ? data.length : 0);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        loadLettersPendingCount();
+        const interval = setInterval(loadLettersPendingCount, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
 
     }, [isFieldOrTech]);
@@ -323,6 +345,7 @@ export default function Sidebar() {
         policyAlerts: policyAlertsCount,
         stockPending: stockPendingCount,
         maintenanceOverdue: maintenanceOverdueCount,
+        lettersPending: lettersPendingCount,
     };
 
     // Filtra grupos e itens conforme o perfil do usuário
