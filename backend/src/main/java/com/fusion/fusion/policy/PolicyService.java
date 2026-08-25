@@ -213,6 +213,84 @@ public class PolicyService {
 
     }
 
+    // v1 confirmado ao vivo: o primeiro item de "content" ja traz cidade,
+    // estado e cep_pernoite direto — sem precisar de getProtocolo nem
+    // viacep (v2 nao existe, ver checkV2ProtocolosEndpoint()). 1 token
+    // reusado pras 74 chamadas em vez de reautenticar por placa; falha
+    // numa placa so pula ela (nao para o lote inteiro).
+    public Map<String, Object> buscarCepApolices(List<String> plates) {
+
+        if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Credenciais do portal parceiro não configuradas " +
+                    "(portal.parceiro.client-id / portal.parceiro.client-secret)"
+            );
+        }
+
+        String token = getPortalToken();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+
+        List<Map<String, Object>> found = new ArrayList<>();
+        List<String> notFound = new ArrayList<>();
+
+        for (String plate : plates) {
+
+            try {
+
+                String url = portalUrl
+                        + "/seguro/auto/v1/protocolos/apolices"
+                        + "?pesquisa=" + plate.toUpperCase()
+                        + "&page=0&size=5";
+
+                ResponseEntity<Object> response = restTemplate.exchange(
+                        url, HttpMethod.GET, new HttpEntity<>(headers), Object.class
+                );
+
+                List<Map<String, Object>> content = extractItems(response.getBody());
+
+                if (content.isEmpty()) {
+                    notFound.add(plate);
+                    continue;
+                }
+
+                Map<String, Object> first = content.get(0);
+
+                Object cidade = first.get("cidade");
+                Object estado = first.get("estado");
+                Object cepPernoite = first.get("cep_pernoite");
+
+                if (cidade == null && estado == null && cepPernoite == null) {
+                    notFound.add(plate);
+                    continue;
+                }
+
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("plate", plate);
+                row.put("city", cidade);
+                row.put("state", estado);
+                row.put("cep", cepPernoite);
+                found.add(row);
+
+            } catch (Exception e) {
+
+                log.warn("[BUSCAR-CEP] Falha ao buscar apólice da placa {}: {}", plate, e.getMessage());
+                notFound.add(plate);
+
+            }
+
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("found", found);
+        result.put("notFound", notFound);
+        result.put("total", plates.size());
+        result.put("totalFound", found.size());
+        return result;
+
+    }
+
     // Diagnostico pontual — confirmar se /seguro/auto/v2/protocolos/apolices
     // existe de verdade no portal antes de construir o endpoint
     // /setup/buscar-cep-apolices em cima dele. So dispara o primeiro

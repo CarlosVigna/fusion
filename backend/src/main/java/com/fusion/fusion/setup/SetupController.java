@@ -276,6 +276,16 @@ public class SetupController {
         return policyService.checkV1ProtocolosEndpointRaw(plate);
     }
 
+    // Mesma lista de placas de /setup/plates-location (PLATES_TO_LOCATE)
+    // — dessa vez resolvendo cidade/estado/CEP direto pelo portal
+    // parceiro (v1 protocolos/apolices ja traz cidade/estado/
+    // cep_pernoite no primeiro resultado, confirmado ao vivo) em vez de
+    // pelas tabelas locais.
+    @GetMapping("/buscar-cep-apolices")
+    public Map<String, Object> buscarCepApolices() {
+        return policyService.buscarCepApolices(PLATES_TO_LOCATE);
+    }
+
     // Chama scheduledSync() diretamente (nao syncFromPortal()) pra
     // reproduzir exatamente o que o cron faz, inclusive o try-catch que
     // engole exceptions — se o problema for algo que so aparece por essa
