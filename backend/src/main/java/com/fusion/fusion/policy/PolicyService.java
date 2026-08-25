@@ -239,14 +239,27 @@ public class PolicyService {
 
             try {
 
+                // inicio/fim adicionados de volta — sem eles o portal
+                // devolve "content" vazio pra toda placa (confirmado ao
+                // vivo: com so pesquisa/page/size, totalFound saia 0 pras
+                // 74 placas, incluindo TAP2C19 que tem apolice real).
+                // Mesmos valores fixos ja usados em fetchFromPortal() e
+                // no teste manual que funcionou (check-portal-v1-endpoint-raw).
                 String url = portalUrl
                         + "/seguro/auto/v1/protocolos/apolices"
                         + "?pesquisa=" + plate.toUpperCase()
-                        + "&page=0&size=5";
+                        + "&inicio=01/01/2017&fim=31/12/2030&page=0&size=5";
+
+                log.info("[BUSCAR-CEP] URL: {}", url);
 
                 ResponseEntity<Object> response = restTemplate.exchange(
                         url, HttpMethod.GET, new HttpEntity<>(headers), Object.class
                 );
+
+                log.info("[BUSCAR-CEP] Status: {}", response.getStatusCode());
+
+                String bodyStr = String.valueOf(response.getBody());
+                log.info("[BUSCAR-CEP] Body: {}", bodyStr.substring(0, Math.min(200, bodyStr.length())));
 
                 List<Map<String, Object>> content = extractItems(response.getBody());
 
