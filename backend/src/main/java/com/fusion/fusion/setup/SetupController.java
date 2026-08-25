@@ -151,6 +151,107 @@ public class SetupController {
 
     }
 
+    private static final List<String> PLATES_TO_LOCATE = List.of(
+            "TAP2C19","TQU9E05","SII1I58","PCZ8923","JCN0H41","FFM0533","SJA4F28","SNM6H78","IZE5G56","PWI1I33",
+            "RZV3A73","BEC6H32","UHJ0J32","IPM5D84","SJB9J37","ECQ3E25","IXT7I26","RZM9J45","RUB2C73","SOX2I19",
+            "BCY0H12","LTK6I71","SPB4B48","RND7C82","QYI6D47","FQE3A32","QNZ8D09","AZN8438","SPB7G51","SUI7J11",
+            "QOT6C47","ORS0I80","PCX6619","EJG0I65","BCX1011","QYL1D28","QYS2B16","JBW7H69","RZL4F12","PCE3B86",
+            "SFB9B59","BDK9B15","QYO9J19","SNX7J60","FKO4H64","RZO4B55","RPW1H86","PCO1565","GXF9E01","PGF3212",
+            "PVV8H48","PGY0266","DTA1G77","FKY5C72","FRT6789","AYW2J34","SOY0B11","THS4J05","SEE4J29","SCF4J62",
+            "RGV8H21","RTU9E00","RFQ1E88","SIR7A26","RZU3F32","QYM5I87","SPA7J26","QNB0C22","PGY3G49","PRH3J98",
+            "PDU8J85","GDI4977","GHI1010","GHI1414"
+    );
+
+    // Cruza service_orders e installations (as duas unicas tabelas com
+    // city/state — Policy/Vehicle nao tem, ver investigacao anterior) e
+    // fica com a linha mais recente entre as duas por placa. Cada tabela
+    // ja usa DISTINCT ON (plate) + city IS NOT NULL pra pegar so' a
+    // ocorrencia mais recente com endereco preenchido daquela tabela;
+    // o merge abaixo decide qual das duas (se as duas existirem) e' mais
+    // recente de fato.
+    @GetMapping("/plates-location")
+    public Map<String, Object> platesLocation() {
+
+        MapSqlParameterSource params = new MapSqlParameterSource("plates", PLATES_TO_LOCATE);
+
+        List<Map<String, Object>> fromServiceOrders = jdbcTemplate.query("""
+                SELECT DISTINCT ON (plate) plate, city, state, zip_code, created_at
+                FROM service_orders
+                WHERE plate IN (:plates)
+                AND city IS NOT NULL
+                ORDER BY plate, created_at DESC
+                """, params, this::mapLocationRow);
+        fromServiceOrders.forEach(row -> row.put("source", "service_orders"));
+
+        List<Map<String, Object>> fromInstallations = jdbcTemplate.query("""
+                SELECT DISTINCT ON (plate) plate, city, state, zip_code, created_at
+                FROM installations
+                WHERE plate IN (:plates)
+                AND city IS NOT NULL
+                ORDER BY plate, created_at DESC
+                """, params, this::mapLocationRow);
+        fromInstallations.forEach(row -> row.put("source", "installations"));
+
+        Map<String, Map<String, Object>> bestByPlate = new LinkedHashMap<>();
+
+        for (Map<String, Object> row : fromServiceOrders) {
+            bestByPlate.put((String) row.get("plate"), row);
+        }
+
+        for (Map<String, Object> row : fromInstallations) {
+            String plate = (String) row.get("plate");
+            Map<String, Object> existing = bestByPlate.get(plate);
+            if (existing == null || isMoreRecent(row, existing)) {
+                bestByPlate.put(plate, row);
+            }
+        }
+
+        List<Map<String, Object>> found = PLATES_TO_LOCATE.stream()
+                .filter(bestByPlate::containsKey)
+                .map(plate -> {
+                    Map<String, Object> row = bestByPlate.get(plate);
+                    Map<String, Object> result = new LinkedHashMap<>();
+                    result.put("plate", plate);
+                    result.put("city", row.get("city"));
+                    result.put("state", row.get("state"));
+                    result.put("zipCode", row.get("zip_code"));
+                    result.put("source", row.get("source"));
+                    return result;
+                })
+                .toList();
+
+        List<String> notFound = PLATES_TO_LOCATE.stream()
+                .filter(p -> !bestByPlate.containsKey(p))
+                .toList();
+
+        return Map.of(
+                "found", found,
+                "notFound", notFound,
+                "totalRequested", PLATES_TO_LOCATE.size(),
+                "totalFound", found.size()
+        );
+
+    }
+
+    private Map<String, Object> mapLocationRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("plate", rs.getString("plate"));
+        row.put("city", rs.getString("city"));
+        row.put("state", rs.getString("state"));
+        row.put("zip_code", rs.getString("zip_code"));
+        java.sql.Timestamp createdAt = rs.getTimestamp("created_at");
+        row.put("created_at", createdAt != null ? createdAt.toLocalDateTime() : null);
+        return row;
+    }
+
+    private boolean isMoreRecent(Map<String, Object> candidate, Map<String, Object> current) {
+        LocalDateTime candidateAt = (LocalDateTime) candidate.get("created_at");
+        LocalDateTime currentAt = (LocalDateTime) current.get("created_at");
+        if (candidateAt == null) return false;
+        if (currentAt == null) return true;
+        return candidateAt.isAfter(currentAt);
+    }
+
     // Chama scheduledSync() diretamente (nao syncFromPortal()) pra
     // reproduzir exatamente o que o cron faz, inclusive o try-catch que
     // engole exceptions — se o problema for algo que so aparece por essa
