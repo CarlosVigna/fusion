@@ -23,6 +23,7 @@ import com.fusion.fusion.policy.Policy;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
 import com.fusion.fusion.policy.PolicyRepository;
 import com.fusion.fusion.policy.PolicyResponse;
+import com.fusion.fusion.policy.PolicyService;
 import com.fusion.fusion.policy.PolicyStatus;
 import com.fusion.fusion.signalcontrol.SignalControlService;
 import com.fusion.fusion.vehicle.PlateValidator;
@@ -252,6 +253,18 @@ public class SetupController {
         return candidateAt.isAfter(currentAt);
     }
 
+    // Diagnostico pontual — verificar se /seguro/auto/v2/protocolos/apolices
+    // existe de verdade no portal parceiro (com as credenciais reais,
+    // ja configuradas em producao) antes de construir
+    // /setup/buscar-cep-apolices em cima dele. Plate default e' a
+    // primeira da lista fornecida no pedido de buscar-cep-apolices.
+    @GetMapping("/check-portal-v2-endpoint")
+    public Map<String, Object> checkPortalV2Endpoint(
+            @RequestParam(defaultValue = "TAP2C19") String plate
+    ) {
+        return policyService.checkV2ProtocolosEndpoint(plate);
+    }
+
     // Chama scheduledSync() diretamente (nao syncFromPortal()) pra
     // reproduzir exatamente o que o cron faz, inclusive o try-catch que
     // engole exceptions — se o problema for algo que so aparece por essa
@@ -412,6 +425,7 @@ public class SetupController {
     private final VehicleObservationService vehicleObservationService;
     private final LetterRecordRepository letterRecordRepository;
     private final PolicyRepository policyRepository;
+    private final PolicyService policyService;
     private final SignalControlService signalControlService;
     private final InstallationRepository installationRepository;
     private final ServiceOrderService serviceOrderService;

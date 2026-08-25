@@ -213,6 +213,64 @@ public class PolicyService {
 
     }
 
+    // Diagnostico pontual — confirmar se /seguro/auto/v2/protocolos/apolices
+    // existe de verdade no portal antes de construir o endpoint
+    // /setup/buscar-cep-apolices em cima dele. So dispara o primeiro
+    // passo do fluxo pedido (a busca por protocolos); nao segue pra
+    // getProtocolo/viacep ainda — e' so pra ver a forma da resposta.
+    public Map<String, Object> checkV2ProtocolosEndpoint(String plate) {
+
+        if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Credenciais do portal parceiro não configuradas " +
+                    "(portal.parceiro.client-id / portal.parceiro.client-secret)"
+            );
+        }
+
+        String token = getPortalToken();
+
+        HttpHeaders getHeaders = new HttpHeaders();
+        getHeaders.setBearerAuth(token);
+
+        String url = portalUrl
+                + "/seguro/auto/v2/protocolos/apolices"
+                + "?pesquisa=" + plate.toUpperCase()
+                + "&page=0&size=5";
+
+        log.info("[POLICY-V2-CHECK] GET {}", url);
+
+        try {
+
+            ResponseEntity<Object> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(getHeaders),
+                    Object.class
+            );
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", response.getStatusCode().toString());
+            result.put("body", response.getBody());
+            return result;
+
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", e.getStatusCode().toString());
+            result.put("error", e.getResponseBodyAsString());
+            return result;
+
+        } catch (Exception e) {
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "ERROR");
+            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            return result;
+
+        }
+
+    }
+
     public EtlPolicyResult fetchFromPortal(String plate) {
 
         if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
