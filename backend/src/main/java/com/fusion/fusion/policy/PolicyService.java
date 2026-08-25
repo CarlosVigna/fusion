@@ -271,6 +271,65 @@ public class PolicyService {
 
     }
 
+    // Diagnostico pontual — v2 nao existe (confirmado: 404 puro do
+    // Tomcat do portal). Antes de adaptar buscar-cep-apolices pro v1
+    // (que fetchFromPortal() ja usa e comprovadamente funciona), ver a
+    // resposta CRUA e completa dele — fetchFromPortal() ja extrai so um
+    // subconjunto de campos pro EtlPolicyResult, entao um campo de
+    // endereco/CEP que exista ali ficaria escondido nesse recorte.
+    public Map<String, Object> checkV1ProtocolosEndpointRaw(String plate) {
+
+        if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Credenciais do portal parceiro não configuradas " +
+                    "(portal.parceiro.client-id / portal.parceiro.client-secret)"
+            );
+        }
+
+        String token = getPortalToken();
+
+        HttpHeaders getHeaders = new HttpHeaders();
+        getHeaders.setBearerAuth(token);
+
+        String url = portalUrl
+                + "/seguro/auto/v1/protocolos/apolices"
+                + "?pesquisa=" + plate.toUpperCase()
+                + "&inicio=01/01/2017&fim=31/12/2030&page=0&size=5";
+
+        log.info("[POLICY-V1-RAW-CHECK] GET {}", url);
+
+        try {
+
+            ResponseEntity<Object> response = restTemplate.exchange(
+                    url,
+                    HttpMethod.GET,
+                    new HttpEntity<>(getHeaders),
+                    Object.class
+            );
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", response.getStatusCode().toString());
+            result.put("body", response.getBody());
+            return result;
+
+        } catch (org.springframework.web.client.HttpStatusCodeException e) {
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", e.getStatusCode().toString());
+            result.put("error", e.getResponseBodyAsString());
+            return result;
+
+        } catch (Exception e) {
+
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("status", "ERROR");
+            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+            return result;
+
+        }
+
+    }
+
     public EtlPolicyResult fetchFromPortal(String plate) {
 
         if (portalClientId.isBlank() || portalClientSecret.isBlank()) {

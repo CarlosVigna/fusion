@@ -265,6 +265,17 @@ public class SetupController {
         return policyService.checkV2ProtocolosEndpoint(plate);
     }
 
+    // v2 confirmado inexistente (404 do Tomcat do portal) — ver resposta
+    // crua do v1 (que fetchFromPortal() ja usa) antes de adaptar
+    // buscar-cep-apolices pra ele, procurando algum campo de
+    // endereco/CEP que a extracao atual de fetchFromPortal() descarta.
+    @GetMapping("/check-portal-v1-endpoint-raw")
+    public Map<String, Object> checkPortalV1EndpointRaw(
+            @RequestParam(defaultValue = "TAP2C19") String plate
+    ) {
+        return policyService.checkV1ProtocolosEndpointRaw(plate);
+    }
+
     // Chama scheduledSync() diretamente (nao syncFromPortal()) pra
     // reproduzir exatamente o que o cron faz, inclusive o try-catch que
     // engole exceptions — se o problema for algo que so aparece por essa
