@@ -65,16 +65,25 @@ export default function EtlProgressPanel({ type, onReloadGrid, onRetry, onDone }
   const steps = ETL_STEPS[type] || ["Processando", "Concluído"];
   const label = ETL_LABELS[type] || type;
   const status = entry?.status || "RUNNING";
-  const currentStep = entry?.currentStep;
 
-  const currentIdx = currentStep
-    ? steps.findIndex((s) => currentStep === s || currentStep.startsWith(s))
-    : -1;
+  // O backend acumula cada etapa reportada em ordem (EtlStatus
+  // .stepsHistory) — usar esse historico em vez de so' o ultimo
+  // currentStep evita que etapas intermediarias "sumam" quando o ETL
+  // reporta mais rapido do que o polling de 2s consegue acompanhar.
+  const history = Array.isArray(entry?.stepsHistory) ? entry.stepsHistory : [];
+
+  // Quantas etapas do template estatico ja apareceram no historico —
+  // so' pra saber quais faltam (exibidas em branco, ⬜, abaixo).
+  const matchedCount = steps.filter((s) =>
+    history.some((h) => h === s || h.startsWith(s))
+  ).length;
+
+  const pendingSteps = steps.slice(matchedCount);
 
   const pct = status === "SUCCESS"
     ? 100
-    : currentIdx >= 0
-      ? Math.round(((currentIdx + 1) / steps.length) * 100)
+    : history.length > 0
+      ? Math.round((history.length / steps.length) * 100)
       : 5;
 
   if (status === "SUCCESS") {
@@ -120,14 +129,17 @@ export default function EtlProgressPanel({ type, onReloadGrid, onRetry, onDone }
       <p className="font-semibold text-zinc-200">🔄 ATUALIZANDO {label}</p>
       <div className="h-px bg-zinc-800" />
       <div className="space-y-1">
-        {steps.map((step, i) => {
-          const icon = i < currentIdx ? "✅" : i === currentIdx ? "🔄" : "⬜";
+        {history.map((step, i) => {
+          const isLast = i === history.length - 1;
           return (
-            <p key={step} className={`text-xs ${i === currentIdx ? "text-white" : "text-zinc-500"}`}>
-              {icon} {i === currentIdx ? currentStep : step}{i === currentIdx ? "..." : ""}
+            <p key={`${step}-${i}`} className={`text-xs ${isLast ? "text-white" : "text-zinc-500"}`}>
+              {isLast ? "🔄" : "✅"} {step}{isLast ? "..." : ""}
             </p>
           );
         })}
+        {pendingSteps.map((step) => (
+          <p key={step} className="text-xs text-zinc-500">⬜ {step}</p>
+        ))}
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
         <div className="h-full rounded-full bg-white transition-all" style={{ width: `${pct}%` }} />

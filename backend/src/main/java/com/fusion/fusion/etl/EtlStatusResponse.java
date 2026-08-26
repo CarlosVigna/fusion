@@ -3,6 +3,7 @@ package com.fusion.fusion.etl;
 import com.fusion.fusion.importation.ImportType;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record EtlStatusResponse(
 
@@ -19,6 +20,8 @@ public record EtlStatusResponse(
         Integer lastRecordsProcessed,
 
         String currentStep,
+
+        List<String> stepsHistory,
 
         LocalDateTime nextRunAt,
 
@@ -43,6 +46,8 @@ public record EtlStatusResponse(
                 status.getLastRecordsProcessed(),
 
                 status.getCurrentStep(),
+
+                status.getStepsHistory(),
 
                 status.getNextRunAt(),
 

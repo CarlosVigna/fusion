@@ -40,6 +40,18 @@ public class EtlStatusService {
                         .build()
                 );
 
+        // Uma nova execucao comeca quando o status sai de nao-RUNNING pra
+        // RUNNING (era SUCCESS/ERROR/nulo, ou seja o job anterior tinha
+        // terminado) — nesse caso o historico de etapas e' zerado. Um
+        // heartbeat RUNNING que chega enquanto ja estava RUNNING (o
+        // proprio script reportando suas etapas em sequencia) so acrescenta.
+        boolean isNewRun = status.getStatus() != EtlRunStatus.RUNNING
+                && request.status() == EtlRunStatus.RUNNING;
+
+        if (isNewRun) {
+            status.getStepsHistory().clear();
+        }
+
         status.setStatus(request.status());
 
         // So sobrescreve quando o heartbeat de fato trouxe uma etapa —
@@ -48,6 +60,7 @@ public class EtlStatusService {
         // nao deve apagar a ultima etapa granular que o proprio script
         // reportou.
         if (request.currentStep() != null && !request.currentStep().isBlank()) {
+            status.addStep(request.currentStep());
             status.setCurrentStep(request.currentStep());
         }
 
