@@ -16,7 +16,9 @@ public record EtlHeartbeatRequest(
 
         Integer recordsProcessed,
 
-        LocalDateTime nextRunAt
+        LocalDateTime nextRunAt,
+
+        String currentStep
 
 ) {
 }

@@ -97,7 +97,7 @@ public class InstallationSyncService {
 
             etlStatusService.heartbeat(new EtlHeartbeatRequest(
                     ImportType.INSTALACOES, EtlRunStatus.RUNNING,
-                    null, null, null, null
+                    null, null, null, null, null
             ));
 
             if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
@@ -248,7 +248,7 @@ public class InstallationSyncService {
 
             etlStatusService.heartbeat(new EtlHeartbeatRequest(
                     ImportType.INSTALACOES, EtlRunStatus.SUCCESS,
-                    durationMs, null, inserted, nextRun
+                    durationMs, null, inserted, nextRun, null
             ));
 
             InstallationSyncResult result = new InstallationSyncResult(
@@ -263,7 +263,7 @@ public class InstallationSyncService {
 
             etlStatusService.heartbeat(new EtlHeartbeatRequest(
                     ImportType.INSTALACOES, EtlRunStatus.ERROR,
-                    durationMs, e.getMessage(), 0, null
+                    durationMs, e.getMessage(), 0, null, null
             ));
 
             throw e;

@@ -7,6 +7,7 @@ const fse = require('fs-extra');
 const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal-auth');
 const { moveToBackupWithRotation, log } = require('./src/file-utils');
 const { uploadToBackend } = require('./src/uploadToBackend');
+const { reportHeartbeat } = require('./src/etlStatusReporter');
 
 const DOWNLOADS_DIR =
     process.env.ETL_DOWNLOADS_DIR
@@ -40,9 +41,13 @@ async function run() {
 
         // LOGIN
 
+        await reportHeartbeat({ type: 'MULTIPORTAL_ULTIMA_POSICAO', status: 'RUNNING', step: 'Fazendo login no portal' });
+
         await loginMultiportal(page);
 
         console.log('Login realizado.');
+
+        await reportHeartbeat({ type: 'MULTIPORTAL_ULTIMA_POSICAO', status: 'RUNNING', step: 'Abrindo relatório de posições' });
 
         // MENU
 
@@ -91,6 +96,8 @@ async function run() {
 
         console.log('Pesquisa executada.');
 
+        await reportHeartbeat({ type: 'MULTIPORTAL_ULTIMA_POSICAO', status: 'RUNNING', step: 'Aguardando download da planilha' });
+
         // CONFIRMACAO EXCEL
 
         page.once('dialog', async dialog => {
@@ -136,6 +143,8 @@ async function run() {
         console.log('');
         console.log('ZIP salvo:');
         console.log(zipFile);
+
+        await reportHeartbeat({ type: 'MULTIPORTAL_ULTIMA_POSICAO', status: 'RUNNING', step: 'Processando dados' });
 
         // LIMPA TEMP
 
@@ -216,6 +225,8 @@ async function run() {
         log('Download concluído: MULTIPORTAL_ULTIMA_POSICAO.xls');
 
         await uploadToBackend(targetFile, 'MULTIPORTAL_ULTIMA_POSICAO');
+
+        await reportHeartbeat({ type: 'MULTIPORTAL_ULTIMA_POSICAO', status: 'SUCCESS', step: 'Concluído' });
 
     } catch (error) {
 

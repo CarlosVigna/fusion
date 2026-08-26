@@ -55,6 +55,8 @@ import { getOverdueMaintenanceRecords } from "../../services/maintenanceService"
 
 import { getLettersPendingBaixa } from "../../services/letterService";
 
+import { getEtlStatus } from "../../services/etlStatusService";
+
 import { FusionLogo } from "../../assets/FusionLogo";
 
 const GROUPS = [
@@ -120,7 +122,7 @@ const GROUPS = [
         adminOnly: true,
         items: [
             { label: "Usuários",           icon: Users,         path: "/users" },
-            { label: "Import Center",      icon: Upload,        path: "/imports" },
+            { label: "Import Center",      icon: Upload,        path: "/imports", pulseKey: "etlRunning" },
             { label: "Monitor ETL",        icon: Activity,      path: "/etl" },
             { label: "Mudanças Pendentes", icon: ClipboardList, path: "/pending-changes" },
             { label: "Sem Comunicação",    icon: WifiOff,       path: "/no-communication" },
@@ -131,6 +133,11 @@ const GROUPS = [
 ];
 
 const POLL_INTERVAL_MS = 60000;
+
+// Mais rapido que os outros badges (60s) — jobs de ETL costumam durar
+// segundos/poucos minutos, um poll de 60s deixaria o indicador
+// pulsante "piscar" tarde demais ou nem aparecer pra jobs curtos.
+const ETL_POLL_INTERVAL_MS = 10000;
 
 const GROUPS_STORAGE_KEY = "fusion_sidebar_groups_collapsed";
 
@@ -175,6 +182,8 @@ export default function Sidebar() {
     const [maintenanceOverdueCount, setMaintenanceOverdueCount] = useState(0);
 
     const [lettersPendingCount, setLettersPendingCount] = useState(0);
+
+    const [etlRunning, setEtlRunning] = useState(false);
 
     const prevInstallationsCountRef = useRef(null);
 
@@ -246,6 +255,26 @@ export default function Sidebar() {
         return () => clearInterval(interval);
 
     }, [isFieldOrTech]);
+
+    useEffect(() => {
+        // Import Center e' item do grupo "admin" (adminOnly) — so poll
+        // pra quem de fato ve o item.
+        if (!isAdmin) return;
+
+        async function loadEtlRunning() {
+            try {
+                const list = await getEtlStatus();
+                setEtlRunning(Array.isArray(list) && list.some((s) => s.status === "RUNNING"));
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        loadEtlRunning();
+        const interval = setInterval(loadEtlRunning, ETL_POLL_INTERVAL_MS);
+        return () => clearInterval(interval);
+
+    }, [isAdmin]);
 
     useEffect(() => {
         if (isFieldOrTech) return;
@@ -449,6 +478,8 @@ export default function Sidebar() {
                                         ? [{ key: item.badgeKey, color: "bg-red-500" }]
                                         : [];
 
+                                    const showPulse = item.pulseKey === "etlRunning" && etlRunning;
+
                                     return (
                                         <NavLink
                                             key={item.path + item.label}
@@ -484,6 +515,13 @@ export default function Sidebar() {
                                                     {badgeCounts[b.key]}
                                                 </span>
                                             ))}
+
+                                            {showPulse && (
+                                                <span
+                                                    title="ETL em execução"
+                                                    className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-orange-500"
+                                                />
+                                            )}
                                         </NavLink>
                                     );
 

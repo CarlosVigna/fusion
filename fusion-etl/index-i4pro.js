@@ -88,6 +88,7 @@ function parseBrDateObj(str) {
 
 async function doLogin(page) {
     log('[i4pro] Fazendo login...');
+    await reportHeartbeat({ type: 'I4PRO', status: 'RUNNING', step: 'Fazendo login no i4pro' });
     await page.goto(`${I4PRO_URL}/Default.aspx?`, {
         waitUntil: 'domcontentloaded',
         timeout  : 30000,
@@ -237,12 +238,14 @@ async function run(plate = null) {
 
         for (const p of plates) {
             log(`[i4pro] Processando: ${p}`);
+            await reportHeartbeat({ type: 'I4PRO', status: 'RUNNING', step: `Buscando apólice: ${p}` });
             try {
                 const policy = await processPlate(page, p);
                 if (!policy || (!policy.insuredName && !policy.policyNumber)) {
                     log(`[i4pro] Sem dados para: ${p}`);
                     notFound++;
                 } else {
+                    await reportHeartbeat({ type: 'I4PRO', status: 'RUNNING', step: 'Salvando dados' });
                     await saveToFusion(p, policy, token);
                     log(`[i4pro] Salvo: ${p} — ${policy.insuredName || '(nome não extraído)'}`);
                     populated++;
@@ -257,6 +260,7 @@ async function run(plate = null) {
     }
 
     log(`[i4pro] Concluído — ${populated} populadas, ${notFound} não encontradas`);
+    await reportHeartbeat({ type: 'I4PRO', status: 'SUCCESS', step: 'Concluído' });
     return { populated, notFound };
 }
 

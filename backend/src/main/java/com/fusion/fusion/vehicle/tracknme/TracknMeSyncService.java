@@ -1,6 +1,9 @@
 package com.fusion.fusion.vehicle.tracknme;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fusion.fusion.etl.EtlHeartbeatRequest;
+import com.fusion.fusion.etl.EtlRunStatus;
+import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.importation.ImportDiffLog;
 import com.fusion.fusion.importation.ImportDiffLogRepository;
 import com.fusion.fusion.importation.ImportType;
@@ -32,6 +35,8 @@ public class TracknMeSyncService {
     private final OperationalSnapshotRepository snapshotRepository;
     private final ImportDiffLogRepository diffLogRepository;
 
+    private final EtlStatusService etlStatusService;
+
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     public void syncDevicesScheduled() {
@@ -45,8 +50,16 @@ public class TracknMeSyncService {
     }
 
     public void syncDevices() {
+
+        long startedAt = System.currentTimeMillis();
+
+        heartbeat(ImportType.TRACKNME, EtlRunStatus.RUNNING, "Autenticando na API TracknMe", null, null, null);
+
         try {
             String token = apiService.authenticate();
+
+            heartbeat(ImportType.TRACKNME, EtlRunStatus.RUNNING, "Buscando dispositivos", null, null, null);
+
             List<TracknMeDeviceItem> apiDevices = apiService.fetchDevices(token);
 
             // Mapeia label (placa normalizada) → deviceItem
@@ -194,12 +207,22 @@ public class TracknMeSyncService {
             log.info("[TracknMe] Sync de dispositivos concluído — adicionados={} removidos={} inalterados={}",
                     added, removed, unchanged);
 
+            heartbeat(ImportType.TRACKNME, EtlRunStatus.SUCCESS, "Concluído",
+                    System.currentTimeMillis() - startedAt, null, added + removed);
+
         } catch (Exception e) {
             log.error("[TracknMe] Erro no sync de dispositivos: {}", e.getMessage(), e);
+            heartbeat(ImportType.TRACKNME, EtlRunStatus.ERROR, null,
+                    System.currentTimeMillis() - startedAt, e.getMessage(), null);
         }
     }
 
     public void syncPositions() {
+
+        long startedAt = System.currentTimeMillis();
+
+        heartbeat(ImportType.TRACKNME_POSITION, EtlRunStatus.RUNNING, "Autenticando na API TracknMe", null, null, null);
+
         try {
             String token = apiService.authenticate();
 
@@ -211,6 +234,8 @@ public class TracknMeSyncService {
 
             if (tracknmeVehicles.isEmpty()) {
                 log.info("[TracknMe] Nenhum veículo TracknMe com deviceId para sync de posições");
+                heartbeat(ImportType.TRACKNME_POSITION, EtlRunStatus.SUCCESS, "Concluído",
+                        System.currentTimeMillis() - startedAt, null, 0);
                 return;
             }
 
@@ -220,6 +245,8 @@ public class TracknMeSyncService {
                 deviceIds.add(v.getTracknmeDeviceId());
                 vehicleByDeviceId.put(v.getTracknmeDeviceId(), v);
             }
+
+            heartbeat(ImportType.TRACKNME_POSITION, EtlRunStatus.RUNNING, "Atualizando posições", null, null, null);
 
             List<TracknMePositionItem> positions = apiService.fetchPositions(token, deviceIds);
 
@@ -263,9 +290,27 @@ public class TracknMeSyncService {
 
             log.info("[TracknMe] Sync de posições concluído — {} veículos atualizados", updated);
 
+            heartbeat(ImportType.TRACKNME_POSITION, EtlRunStatus.SUCCESS, "Concluído",
+                    System.currentTimeMillis() - startedAt, null, updated);
+
         } catch (Exception e) {
             log.error("[TracknMe] Erro no sync de posições: {}", e.getMessage(), e);
+            heartbeat(ImportType.TRACKNME_POSITION, EtlRunStatus.ERROR, null,
+                    System.currentTimeMillis() - startedAt, e.getMessage(), null);
         }
+    }
+
+    // So' encapsula a montagem do EtlHeartbeatRequest — mesmo criterio de
+    // "step so atualiza quando vem preenchido" ja e' aplicado do lado do
+    // EtlStatusService, aqui e' so conveniencia pra nao repetir o
+    // construtor de 7 args em cada chamada.
+    private void heartbeat(ImportType type, EtlRunStatus status, String step,
+                            Long durationMs, String error, Integer recordsProcessed) {
+
+        etlStatusService.heartbeat(new EtlHeartbeatRequest(
+                type, status, durationMs, error, recordsProcessed, null, step
+        ));
+
     }
 
     private LocalDateTime parseDateTime(String raw) {

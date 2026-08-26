@@ -18,6 +18,8 @@ public record EtlStatusResponse(
 
         Integer lastRecordsProcessed,
 
+        String currentStep,
+
         LocalDateTime nextRunAt,
 
         LocalDateTime updatedAt
@@ -39,6 +41,8 @@ public record EtlStatusResponse(
                 status.getLastError(),
 
                 status.getLastRecordsProcessed(),
+
+                status.getCurrentStep(),
 
                 status.getNextRunAt(),
 

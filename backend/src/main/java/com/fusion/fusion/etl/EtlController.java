@@ -67,6 +67,7 @@ public class EtlController {
             @RequestParam(required = false) String error,
             @RequestParam(required = false) Integer recordsProcessed,
             @RequestParam(required = false) String nextRunAt,
+            @RequestParam(required = false) String step,
             @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
     ) {
 
@@ -92,7 +93,8 @@ public class EtlController {
                         durationMs,
                         error,
                         recordsProcessed,
-                        parseNextRunAt(nextRunAt)
+                        parseNextRunAt(nextRunAt),
+                        step
                 )
         );
 

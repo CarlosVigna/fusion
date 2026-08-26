@@ -42,6 +42,15 @@ public class EtlStatusService {
 
         status.setStatus(request.status());
 
+        // So sobrescreve quando o heartbeat de fato trouxe uma etapa —
+        // um heartbeat "de wrapper" sem step (RUNNING antes de chamar o
+        // script, SUCCESS/ERROR depois, ver triggerPoller.js/scheduler.js)
+        // nao deve apagar a ultima etapa granular que o proprio script
+        // reportou.
+        if (request.currentStep() != null && !request.currentStep().isBlank()) {
+            status.setCurrentStep(request.currentStep());
+        }
+
         status.setNextRunAt(request.nextRunAt());
 
         // SUCCESS/ERROR encerram a execucao — registra a "ultima vez

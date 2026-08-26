@@ -24,6 +24,8 @@ import { realtimeService } from "../services/realtime/realtimeService";
 
 import { triggerImport } from "../services/importStatusService";
 
+import EtlProgressPanel from "../components/imports/EtlProgressPanel";
+
 import { getNoLinkageVehicles } from "../services/gridService";
 
 import {
@@ -385,6 +387,9 @@ export default function Grid() {
 
   const [refreshing, setRefreshing] =
     useState(false);
+
+  const [activeEtlTypes, setActiveEtlTypes] =
+    useState([]);
 
   const [observationModalPlate, setObservationModalPlate] =
     useState(null);
@@ -931,9 +936,15 @@ export default function Grid() {
       if (isTracknMeRoute) {
         await triggerImport("TRACKNME");
         await triggerImport("TRACKNME_POSITION");
+        // Tipos que o heartbeat de fato usa (ver TracknMeSyncService.java)
+        setActiveEtlTypes(["TRACKNME", "TRACKNME_POSITION"]);
         toast.success("Sync TracknMe solicitado — o Grid vai atualizar em breve");
       } else {
         await triggerImport("MULTIPORTAL_OPERATIONAL");
+        // O trigger usa MULTIPORTAL_OPERATIONAL, mas quem reporta o
+        // heartbeat e' o script index-ultima-posicao.js, sob
+        // MULTIPORTAL_ULTIMA_POSICAO (mesmo quirk do triggerPoller.js).
+        setActiveEtlTypes(["MULTIPORTAL_ULTIMA_POSICAO"]);
         toast.success("Atualização solicitada — o Grid vai atualizar automaticamente em breve");
       }
 
@@ -948,6 +959,10 @@ export default function Grid() {
 
     }
 
+  }
+
+  function handleReloadGrid() {
+    loadGrid({ includeKako: showKakoRef.current, includeTest: showTestRef.current, includeTracknMe: isTracknMeRoute });
   }
 
   function renderSortIcon(col) {
@@ -1384,6 +1399,15 @@ export default function Grid() {
         </div>
 
       </div>
+
+      {activeEtlTypes.map((t) => (
+        <EtlProgressPanel
+          key={t}
+          type={t}
+          onReloadGrid={handleReloadGrid}
+          onRetry={handleRefreshFromEtl}
+        />
+      ))}
 
       <div
         className="

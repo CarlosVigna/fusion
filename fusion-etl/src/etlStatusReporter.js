@@ -16,6 +16,7 @@ async function reportHeartbeat({
     error,
     recordsProcessed,
     nextRunAt,
+    step,
 }) {
 
     if (!BACKEND_URL) {
@@ -25,7 +26,7 @@ async function reportHeartbeat({
     try {
 
         await axios.get(`${BACKEND_URL}/setup/etl-heartbeat`, {
-            params: { type, status, durationMs, error, recordsProcessed, nextRunAt },
+            params: { type, status, durationMs, error, recordsProcessed, nextRunAt, step },
             timeout: 15000,
         });
 

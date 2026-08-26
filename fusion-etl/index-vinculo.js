@@ -5,6 +5,7 @@ const fse = require('fs-extra');
 const { launchBrowser, loginMultiportal, waitForFrame } = require('./multiportal-auth');
 const { moveToBackupWithRotation, log } = require('./src/file-utils');
 const { uploadToBackend } = require('./src/uploadToBackend');
+const { reportHeartbeat } = require('./src/etlStatusReporter');
 
 const DOWNLOADS_DIR =
     process.env.ETL_DOWNLOADS_DIR
@@ -34,9 +35,13 @@ async function run() {
 
         // LOGIN
 
+        await reportHeartbeat({ type: 'MULTIPORTAL_LINKAGE', status: 'RUNNING', step: 'Fazendo login no portal' });
+
         await loginMultiportal(page);
 
         console.log('Login realizado.');
+
+        await reportHeartbeat({ type: 'MULTIPORTAL_LINKAGE', status: 'RUNNING', step: 'Abrindo dispositivo vínculo' });
 
         // MENU
 
@@ -94,6 +99,8 @@ async function run() {
 
         console.log('Solicitando Excel...');
 
+        await reportHeartbeat({ type: 'MULTIPORTAL_LINKAGE', status: 'RUNNING', step: 'Aguardando download' });
+
         const downloadPromise =
             page.waitForEvent('download');
 
@@ -146,7 +153,11 @@ async function run() {
 
         log('Download concluído: MULTIPORTAL_DISPOSITIVO_VINCULO.xls');
 
+        await reportHeartbeat({ type: 'MULTIPORTAL_LINKAGE', status: 'RUNNING', step: 'Enviando para o Fusion' });
+
         await uploadToBackend(targetFile, 'MULTIPORTAL_LINKAGE');
+
+        await reportHeartbeat({ type: 'MULTIPORTAL_LINKAGE', status: 'SUCCESS', step: 'Concluído' });
 
     } catch (error) {
 

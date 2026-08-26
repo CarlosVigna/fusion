@@ -10,5 +10,6 @@ public record EtlStatusDto(
         Long durationMs,
         String error,
         Integer recordsProcessed,
-        LocalDateTime nextRunAt
+        LocalDateTime nextRunAt,
+        String step
 ) {}

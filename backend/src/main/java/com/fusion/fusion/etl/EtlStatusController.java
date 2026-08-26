@@ -38,7 +38,8 @@ public class EtlStatusController {
                 dto.durationMs(),
                 dto.error(),
                 dto.recordsProcessed(),
-                dto.nextRunAt()
+                dto.nextRunAt(),
+                dto.step()
         ));
 
         return ResponseEntity.ok().build();

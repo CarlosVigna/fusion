@@ -1428,7 +1428,8 @@ public class SetupController {
             @RequestParam(required = false) Long durationMs,
             @RequestParam(required = false) String error,
             @RequestParam(required = false) Integer recordsProcessed,
-            @RequestParam(required = false) String nextRunAt
+            @RequestParam(required = false) String nextRunAt,
+            @RequestParam(required = false) String step
     ) {
 
         try {
@@ -1439,7 +1440,8 @@ public class SetupController {
                             durationMs,
                             error,
                             recordsProcessed,
-                            parseNextRunAt(nextRunAt)
+                            parseNextRunAt(nextRunAt),
+                            step
                     )
             );
             return Map.of("status", "OK");
