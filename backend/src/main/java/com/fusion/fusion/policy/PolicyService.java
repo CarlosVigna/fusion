@@ -284,6 +284,12 @@ public class PolicyService {
                 row.put("city", cidade);
                 row.put("state", estado);
                 row.put("cep", cepPernoite);
+                row.put("startDate", formatIsoDate((String) first.get("inicio_vigencia")));
+                row.put("endDate", formatIsoDate((String) first.get("fim_vigencia")));
+                row.put("vehicleModel", first.get("veiculo_modelo"));
+                row.put("vehicleBrand", first.get("veiculo_marca"));
+                row.put("insuredName", first.get("nome_razao_social"));
+                row.put("policyNumber", first.get("numero_apolice"));
                 found.add(row);
 
             } catch (Exception e) {
