@@ -41,6 +41,7 @@ import Users from "../pages/Users";
 import Account from "../pages/Account";
 import Login from "../pages/Login";
 import VehicleDetails from "../pages/VehicleDetails";
+import VehicleSync from "../pages/VehicleSync";
 
 import MicrosoftCallback from "../pages/MicrosoftCallback";
 import ShiftHandover from "../pages/ShiftHandover";
@@ -57,6 +58,7 @@ import PendingChanges from "../pages/PendingChanges";
 import NoCommunication from "../pages/NoCommunication";
 import PolicyAlerts from "../pages/PolicyAlerts";
 import FleetHistory from "../pages/FleetHistory";
+import CustomReport from "../pages/CustomReport";
 import ProtectedRoute from "./ProtectedRoute";
 
 export default function AppRoutes() {
@@ -130,6 +132,7 @@ export default function AppRoutes() {
                     <Route path="imports"          element={<Imports />} />
                     <Route path="vehicles"         element={<Vehicles />} />
                     <Route path="vehicles/:plate"  element={<VehicleDetails />} />
+                    <Route path="vehicles/sync"    element={<VehicleSync />} />
                     <Route path="signal-control"   element={<SignalControl />} />
                     <Route path="letters"          element={<Letters />} />
                     <Route path="maintenance"      element={<Maintenance />} />
@@ -149,6 +152,7 @@ export default function AppRoutes() {
                     <Route path="no-communication"        element={<NoCommunication />} />
                     <Route path="policies/alerts"         element={<PolicyAlerts />} />
                     <Route path="reports/fleet-history"   element={<FleetHistory />} />
+                    <Route path="reports/custom"          element={<CustomReport />} />
                 </Route>
             </Route>
 

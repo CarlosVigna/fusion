@@ -3,6 +3,7 @@ package com.fusion.fusion.vehicle;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -72,6 +73,36 @@ public class Vehicle {
     private String tracknmeSimCard;
 
     private String tracknmeNumber;
+
+    // Cadastro enriquecido via VehiclePortalSyncService — sincroniza com
+    // o portal parceiro (mesma fonte que PolicyService.fetchFromPortal()
+    // ja usa), mas so aplica depois de aprovacao manual via
+    // VehiclePortalDiff (ver /vehicles/sync-portal/diffs).
+    private String city;
+
+    private String state;
+
+    private String zipCode;
+
+    private String cpfCnpj;
+
+    // Nao pedidos na lista original de campos novos, mas necessarios pro
+    // diff de vehicleModel/vehicleBrand que a mesma tarefa pede logo a
+    // seguir — sem esses campos aqui nao haveria "valor atual" nenhum
+    // pra comparar contra o que vem do portal.
+    private String vehicleModel;
+
+    private String vehicleBrand;
+
+    private String portalPolicyNumber;
+
+    private LocalDate portalStartDate;
+
+    private LocalDate portalEndDate;
+
+    private String portalPolicyStatus;
+
+    private LocalDateTime lastPortalSync;
 
     private LocalDateTime createdAt;
 

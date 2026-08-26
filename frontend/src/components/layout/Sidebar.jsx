@@ -17,6 +17,7 @@ import {
     Monitor,
     Package,
     Radio,
+    RefreshCw,
     Satellite,
     ScrollText,
     Send,
@@ -66,6 +67,7 @@ const GROUPS = [
             { label: "Relatório Multiportal",     icon: FileSpreadsheet, path: "/reports/multiportal" },
             { label: "Relatório de Dispositivos", icon: FileSpreadsheet, path: "/reports/devices" },
             { label: "Histórico de Frota",        icon: History,         path: "/reports/fleet-history" },
+            { label: "Relatório Personalizado",   icon: FileSpreadsheet, path: "/reports/custom" },
         ],
     },
     {
@@ -123,6 +125,7 @@ const GROUPS = [
             { label: "Mudanças Pendentes", icon: ClipboardList, path: "/pending-changes" },
             { label: "Sem Comunicação",    icon: WifiOff,       path: "/no-communication" },
             { label: "Passagem de Turno",  icon: Send,          path: "/shift-handover" },
+            { label: "Sincronizar Cadastro", icon: RefreshCw,   path: "/vehicles/sync" },
         ],
     },
 ];

@@ -427,6 +427,40 @@ public class PolicyService {
 
     }
 
+    // Extraida de fetchFromPortal() pra ser reaproveitada por
+    // VehiclePortalSyncService — mesma URL/token/extractItems(), mas
+    // devolvendo os itens crus (com cidade/estado/cep_pernoite/status
+    // etc que fetchFromPortal() descarta ao montar EtlPolicyResult).
+    public List<Map<String, Object>> fetchRawPolicyItems(String plate) {
+
+        if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Credenciais do portal parceiro não configuradas " +
+                    "(portal.parceiro.client-id / portal.parceiro.client-secret)"
+            );
+        }
+
+        String token = getPortalToken();
+
+        HttpHeaders getHeaders = new HttpHeaders();
+        getHeaders.setBearerAuth(token);
+
+        String url = portalUrl
+                + "/seguro/auto/v1/protocolos/apolices"
+                + "?pesquisa=" + plate.toUpperCase()
+                + "&inicio=01/01/2017&fim=31/12/2030&page=0&size=5";
+
+        ResponseEntity<Object> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                new HttpEntity<>(getHeaders),
+                Object.class
+        );
+
+        return extractItems(response.getBody());
+
+    }
+
     public EtlPolicyResult fetchFromPortal(String plate) {
 
         if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
