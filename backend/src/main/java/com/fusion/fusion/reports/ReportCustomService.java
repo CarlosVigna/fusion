@@ -284,12 +284,20 @@ public class ReportCustomService {
             case "signalDelayMinutes" -> s != null && s.getSignalDelayMinutes() != null
                     ? String.valueOf(s.getSignalDelayMinutes()) : null;
             case "online" -> s != null && s.getOnline() != null ? (s.getOnline() ? "Sim" : "Não") : null;
-            // So usa o IMEI do device Multiportal quando ele de fato tem
-            // um valor — uma linkage ativa com Device.imei nulo/vazio
-            // (ex: linkage legada, nunca desativada) nao deve bloquear o
-            // fallback pro tracknmeImei do veiculo.
-            case "imei" -> (d != null && d.getImei() != null && !d.getImei().isBlank())
-                    ? d.getImei() : v.getTracknmeImei();
+            case "imei" -> {
+                // Prioridade: IMEI real do device > numberStr (identificador
+                // Multiportal — a planilha de dispositivos costuma vir com
+                // IMEI em branco, ver comentario em DeviceImportService;
+                // numberStr e' o que o proprio import usa como chave) >
+                // IMEI TracknMe.
+                String deviceImei = (d != null && d.getImei() != null && !d.getImei().isBlank())
+                        ? d.getImei() : null;
+                String deviceNumberStr = (d != null && d.getNumberStr() != null && !d.getNumberStr().isBlank())
+                        ? d.getNumberStr() : null;
+                yield deviceImei != null ? deviceImei
+                        : deviceNumberStr != null ? deviceNumberStr
+                        : v.getTracknmeImei();
+            }
             case "chipLine" -> d != null ? d.getLineNumber() : null;
             case "equipment" -> d != null ? d.getModel() : null;
             case "vehicleGroup" -> v.getVehicleGroup() != null ? v.getVehicleGroup().name() : null;
