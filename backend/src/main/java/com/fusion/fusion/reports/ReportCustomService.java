@@ -284,7 +284,12 @@ public class ReportCustomService {
             case "signalDelayMinutes" -> s != null && s.getSignalDelayMinutes() != null
                     ? String.valueOf(s.getSignalDelayMinutes()) : null;
             case "online" -> s != null && s.getOnline() != null ? (s.getOnline() ? "Sim" : "Não") : null;
-            case "imei" -> d != null ? d.getImei() : v.getTracknmeImei();
+            // So usa o IMEI do device Multiportal quando ele de fato tem
+            // um valor — uma linkage ativa com Device.imei nulo/vazio
+            // (ex: linkage legada, nunca desativada) nao deve bloquear o
+            // fallback pro tracknmeImei do veiculo.
+            case "imei" -> (d != null && d.getImei() != null && !d.getImei().isBlank())
+                    ? d.getImei() : v.getTracknmeImei();
             case "chipLine" -> d != null ? d.getLineNumber() : null;
             case "equipment" -> d != null ? d.getModel() : null;
             case "vehicleGroup" -> v.getVehicleGroup() != null ? v.getVehicleGroup().name() : null;
