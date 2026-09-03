@@ -16,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -268,11 +269,37 @@ public class VehiclePortalSyncService {
 
         List<Map<String, Object>> items = policyService.fetchRawPolicyItems(plate);
 
+        // So considera status aceitos (vigente/emitida) — placa com 2+
+        // apolices nesse grupo desempata pela fim_vigencia mais recente
+        // em vez de pegar a primeira da pagina.
         return items.stream()
                 .filter(i -> ACCEPTED_PORTAL_STATUSES.contains(String.valueOf(i.get("status"))))
-                .findFirst()
+                .min(Comparator
+                        .comparingInt((Map<String, Object> item) ->
+                                statusPriority((String) item.get("status")))
+                        .thenComparing(item -> {
+                            String fim = (String) item.get("fim_vigencia");
+                            return fim != null ? fim : "";
+                        }, Comparator.reverseOrder()))
                 .orElse(null);
 
+    }
+
+    // Prioridade de status do portal — mesma escala duplicada em
+    // PolicyService.statusPriority() (pacote diferente). Aqui so os
+    // itens ja filtrados por ACCEPTED_PORTAL_STATUSES chegam ate o
+    // comparator, entao na pratica so desempata por fim_vigencia; a
+    // funcao fica completa mesmo assim pra bater com a mesma logica.
+    private int statusPriority(String status) {
+        if (status == null) return 99;
+        return switch (status) {
+            case "APOLICE_VIGENTE", "APOLICE_EMITIDA" -> 1;
+            case "APOLICE_FUTURA" -> 2;
+            case "APOLICE_SUSPENSA" -> 3;
+            case "APOLICE_CANCELADA" -> 4;
+            case "APOLICE_ENCERRADA" -> 5;
+            default -> 6;
+        };
     }
 
     private record FieldDiff(String field, String currentValue, String newValue) {}

@@ -268,7 +268,19 @@ public class PolicyService {
                     continue;
                 }
 
-                Map<String, Object> first = content.get(0);
+                // Placa com 2+ apolices no portal — prioriza por status
+                // (vigente/emitida > futura > suspensa > cancelada/
+                // encerrada) e desempata pela fim_vigencia mais recente,
+                // em vez de pegar o primeiro item cru da pagina.
+                Map<String, Object> first = content.stream()
+                        .min(Comparator
+                                .comparingInt((Map<String, Object> item) ->
+                                        statusPriority((String) item.get("status")))
+                                .thenComparing(item -> {
+                                    String fim = (String) item.get("fim_vigencia");
+                                    return fim != null ? fim : "";
+                                }, Comparator.reverseOrder()))
+                        .orElse(content.get(0));
 
                 Object cidade = first.get("cidade");
                 Object estado = first.get("estado");
@@ -308,6 +320,23 @@ public class PolicyService {
         result.put("totalFound", found.size());
         return result;
 
+    }
+
+    // Prioridade de status do portal (string crua do campo "status") —
+    // quanto menor, melhor. Mesma escala duplicada em
+    // VehiclePortalSyncService.statusPriority() (pacote diferente,
+    // mesmo padrao de duplicacao local ja usado em buildActivePolicyByPlate()
+    // pelo projeto).
+    private int statusPriority(String status) {
+        if (status == null) return 99;
+        return switch (status) {
+            case "APOLICE_VIGENTE", "APOLICE_EMITIDA" -> 1;
+            case "APOLICE_FUTURA" -> 2;
+            case "APOLICE_SUSPENSA" -> 3;
+            case "APOLICE_CANCELADA" -> 4;
+            case "APOLICE_ENCERRADA" -> 5;
+            default -> 6;
+        };
     }
 
     // Diagnostico pontual — confirmar se /seguro/auto/v2/protocolos/apolices
