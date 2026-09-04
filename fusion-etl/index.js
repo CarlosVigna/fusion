@@ -161,7 +161,7 @@ async function run() {
         // relatorios (posicao, vinculo), entao um falso positivo aqui
         // so' atrasa uma geracao nova — nunca perde dados.
         const alreadyPending = await topFrame
-            .locator('#occurrence_priority_text')
+            .locator('[onclick="openImpressao()"]')
             .isVisible()
             .catch(() => false);
 
@@ -183,7 +183,7 @@ async function run() {
         // Timeout de 5min (era 3min) — planilhas maiores vinham dando
         // timeout aqui antes do Multiportal terminar de gerar o Excel.
         await topFrame.locator(
-            '#occurrence_priority_text'
+            '[onclick="openImpressao()"]'
         ).waitFor({
             state: 'visible',
             timeout: 300000
@@ -192,7 +192,7 @@ async function run() {
         console.log('Impressão disponível.');
 
         await topFrame.locator(
-            '#occurrence_priority_text'
+            '[onclick="openImpressao()"]'
         ).click();
 
         const impressaoFrame = await waitForFrame(
