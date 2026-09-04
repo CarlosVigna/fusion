@@ -191,9 +191,14 @@ async function run() {
 
         console.log('Impressão disponível.');
 
-        await topFrame.locator(
-            'img[onclick="openImpressao()"]'
-        ).click();
+        // Clique fisico do Playwright era bloqueado pelo tooltip
+        // (<span class="tooltiptext_simple">) sobrepondo o icone —
+        // chama openImpressao() direto via JS, sem depender do clique
+        // no elemento.
+        await topFrame.evaluate(() => {
+            const img = document.querySelector('img[onclick="openImpressao()"]');
+            if (img) openImpressao();
+        });
 
         const impressaoFrame = await waitForFrame(
             page,
