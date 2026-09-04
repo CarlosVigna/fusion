@@ -145,24 +145,48 @@ async function run() {
 
         await excelButton.waitFor({ state: 'visible' });
 
-        await excelButton.click();
-
-        console.log('Excel solicitado.');
-
-        await reportHeartbeat({ type: 'MULTIPORTAL_DEVICE', status: 'RUNNING', step: 'Aguardando download' });
-
-        // IMPRESSÃO
-
+        // IMPRESSÃO — pega o topFrame antes de clicar em Excel pra poder
+        // checar se ja existe um item pendente na fila (ver abaixo).
         const topFrame = await waitForFrame(
             page,
             '/system/layout/top.seam'
         );
 
+        // Antes de pedir um novo Excel, verifica se ja tem um item
+        // pendente na fila de impressao — se o ETL foi reexecutado
+        // enquanto o Multiportal ainda estava gerando o relatorio
+        // anterior, clicar em Excel de novo so' faz o portal gerar 2+
+        // arquivos em paralelo (e demorar mais a fila pra todo mundo).
+        // Checagem best-effort: o icone e' compartilhado com os outros
+        // relatorios (posicao, vinculo), entao um falso positivo aqui
+        // so' atrasa uma geracao nova — nunca perde dados.
+        const alreadyPending = await topFrame
+            .locator('#occurrence_priority_text')
+            .isVisible()
+            .catch(() => false);
+
+        if (alreadyPending) {
+
+            console.log('Já existe um item na fila de impressão — pulando nova solicitação de Excel.');
+            log('[DEVICES] Fila de impressao ja tinha item pendente, Excel nao foi solicitado de novo (possivel retry concorrente).');
+
+        } else {
+
+            await excelButton.click();
+
+            console.log('Excel solicitado.');
+
+        }
+
+        await reportHeartbeat({ type: 'MULTIPORTAL_DEVICE', status: 'RUNNING', step: 'Aguardando download' });
+
+        // Timeout de 5min (era 3min) — planilhas maiores vinham dando
+        // timeout aqui antes do Multiportal terminar de gerar o Excel.
         await topFrame.locator(
             '#occurrence_priority_text'
         ).waitFor({
             state: 'visible',
-            timeout: 180000
+            timeout: 300000
         });
 
         console.log('Impressão disponível.');
