@@ -22,6 +22,23 @@ const TEMP_DIR =
     process.env.ETL_TEMP_DIR
     || path.join(DOWNLOADS_DIR, 'temp');
 
+// Mesmo padrao de index-i4pro.js — screenshot de diagnostico junto do
+// etl.log (mesma pasta base, subpasta screenshots/) pra inspecionar
+// visualmente em qual tela o fluxo travou.
+const SCREENSHOT_DIR = path.join(process.env.ETL_LOG_DIR || 'C:/FusionData/log', 'screenshots');
+
+async function saveErrorScreenshot(page, label) {
+    try {
+        fse.ensureDirSync(SCREENSHOT_DIR);
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filePath = path.join(SCREENSHOT_DIR, `${timestamp}_${label}.png`);
+        await page.screenshot({ path: filePath, fullPage: true });
+        return filePath;
+    } catch (_) {
+        return null;
+    }
+}
+
 async function downloadFile(url, destination) {
 
     const response = await axios({
@@ -73,9 +90,31 @@ async function run() {
             '/system/layout/menu.seam'
         );
 
-        await menuFrame.locator(
-            'table[onclick="openMenu(36)"]'
-        ).click();
+        try {
+
+            // Numero do menu (36) fixo, historicamente estavel — mas o
+            // Multiportal pode renumerar sem aviso.
+            await menuFrame.locator(
+                'table[onclick="openMenu(36)"]'
+            ).click({ timeout: 15000 });
+
+        } catch (menuError) {
+
+            const screenshotPath = await saveErrorScreenshot(page, 'menu-dispositivos-timeout');
+
+            log(`[DEVICES] Timeout no menu openMenu(36) — Multiportal pode ter mudado o numero. `
+                + `Screenshot: ${screenshotPath || 'falhou ao salvar'}. Erro: ${menuError.message}`);
+
+            console.error('Seletor fixo do menu (openMenu(36)) falhou, tentando deteccao flexivel por texto...');
+            console.error(menuError.message);
+
+            // Fallback: busca o menu pelo texto do item em vez do numero
+            // fixo do submenu, que pode ter mudado.
+            await menuFrame.locator(
+                'text=Dispositivos, text=Cadastro'
+            ).first().click({ timeout: 15000 });
+
+        }
 
         await menuFrame.locator(
             'tr[id="/system/gateway/devicesList.seam"]'
