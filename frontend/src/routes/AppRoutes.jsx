@@ -33,6 +33,7 @@ import Vehicles from "../pages/Vehicles";
 import SignalControl from "../pages/SignalControl";
 import Letters from "../pages/Letters";
 import Maintenance from "../pages/Maintenance";
+import LineCancels from "../pages/LineCancels";
 import Policies from "../pages/Policies";
 import EtlMonitor from "../pages/EtlMonitor";
 import Reports from "../pages/Reports";
@@ -136,6 +137,7 @@ export default function AppRoutes() {
                     <Route path="signal-control"   element={<SignalControl />} />
                     <Route path="letters"          element={<Letters />} />
                     <Route path="maintenance"      element={<Maintenance />} />
+                    <Route path="line-cancels"     element={<LineCancels />} />
                     <Route path="policies"         element={<Policies />} />
                     <Route path="etl"              element={<EtlMonitor />} />
                     <Route path="reports"          element={<Reports />} />

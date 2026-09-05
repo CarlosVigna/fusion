@@ -16,6 +16,7 @@ import {
     MapPin,
     Monitor,
     Package,
+    Plug,
     Radio,
     RefreshCw,
     Satellite,
@@ -55,6 +56,8 @@ import { getOverdueMaintenanceRecords } from "../../services/maintenanceService"
 
 import { getLettersPendingBaixa } from "../../services/letterService";
 
+import { getLineCancels } from "../../services/lineCancelService";
+
 import { getEtlStatus } from "../../services/etlStatusService";
 
 import { FusionLogo } from "../../assets/FusionLogo";
@@ -91,6 +94,7 @@ const GROUPS = [
             { label: "Controle de Sinais",  icon: Radio,  path: "/signal-control", badgeKey: "signalControl" },
             { label: "Cartas de Suspensão", icon: Mail,   path: "/letters", badgeKey: "lettersPending" },
             { label: "Manutenções",         icon: Wrench, path: "/maintenance", badgeKey: "maintenanceOverdue" },
+            { label: "Cancelamento de Linhas", icon: Plug, path: "/line-cancels", badgeKey: "lineCancels" },
         ],
     },
     {
@@ -183,6 +187,8 @@ export default function Sidebar() {
 
     const [lettersPendingCount, setLettersPendingCount] = useState(0);
 
+    const [lineCancelsCount, setLineCancelsCount] = useState(0);
+
     const [etlRunning, setEtlRunning] = useState(false);
 
     const prevInstallationsCountRef = useRef(null);
@@ -252,6 +258,32 @@ export default function Sidebar() {
 
         loadLettersPendingCount();
         const interval = setInterval(loadLettersPendingCount, POLL_INTERVAL_MS);
+        return () => clearInterval(interval);
+
+    }, [isFieldOrTech]);
+
+    useEffect(() => {
+        if (isFieldOrTech) return;
+
+        // Badge = VERIFICAR + PRONTO (as duas fases que exigem acao
+        // humana) — AGUARDANDO/SOLICITADO/CONCLUIDO nao precisam de
+        // atencao imediata.
+        async function loadLineCancelsCount() {
+            try {
+                const [verificar, pronto] = await Promise.all([
+                    getLineCancels("VERIFICAR"),
+                    getLineCancels("PRONTO"),
+                ]);
+                const total = [verificar, pronto]
+                    .reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+                setLineCancelsCount(total);
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        loadLineCancelsCount();
+        const interval = setInterval(loadLineCancelsCount, POLL_INTERVAL_MS);
         return () => clearInterval(interval);
 
     }, [isFieldOrTech]);
@@ -378,6 +410,7 @@ export default function Sidebar() {
         stockPending: stockPendingCount,
         maintenanceOverdue: maintenanceOverdueCount,
         lettersPending: lettersPendingCount,
+        lineCancels: lineCancelsCount,
     };
 
     // Filtra grupos e itens conforme o perfil do usuário
@@ -385,6 +418,12 @@ export default function Sidebar() {
         .filter(group => {
             if (isFieldOrTech && group.key !== "serviceorders") return false;
             if (group.adminOnly && !isAdmin) return false;
+            // "Ordens de Servico" some da navegacao visual pra
+            // ADMIN/OPERATOR (pedido explicito) — mas continua visivel
+            // pra FIELD/TECHNICIAN, que nao tem nenhum outro grupo e
+            // ficariam sem menu nenhum sem essas rotas. As rotas em si
+            // continuam registradas em AppRoutes.jsx pra todo mundo.
+            if (group.key === "serviceorders" && !isFieldOrTech) return false;
             return true;
         })
         .map(group => ({
