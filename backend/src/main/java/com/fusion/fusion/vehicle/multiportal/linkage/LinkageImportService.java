@@ -329,14 +329,23 @@ public class LinkageImportService {
                 detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
             }
 
+            // Sem mudanca real (nada adicionado/removido/alterado), o
+            // registro ainda entra pro historico mas ja sai "dismissed"
+            // — sem isso, todo import sem novidade nenhuma tocava o
+            // sino do mesmo jeito que um com mudanca de verdade.
+            boolean hasRealChange = vehiclesAdded > 0 || vehiclesRemoved > 0 || linksChanged > 0;
+
+            LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
+
             diffLogRepository.save(ImportDiffLog.builder()
                     .importType(ImportType.MULTIPORTAL_LINKAGE)
                     .added(vehiclesAdded)
                     .removed(vehiclesRemoved)
                     .changed(linksChanged)
                     .detailsJson(detailsJson)
-                    .dismissed(false)
-                    .createdAt(LocalDateTime.now(ZoneOffset.UTC))
+                    .dismissed(!hasRealChange)
+                    .dismissedAt(hasRealChange ? null : diffCreatedAt)
+                    .createdAt(diffCreatedAt)
                     .build());
 
         } catch (Exception e) {

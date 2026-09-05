@@ -44,7 +44,7 @@ public class InstallationSyncService {
 
     private volatile InstallationSyncResult lastResult;
 
-    @Scheduled(cron = "0 0 * * * *")
+    @Scheduled(cron = "0 0/30 * * * *")
     public void scheduledSync() {
 
         log.info("[INSTALLATION-SYNC] Iniciando sync - {}", LocalDateTime.now());
