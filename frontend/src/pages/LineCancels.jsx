@@ -42,6 +42,18 @@ const TABS = Object.keys(STATUS_LABELS).map((key) => ({
   label: `${TAB_EMOJI[key]} ${STATUS_LABELS[key]}`,
 }));
 
+// Traducao do PolicyStatus (backend) — so' pra exibicao. Comparacoes
+// contra record.policyStatus continuam usando o valor cru em ingles.
+const POLICY_STATUS_LABELS = {
+  ACTIVE: "Vigente",
+  EXPIRING: "Vencendo",
+  EXPIRED: "Vencida",
+  CANCELLED: "Cancelada",
+  CLOSED: "Encerrada",
+  FUTURE: "Futura",
+  SUPERSEDED: "Substituída",
+};
+
 function daysSince(dateStr) {
   if (!dateStr) return null;
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -467,7 +479,9 @@ export default function LineCancels() {
                     <td className="px-4 py-4 font-mono text-xs text-zinc-400">{record.iccid || "--"}</td>
                     <td className="px-4 py-4 font-mono text-xs text-zinc-400">{record.msisdn || "--"}</td>
                     <td className="px-4 py-4 font-mono text-xs text-zinc-400">{record.imei || "--"}</td>
-                    <td className="px-4 py-4 text-zinc-400">{record.policyStatus || "--"}</td>
+                    <td className="px-4 py-4 text-zinc-400">
+                      {POLICY_STATUS_LABELS[record.policyStatus] || record.policyStatus || "--"}
+                    </td>
                     <td className="px-4 py-4 text-zinc-400">
                       {record.policyStatus === "CANCELLED" && !record.cancelledAt ? (
                         <input
