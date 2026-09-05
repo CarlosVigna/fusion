@@ -16,12 +16,24 @@ export function formatDateTimeForExport(value) {
 
   const date = new Date(value + "Z"); // força interpretação como UTC
 
-  const pad = (n) => String(n).padStart(2, "0");
+  // date.getHours()/getDate() usam o fuso LOCAL do navegador/maquina
+  // que gera o export — em vez de sempre Brasilia, ficava certo so por
+  // coincidencia se quem exportasse estivesse nesse fuso. Fixo em
+  // America/Sao_Paulo via Intl, mesmo motivo/tecnica do
+  // formatLocalDateTime em dateUtils.js.
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Sao_Paulo",
+  }).formatToParts(date);
 
-  return (
-    `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}`
-  );
+  const get = (type) => parts.find((p) => p.type === type)?.value ?? "";
+
+  return `${get("day")}/${get("month")}/${get("year")} ${get("hour")}:${get("minute")}`;
 
 }
 

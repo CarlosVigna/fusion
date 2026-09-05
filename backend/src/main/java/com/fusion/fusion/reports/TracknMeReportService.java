@@ -26,6 +26,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -49,6 +52,7 @@ public class TracknMeReportService {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+    private static final ZoneId BRASILIA = ZoneId.of("America/Sao_Paulo");
 
     public byte[] generateExcel() {
 
@@ -140,9 +144,7 @@ public class TracknMeReportService {
                         ? policy.getInsuredName()
                         : vehicle.getInsuredName();
 
-                String lastPosition = snapshot != null && snapshot.getLastCommunicationAt() != null
-                        ? snapshot.getLastCommunicationAt().format(DATETIME_FMT)
-                        : null;
+                String lastPosition = formatBrasilia(snapshot != null ? snapshot.getLastCommunicationAt() : null);
 
                 String endDate = policy != null && policy.getEndDate() != null
                         ? policy.getEndDate().format(DATE_FMT)
@@ -186,6 +188,22 @@ public class TracknMeReportService {
         XSSFCell cell = row.createCell(col);
         cell.setCellValue(value != null ? value : "");
         cell.setCellStyle(style);
+    }
+
+    // lastCommunicationAt fica salvo em UTC (ver comentario em
+    // TracknMeSyncService.parseDateTime()) — formatar direto sem
+    // converter mostrava a hora UTC como se fosse Brasilia.
+    private String formatBrasilia(LocalDateTime utc) {
+
+        if (utc == null) {
+            return null;
+        }
+
+        return utc.atZone(ZoneOffset.UTC)
+                .withZoneSameInstant(BRASILIA)
+                .toLocalDateTime()
+                .format(DATETIME_FMT);
+
     }
 
     // Mesma logica de "melhor apolice por placa" ja duplicada em

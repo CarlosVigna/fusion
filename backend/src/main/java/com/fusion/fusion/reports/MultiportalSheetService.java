@@ -36,6 +36,7 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -58,6 +59,8 @@ public class MultiportalSheetService {
     private final VehicleObservationService vehicleObservationService;
     private final LetterRecordRepository letterRecordRepository;
     private final PolicyRepository policyRepository;
+
+    private static final ZoneId BRASILIA = ZoneId.of("America/Sao_Paulo");
 
     public MultiportalSheetResponse build() {
 
@@ -412,7 +415,16 @@ public class MultiportalSheetService {
                 ? activeLinkage.getDevice().getNumberStr()
                 : null;
 
-        LocalDateTime lastCommunicationAt = snapshot != null ? snapshot.getLastCommunicationAt() : null;
+        // lastCommunicationAt fica salvo em UTC (ver comentario em
+        // TracknMeSyncService.parseDateTime()) — sem essa conversao,
+        // toLocalDate()/toLocalTime() abaixo extraiam dia/hora UTC como
+        // se ja fossem Brasilia (3h adiantado, e a data errada perto da
+        // meia-noite).
+        LocalDateTime lastCommunicationAtUtc = snapshot != null ? snapshot.getLastCommunicationAt() : null;
+
+        LocalDateTime lastCommunicationAt = lastCommunicationAtUtc != null
+                ? lastCommunicationAtUtc.atZone(ZoneOffset.UTC).withZoneSameInstant(BRASILIA).toLocalDateTime()
+                : null;
 
         StringBuilder status = new StringBuilder();
 

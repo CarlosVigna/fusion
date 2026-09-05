@@ -33,6 +33,9 @@ import org.springframework.stereotype.Service;
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
@@ -54,6 +57,8 @@ public class ReportCustomService {
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private static final DateTimeFormatter DATETIME_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
+
+    private static final ZoneId BRASILIA = ZoneId.of("America/Sao_Paulo");
 
     // Ordem de exibicao — mesma ordem do array de exemplo no pedido.
     private static final LinkedHashMap<String, String> FIELD_LABELS = new LinkedHashMap<>();
@@ -279,8 +284,7 @@ public class ReportCustomService {
             case "startDate" -> p != null && p.getStartDate() != null ? p.getStartDate().format(DATE_FMT) : null;
             case "endDate" -> p != null && p.getEndDate() != null ? p.getEndDate().format(DATE_FMT) : null;
             case "policyStatus" -> p != null ? translateStatus(PolicyResponse.computeStatus(p)) : null;
-            case "lastCommunication" -> s != null && s.getLastCommunicationAt() != null
-                    ? s.getLastCommunicationAt().format(DATETIME_FMT) : null;
+            case "lastCommunication" -> formatBrasilia(s != null ? s.getLastCommunicationAt() : null);
             case "signalDelayMinutes" -> s != null && s.getSignalDelayMinutes() != null
                     ? String.valueOf(s.getSignalDelayMinutes()) : null;
             case "online" -> s != null && s.getOnline() != null ? (s.getOnline() ? "Sim" : "Não") : null;
@@ -303,6 +307,24 @@ public class ReportCustomService {
             case "vehicleGroup" -> v.getVehicleGroup() != null ? v.getVehicleGroup().name() : null;
             default -> null;
         };
+
+    }
+
+    // lastCommunicationAt (e todo LocalDateTime gravado pelo sistema, ver
+    // comentario em TracknMeSyncService.parseDateTime()) fica salvo em
+    // UTC — formatar direto sem converter mostrava a hora UTC como se
+    // fosse Brasilia, sempre 3h adiantada (e a data errada perto da
+    // meia-noite).
+    private String formatBrasilia(LocalDateTime utc) {
+
+        if (utc == null) {
+            return null;
+        }
+
+        return utc.atZone(ZoneOffset.UTC)
+                .withZoneSameInstant(BRASILIA)
+                .toLocalDateTime()
+                .format(DATETIME_FMT);
 
     }
 
