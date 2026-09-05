@@ -25,6 +25,13 @@ public class LineCancel {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
+    // Sem cascade/orphanRemoval de proposito — o historico de
+    // cancelamento e' permanente e precisa sobreviver a um soft-delete
+    // do veiculo (Vehicle.deletedAt), inclusive na aba Concluidas.
+    // Nunca adicionar CascadeType.REMOVE/orphanRemoval nessa associacao.
+    // Plate/insuredName abaixo sao copiados no sync (nao lidos ao vivo
+    // do Vehicle), entao o registro continua legivel mesmo se o
+    // veiculo for removido.
     @ManyToOne(fetch = FetchType.LAZY)
     private Vehicle vehicle;
 

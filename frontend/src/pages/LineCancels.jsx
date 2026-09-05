@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { CheckCircle2, Mail, MessageCircle, RefreshCw, X } from "lucide-react";
+import { CheckCircle2, FileSpreadsheet, FileText, Mail, MessageCircle, RefreshCw, X } from "lucide-react";
 
 import {
+  exportLineCancels,
   generateLineCancelEmail,
   getLineCancels,
   markLineCancelDone,
@@ -50,6 +51,10 @@ export default function LineCancels() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [actionId, setActionId] = useState(null);
   const [emailModal, setEmailModal] = useState(null);
+  const [plateFilter, setPlateFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [exporting, setExporting] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -76,7 +81,35 @@ export default function LineCancels() {
     return grouped;
   }, [records]);
 
-  const activeItems = byStatus[activeTab] || [];
+  const activeItems = useMemo(() => byStatus[activeTab] || [], [byStatus, activeTab]);
+
+  // Aba Aguardando nao tem filtro nenhum — mostra sempre tudo, pedido
+  // explicito. Nas demais, plate/periodo filtram em cima da mesma
+  // data ja carregada (sem round-trip extra so pra filtrar a tela).
+  const hasFilters = activeTab !== "AGUARDANDO";
+
+  const filteredItems = useMemo(() => {
+
+    if (!hasFilters) return activeItems;
+
+    const plateNeedle = plateFilter.trim().toUpperCase();
+
+    return activeItems.filter((r) => {
+
+      if (plateNeedle && !(r.plate || "").toUpperCase().includes(plateNeedle)) {
+        return false;
+      }
+
+      const ref = referenceDate(r);
+
+      if (dateFrom && (!ref || ref < dateFrom)) return false;
+      if (dateTo && (!ref || ref > dateTo)) return false;
+
+      return true;
+
+    });
+
+  }, [activeItems, hasFilters, plateFilter, dateFrom, dateTo]);
 
   const {
     page,
@@ -85,11 +118,14 @@ export default function LineCancels() {
     pageItems,
     pageSize,
     totalItems,
-  } = usePagination(activeItems);
+  } = usePagination(filteredItems);
 
   useEffect(() => {
     setPage(1);
     setSelectedIds(new Set());
+    setPlateFilter("");
+    setDateFrom("");
+    setDateTo("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -150,6 +186,24 @@ export default function LineCancels() {
     }
   }
 
+  async function handleExport(format) {
+    setExporting(format);
+    try {
+      await exportLineCancels({
+        format,
+        status: activeTab,
+        plate: plateFilter.trim() || undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      });
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao exportar");
+    } finally {
+      setExporting(null);
+    }
+  }
+
   function toggleSelect(id) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -159,10 +213,10 @@ export default function LineCancels() {
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === activeItems.length) {
+    if (selectedIds.size === filteredItems.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(activeItems.map((r) => r.id)));
+      setSelectedIds(new Set(filteredItems.map((r) => r.id)));
     }
   }
 
@@ -253,6 +307,78 @@ export default function LineCancels() {
         ))}
       </div>
 
+      {hasFilters && (
+        <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+
+          <div>
+            <label className="mb-1.5 block text-xs text-zinc-400">Placa</label>
+            <input
+              value={plateFilter}
+              onChange={(e) => setPlateFilter(e.target.value)}
+              placeholder="Ex: ABC1D23"
+              className="
+                rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2
+                text-sm text-white focus:outline-none focus:ring-1 focus:ring-zinc-500
+              "
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs text-zinc-400">De</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="
+                rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2
+                text-sm text-white focus:outline-none focus:ring-1 focus:ring-zinc-500
+              "
+            />
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs text-zinc-400">Até</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="
+                rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2
+                text-sm text-white focus:outline-none focus:ring-1 focus:ring-zinc-500
+              "
+            />
+          </div>
+
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={() => handleExport("EXCEL")}
+              disabled={!!exporting}
+              className="
+                flex items-center gap-2 rounded-xl border border-zinc-700
+                bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-300
+                transition hover:bg-zinc-800 disabled:opacity-50
+              "
+            >
+              <FileSpreadsheet size={14} />
+              {exporting === "EXCEL" ? "Gerando..." : "Excel"}
+            </button>
+            <button
+              onClick={() => handleExport("PDF")}
+              disabled={!!exporting}
+              className="
+                flex items-center gap-2 rounded-xl border border-zinc-700
+                bg-zinc-950 px-4 py-2 text-sm font-semibold text-zinc-300
+                transition hover:bg-zinc-800 disabled:opacity-50
+              "
+            >
+              <FileText size={14} />
+              {exporting === "PDF" ? "Gerando..." : "PDF"}
+            </button>
+          </div>
+
+        </div>
+      )}
+
       {showCheckbox && selectedIds.size > 0 && (
         <div className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3">
           <span className="text-sm text-zinc-300">{selectedIds.size} selecionada(s)</span>
@@ -278,7 +404,7 @@ export default function LineCancels() {
                   <th className="px-4 py-4">
                     <input
                       type="checkbox"
-                      checked={activeItems.length > 0 && selectedIds.size === activeItems.length}
+                      checked={filteredItems.length > 0 && selectedIds.size === filteredItems.length}
                       onChange={toggleSelectAll}
                       className="rounded border-zinc-700"
                     />
