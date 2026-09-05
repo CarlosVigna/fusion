@@ -220,6 +220,26 @@ public class LineCancelService {
                 continue;
             }
 
+            // TEMP DEBUG — investigacao pontual do IMEI ausente na placa
+            // SOX2I19. Colocado antes de qualquer "continue" (dedup,
+            // status fora do alvo) pra sempre logar nessa placa a cada
+            // sync, mesmo quando o registro ja existe e o resto da
+            // iteracao seria pulado. Remover depois de confirmar a causa.
+            if ("SOX2I19".equals(vehicle.getPlate())) {
+
+                DeviceLinkage debugLinkage = activeLinkageByVehicleId.get(vehicle.getId());
+
+                log.info("[LINE-CANCEL] placa={} linkage={} deviceImei={} numberStr={} tracknmeImei={}",
+                        vehicle.getPlate(),
+                        debugLinkage != null ? debugLinkage.getId() : "null",
+                        debugLinkage != null && debugLinkage.getDevice() != null
+                                ? debugLinkage.getDevice().getImei() : "null",
+                        debugLinkage != null && debugLinkage.getDevice() != null
+                                ? debugLinkage.getDevice().getNumberStr() : "null",
+                        vehicle.getTracknmeImei());
+
+            }
+
             PolicyStatus computed = PolicyResponse.computeStatus(policy);
 
             if (!TARGET_STATUSES.contains(computed)) {
