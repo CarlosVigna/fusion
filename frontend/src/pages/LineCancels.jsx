@@ -21,13 +21,26 @@ import { usePagination } from "../hooks/usePagination";
 
 import { formatLocalDate as formatDate } from "../utils/dateUtils";
 
-const TABS = [
-  { key: "AGUARDANDO", label: "🟡 Aguardando" },
-  { key: "VERIFICAR", label: "🟠 Verificar" },
-  { key: "PRONTO", label: "🔴 Pronto" },
-  { key: "SOLICITADO", label: "📧 Solicitado" },
-  { key: "CONCLUIDO", label: "✅ Concluído" },
-];
+const STATUS_LABELS = {
+  AGUARDANDO: "Aguardando",
+  VERIFICAR: "Verificar",
+  PRONTO: "Pronto",
+  SOLICITADO: "Solicitado",
+  CONCLUIDO: "Concluído",
+};
+
+const TAB_EMOJI = {
+  AGUARDANDO: "🟡",
+  VERIFICAR: "🟠",
+  PRONTO: "🔴",
+  SOLICITADO: "📧",
+  CONCLUIDO: "✅",
+};
+
+const TABS = Object.keys(STATUS_LABELS).map((key) => ({
+  key,
+  label: `${TAB_EMOJI[key]} ${STATUS_LABELS[key]}`,
+}));
 
 function daysSince(dateStr) {
   if (!dateStr) return null;
@@ -418,6 +431,7 @@ export default function LineCancels() {
                 <th className="px-4 py-4">Status Apólice</th>
                 <th className="px-4 py-4">Data Cancelamento</th>
                 <th className="px-4 py-4">Dias</th>
+                <th className="px-4 py-4">Status</th>
                 <th className="px-4 py-4">Ações</th>
               </tr>
             </thead>
@@ -425,13 +439,13 @@ export default function LineCancels() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={showCheckbox ? 10 : 9} className="px-6 py-10 text-center text-zinc-500">
+                  <td colSpan={showCheckbox ? 11 : 10} className="px-6 py-10 text-center text-zinc-500">
                     Carregando...
                   </td>
                 </tr>
               ) : pageItems.length === 0 ? (
                 <tr>
-                  <td colSpan={showCheckbox ? 10 : 9} className="px-6 py-10 text-center text-zinc-500">
+                  <td colSpan={showCheckbox ? 11 : 10} className="px-6 py-10 text-center text-zinc-500">
                     Nenhum registro nesta aba
                   </td>
                 </tr>
@@ -475,6 +489,9 @@ export default function LineCancels() {
                     </td>
                     <td className="px-4 py-4 text-zinc-400">
                       {referenceDate(record) ? daysSince(referenceDate(record)) : "--"}
+                    </td>
+                    <td className="px-4 py-4 text-zinc-400">
+                      {STATUS_LABELS[record.status] || record.status}
                     </td>
                     <td className="px-4 py-4">
                       {record.status === "VERIFICAR" && (

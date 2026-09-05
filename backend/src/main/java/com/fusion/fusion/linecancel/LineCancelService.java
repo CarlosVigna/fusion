@@ -239,6 +239,22 @@ public class LineCancelService {
             DeviceLinkage linkage = activeLinkageByVehicleId.get(vehicle.getId());
             Device device = linkage != null ? linkage.getDevice() : null;
 
+            // Mesma prioridade ja usada em ReportCustomService: IMEI real
+            // do device > numberStr (identificador Multiportal — a
+            // planilha de dispositivos costuma vir com IMEI em branco) >
+            // IMEI TracknMe do veiculo.
+            String imei = null;
+            if (device != null) {
+                imei = (device.getImei() != null && !device.getImei().isBlank())
+                        ? device.getImei()
+                        : (device.getNumberStr() != null && !device.getNumberStr().isBlank())
+                                ? device.getNumberStr()
+                                : null;
+            }
+            if (imei == null) {
+                imei = vehicle.getTracknmeImei();
+            }
+
             LineCancel lineCancel = LineCancel.builder()
                     .vehicle(vehicle)
                     .plate(vehicle.getPlate())
@@ -247,7 +263,7 @@ public class LineCancelService {
                             : vehicle.getInsuredName())
                     .iccid(device != null ? device.getSerialChip1() : null)
                     .msisdn(device != null ? device.getLineNumber() : null)
-                    .imei(device != null ? device.getImei() : null)
+                    .imei(imei)
                     .policyEndDate(policy.getEndDate())
                     .policyStatus(computed.name())
                     .status(LineCancelStatus.AGUARDANDO)
