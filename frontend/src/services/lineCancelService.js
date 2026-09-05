@@ -21,6 +21,10 @@ export async function markLineCancelDone(id) {
   return apiClient.put(`/line-cancels/${id}/done`);
 }
 
+export async function setLineCancelDate(id, cancelledAt) {
+  return apiClient.put(`/line-cancels/${id}/set-date`, { cancelledAt });
+}
+
 export async function generateLineCancelEmail(ids) {
   return apiClient.post("/line-cancels/email", { ids });
 }

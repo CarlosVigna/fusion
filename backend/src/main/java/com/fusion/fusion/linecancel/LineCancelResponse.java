@@ -20,6 +20,8 @@ public record LineCancelResponse(
 
         LocalDate policyEndDate,
 
+        LocalDate cancelledAt,
+
         String policyStatus,
 
         LineCancelStatus status,
@@ -46,6 +48,7 @@ public record LineCancelResponse(
                 lc.getMsisdn(),
                 lc.getImei(),
                 lc.getPolicyEndDate(),
+                lc.getCancelledAt(),
                 lc.getPolicyStatus(),
                 lc.getStatus(),
                 lc.getVerifiedAt(),

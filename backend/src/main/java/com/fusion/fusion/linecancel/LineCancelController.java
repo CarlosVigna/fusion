@@ -56,6 +56,16 @@ public class LineCancelController {
 
     }
 
+    @PutMapping("/{id}/set-date")
+    public LineCancelResponse setDate(
+            @PathVariable UUID id,
+            @RequestBody LineCancelSetDateRequest request
+    ) {
+
+        return service.setCancelledAt(id, request.cancelledAt());
+
+    }
+
     @PostMapping("/email")
     public Map<String, String> email(@RequestBody LineCancelEmailRequest request) {
 

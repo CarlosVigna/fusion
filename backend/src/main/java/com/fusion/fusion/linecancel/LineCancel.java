@@ -41,10 +41,20 @@ public class LineCancel {
     // IMEI do dispositivo.
     private String imei;
 
-    // Data de cancelamento/encerramento da apolice que originou este registro.
+    // Data de fim de vigencia da apolice que originou este registro —
+    // sempre preenchida no sync, usada direto como referencia pra
+    // CLOSED/EXPIRED. Pra CANCELLED serve so' de contexto (mostrada na
+    // tela), a referencia de verdade e' cancelledAt abaixo.
     private LocalDate policyEndDate;
 
-    // Status da apolice (CANCELLED ou CLOSED) no momento do sync.
+    // Data manual de cancelamento, informada pelo usuario — so' se
+    // aplica quando policyStatus = CANCELLED, ja que o portal nao avisa
+    // quando a operadora efetivamente desligou a linha. Fica nula ate
+    // o usuario preencher (ver LineCancelController PUT /{id}/set-date);
+    // enquanto nula, a contagem de dias pra VERIFICAR nao comeca.
+    private LocalDate cancelledAt;
+
+    // Status da apolice (CANCELLED, CLOSED ou EXPIRED) no momento do sync.
     private String policyStatus;
 
     @Enumerated(EnumType.STRING)

@@ -9,6 +9,7 @@ import {
   getLineCancels,
   markLineCancelDone,
   requestLineCancel,
+  setLineCancelDate,
   syncLineCancels,
   verifyLineCancel,
 } from "../services/lineCancelService";
@@ -31,6 +32,13 @@ function daysSince(dateStr) {
   if (!dateStr) return null;
   const diff = Date.now() - new Date(dateStr).getTime();
   return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
+
+// Mesma regra do backend (LineCancelService.referenceDate()): CANCELLED
+// depende do usuario informar a data manualmente; CLOSED/EXPIRED usam a
+// data de fim de vigencia da apolice, que ja vem preenchida do sync.
+function referenceDate(record) {
+  return record.policyStatus === "CANCELLED" ? record.cancelledAt : record.policyEndDate;
 }
 
 export default function LineCancels() {
@@ -122,6 +130,21 @@ export default function LineCancels() {
     } catch (error) {
       console.error(error);
       toast.error("Erro ao marcar como concluído");
+    } finally {
+      setActionId(null);
+    }
+  }
+
+  async function handleSetDate(id, value) {
+    if (!value) return;
+    setActionId(id);
+    try {
+      await setLineCancelDate(id, value);
+      toast.success("Data de cancelamento salva");
+      load();
+    } catch (error) {
+      console.error(error);
+      toast.error("Erro ao salvar data de cancelamento");
     } finally {
       setActionId(null);
     }
@@ -305,8 +328,28 @@ export default function LineCancels() {
                     <td className="px-4 py-4 font-mono text-xs text-zinc-400">{record.msisdn || "--"}</td>
                     <td className="px-4 py-4 font-mono text-xs text-zinc-400">{record.imei || "--"}</td>
                     <td className="px-4 py-4 text-zinc-400">{record.policyStatus || "--"}</td>
-                    <td className="px-4 py-4 text-zinc-400">{formatDate(record.policyEndDate)}</td>
-                    <td className="px-4 py-4 text-zinc-400">{daysSince(record.policyEndDate) ?? "--"}</td>
+                    <td className="px-4 py-4 text-zinc-400">
+                      {record.policyStatus === "CANCELLED" && !record.cancelledAt ? (
+                        <input
+                          type="date"
+                          disabled={actionId === record.id}
+                          onChange={(e) => handleSetDate(record.id, e.target.value)}
+                          className="
+                            rounded-lg border border-zinc-700 bg-zinc-950
+                            px-2 py-1 text-xs text-white
+                            focus:outline-none focus:ring-1 focus:ring-zinc-500
+                            disabled:opacity-50
+                          "
+                        />
+                      ) : record.policyStatus === "CANCELLED" ? (
+                        formatDate(record.cancelledAt)
+                      ) : (
+                        formatDate(record.policyEndDate)
+                      )}
+                    </td>
+                    <td className="px-4 py-4 text-zinc-400">
+                      {referenceDate(record) ? daysSince(referenceDate(record)) : "--"}
+                    </td>
                     <td className="px-4 py-4">
                       {record.status === "VERIFICAR" && (
                         <button

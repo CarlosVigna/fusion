@@ -39,7 +39,7 @@ public class LineCancelService {
     private static final int VERIFY_AFTER_DAYS = 30;
 
     private static final EnumSet<PolicyStatus> TARGET_STATUSES =
-            EnumSet.of(PolicyStatus.CANCELLED, PolicyStatus.CLOSED);
+            EnumSet.of(PolicyStatus.CANCELLED, PolicyStatus.CLOSED, PolicyStatus.EXPIRED);
 
     @Transactional
     public List<LineCancelResponse> findAll(LineCancelStatus filterStatus) {
@@ -78,12 +78,15 @@ public class LineCancelService {
 
     }
 
-    // Varre apolices CANCELLED/CLOSED de veiculos ativos e cria um
-    // LineCancel pra cada uma que ainda nao tem registro (dedup por
+    // Varre apolices CANCELLED/CLOSED/EXPIRED de veiculos ativos e cria
+    // um LineCancel pra cada uma que ainda nao tem registro (dedup por
     // vehicle + policyEndDate, ver LineCancelRepository). Reaproveita o
     // ICCID/MSISDN/IMEI do device vinculado ao veiculo via DeviceLinkage
     // ativa — mesmo padrao ja usado em ReportCustomService/
     // VehicleGridService pra resolver o device "atual" de um veiculo.
+    // cancelledAt nunca e' preenchido aqui — pra CANCELLED fica pendente
+    // de preenchimento manual (ver setCancelledAt()); pra CLOSED/EXPIRED
+    // nem chega a ser usado, a referencia e' sempre policyEndDate.
     @Transactional
     public int syncFromPolicies() {
 
@@ -152,9 +155,23 @@ public class LineCancelService {
 
     }
 
+    // Data usada como referencia pra contar os dias: CANCELLED depende
+    // de o usuario informar cancelledAt manualmente (o portal nao avisa
+    // quando a operadora de fato desligou a linha); CLOSED/EXPIRED usam
+    // policyEndDate direto, que ja vem preenchido do sync.
+    private LocalDate referenceDate(LineCancel lc) {
+
+        if ("CANCELLED".equals(lc.getPolicyStatus())) {
+            return lc.getCancelledAt();
+        }
+
+        return lc.getPolicyEndDate();
+
+    }
+
     // So recalcula estados "automaticos" (AGUARDANDO/VERIFICAR/PRONTO) —
     // SOLICITADO/CONCLUIDO sao avancos manuais definitivos, nunca voltam
-    // pra tras so' porque os dias desde policyEndDate mudaram.
+    // pra tras so' porque os dias desde a data de referencia mudaram.
     void updateStatus(LineCancel lc) {
 
         if (lc.getStatus() == LineCancelStatus.SOLICITADO
@@ -167,13 +184,36 @@ public class LineCancelService {
             return;
         }
 
-        long days = lc.getPolicyEndDate() != null
-                ? ChronoUnit.DAYS.between(lc.getPolicyEndDate(), LocalDate.now(ZoneOffset.UTC))
-                : 0;
+        LocalDate reference = referenceDate(lc);
+
+        if (reference == null) {
+            // CANCELLED sem cancelledAt informado ainda — a contagem de
+            // dias nem comecou, fica em AGUARDANDO indefinidamente ate
+            // alguem preencher a data.
+            lc.setStatus(LineCancelStatus.AGUARDANDO);
+            return;
+        }
+
+        long days = ChronoUnit.DAYS.between(reference, LocalDate.now(ZoneOffset.UTC));
 
         lc.setStatus(days >= VERIFY_AFTER_DAYS
                 ? LineCancelStatus.VERIFICAR
                 : LineCancelStatus.AGUARDANDO);
+
+    }
+
+    @Transactional
+    public LineCancelResponse setCancelledAt(UUID id, LocalDate cancelledAt) {
+
+        LineCancel lc = findOrThrow(id);
+
+        lc.setCancelledAt(cancelledAt);
+
+        updateStatus(lc);
+
+        repository.save(lc);
+
+        return LineCancelResponse.from(lc);
 
     }
 
