@@ -188,11 +188,14 @@ public class LineCancelService {
 
     }
 
-    // Varre apolices CANCELLED/CLOSED/EXPIRED de veiculos ativos e cria
-    // um LineCancel pra cada uma que ainda nao tem registro (dedup por
-    // vehicle + policyEndDate, ver LineCancelRepository). Reaproveita o
-    // ICCID/MSISDN/IMEI do device vinculado ao veiculo via DeviceLinkage
-    // ativa — mesmo padrao ja usado em ReportCustomService/
+    // Varre apolices CANCELLED/CLOSED/EXPIRED de veiculos ativos. Pra
+    // combinacao vehicle+policyEndDate ainda nao rastreada, cria um
+    // LineCancel novo; pra uma ja existente cujo imei esteja nulo/vazio
+    // (ex: sincronizada antes da resolucao de fallback existir, ou o
+    // device nao estava linkado na epoca), faz backfill de
+    // imei/iccid/msisdn no registro ja existente em vez de ignorar.
+    // Reaproveita o ICCID/MSISDN/IMEI do device vinculado ao veiculo via
+    // DeviceLinkage ativa — mesmo padrao ja usado em ReportCustomService/
     // VehicleGridService pra resolver o device "atual" de um veiculo.
     // cancelledAt nunca e' preenchido aqui — pra CANCELLED fica pendente
     // de preenchimento manual (ver setCancelledAt()); pra CLOSED/EXPIRED
@@ -209,6 +212,7 @@ public class LineCancelService {
         }
 
         int created = 0;
+        int backfilled = 0;
 
         for (Policy policy : policyRepository.findAllActive()) {
 
@@ -220,26 +224,6 @@ public class LineCancelService {
                 continue;
             }
 
-            // TEMP DEBUG — investigacao pontual do IMEI ausente na placa
-            // SOX2I19. Colocado antes de qualquer "continue" (dedup,
-            // status fora do alvo) pra sempre logar nessa placa a cada
-            // sync, mesmo quando o registro ja existe e o resto da
-            // iteracao seria pulado. Remover depois de confirmar a causa.
-            if ("SOX2I19".equals(vehicle.getPlate())) {
-
-                DeviceLinkage debugLinkage = activeLinkageByVehicleId.get(vehicle.getId());
-
-                log.info("[LINE-CANCEL] placa={} linkage={} deviceImei={} numberStr={} tracknmeImei={}",
-                        vehicle.getPlate(),
-                        debugLinkage != null ? debugLinkage.getId() : "null",
-                        debugLinkage != null && debugLinkage.getDevice() != null
-                                ? debugLinkage.getDevice().getImei() : "null",
-                        debugLinkage != null && debugLinkage.getDevice() != null
-                                ? debugLinkage.getDevice().getNumberStr() : "null",
-                        vehicle.getTracknmeImei());
-
-            }
-
             PolicyStatus computed = PolicyResponse.computeStatus(policy);
 
             if (!TARGET_STATUSES.contains(computed)) {
@@ -249,10 +233,6 @@ public class LineCancelService {
             if (policy.getEndDate() == null) {
                 // Sem data de fim de vigencia nao da pra contar os dias
                 // nem classificar o registro — pula.
-                continue;
-            }
-
-            if (repository.existsByVehicleAndPolicyEndDate(vehicle, policy.getEndDate())) {
                 continue;
             }
 
@@ -275,14 +255,36 @@ public class LineCancelService {
                 imei = vehicle.getTracknmeImei();
             }
 
+            String iccid = device != null ? device.getSerialChip1() : null;
+            String msisdn = device != null ? device.getLineNumber() : null;
+
+            Optional<LineCancel> existingOpt =
+                    repository.findByVehicleAndPolicyEndDate(vehicle, policy.getEndDate());
+
+            if (existingOpt.isPresent()) {
+
+                LineCancel existing = existingOpt.get();
+
+                if (existing.getImei() == null || existing.getImei().isBlank()) {
+                    existing.setImei(imei);
+                    existing.setIccid(iccid);
+                    existing.setMsisdn(msisdn);
+                    repository.save(existing);
+                    backfilled++;
+                }
+
+                continue;
+
+            }
+
             LineCancel lineCancel = LineCancel.builder()
                     .vehicle(vehicle)
                     .plate(vehicle.getPlate())
                     .insuredName(policy.getInsuredName() != null
                             ? policy.getInsuredName()
                             : vehicle.getInsuredName())
-                    .iccid(device != null ? device.getSerialChip1() : null)
-                    .msisdn(device != null ? device.getLineNumber() : null)
+                    .iccid(iccid)
+                    .msisdn(msisdn)
                     .imei(imei)
                     .policyEndDate(policy.getEndDate())
                     .policyStatus(computed.name())
@@ -295,7 +297,8 @@ public class LineCancelService {
 
         }
 
-        log.info("[LINE-CANCEL] Sync concluido — {} novo(s) registro(s)", created);
+        log.info("[LINE-CANCEL] Sync concluido — {} novo(s), {} atualizado(s) com IMEI/ICCID/MSISDN backfillado",
+                created, backfilled);
 
         return created;
 
