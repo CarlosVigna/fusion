@@ -2,10 +2,20 @@ import { useEffect, useState } from "react";
 
 import { AlertTriangle } from "lucide-react";
 
-import { getLastSync } from "../../services/importStatusService";
+import { getEtlStatus } from "../../services/etlStatusService";
 
 const STALE_HOURS = 2;
 const POLL_INTERVAL_MS = 60000;
+
+// Instalações é o único import que ainda roda sozinho (cron a cada
+// 30min no backend) — Dispositivos/Vínculos/Posição viraram manual-only
+// (Import Center) e não fazem mais sentido aqui. O heartbeat de
+// Instalações fica em etl_status (GET /etl/status), não em
+// import_history (usado por getLastSync) — INSTALACOES nunca gravou
+// nessa segunda tabela, então o banner antigo ficava vermelho mesmo
+// com tudo funcionando, só porque ninguém tinha clicado manualmente
+// em Dispositivos/Vínculos nas últimas 2h.
+const MONITORED_TYPE = "INSTALACOES";
 
 function hoursAgo(value) {
 
@@ -26,9 +36,13 @@ export default function EtlStatusBanner() {
 
     try {
 
-      const data = await getLastSync();
+      const list = await getEtlStatus();
 
-      setLastSync(data.lastSync);
+      const entry = Array.isArray(list)
+        ? list.find((s) => s.type === MONITORED_TYPE)
+        : null;
+
+      setLastSync(entry?.lastRunAt ?? null);
 
     } catch (error) {
 
@@ -61,8 +75,8 @@ export default function EtlStatusBanner() {
   }
 
   const message = elapsedHours === null
-    ? "ETL nunca sincronizou — verifique se o serviço está rodando"
-    : `ETL parado há ${elapsedHours.toFixed(1)}h — verifique se o serviço está rodando`;
+    ? "Sync de Instalações nunca rodou — verifique se o serviço está rodando"
+    : `Sync de Instalações parado há ${elapsedHours.toFixed(1)}h — verifique se o serviço está rodando`;
 
   return (
     <div

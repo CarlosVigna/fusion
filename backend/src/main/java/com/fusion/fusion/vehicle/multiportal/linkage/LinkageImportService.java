@@ -22,6 +22,7 @@ import com.fusion.fusion.vehicle.multiportal.device.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -60,6 +61,10 @@ public class LinkageImportService {
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
+    // Agrupa todos os saves num unico commit em vez de um round-trip
+    // por linha da planilha — reduz drasticamente o tempo total contra
+    // o Neon (latencia por query maior que Postgres local/Railway).
+    @Transactional
     public LinkageImportResponse importFile(
             MultipartFile file
     ) {

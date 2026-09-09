@@ -77,7 +77,7 @@ async function uploadToBackend(filePath, type) {
             },
             maxBodyLength: Infinity,
             maxContentLength: Infinity,
-            timeout: 120000,
+            timeout: 300000,
         });
 
         log(`[UPLOAD] Arquivo enviado para ${BACKEND_URL}/imports/upload (type=${type})`);
