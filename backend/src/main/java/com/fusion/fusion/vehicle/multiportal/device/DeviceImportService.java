@@ -19,7 +19,10 @@ import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -54,6 +57,14 @@ public class DeviceImportService {
     private final ImportFileNamingService namingService;
     private final ImportHistoryService importHistoryService;
     private final ImportDiffLogRepository diffLogRepository;
+
+    // Spring nao aplica @Transactional em chamadas diretas this.method()
+    // (bypassa o proxy AOP). Self-injection via @Lazy garante que
+    // registerFailure() seja chamado pelo proxy e receba REQUIRES_NEW —
+    // mesmo padrao de OperationalStateEngineService.java.
+    @Lazy
+    @Autowired
+    private DeviceImportService self;
 
     // Agrupa todos os saves num unico commit em vez de um round-trip
     // por linha da planilha — reduz drasticamente o tempo total contra
@@ -361,12 +372,12 @@ public class DeviceImportService {
                 fileManagerService.moveToFailed(processingFile);
             }
 
-            importHistoryService.register(
-                    ImportType.MULTIPORTAL_DEVICE,
-                    file.getOriginalFilename(),
-                    0,
-                    ImportStatus.FAILED
-            );
+            // REQUIRES_NEW: o metodo importFile() inteiro e' @Transactional,
+            // entao a excecao que caiu aqui vai reverter tudo o que essa
+            // execucao tinha salvo ate agora — sem uma transacao propria
+            // pro registro de falha, ele seria revertido junto e o import
+            // ficaria sem nenhum rastro no historico/diff-log.
+            self.registerFailure(file.getOriginalFilename());
 
             throw new RuntimeException(
                     "Erro ao importar dispositivos"
@@ -377,6 +388,18 @@ public class DeviceImportService {
         return new DeviceImportResponse(
                 imported,
                 linked
+        );
+
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void registerFailure(String originalFilename) {
+
+        importHistoryService.register(
+                ImportType.MULTIPORTAL_DEVICE,
+                originalFilename,
+                0,
+                ImportStatus.FAILED
         );
 
     }
