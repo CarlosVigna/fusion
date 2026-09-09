@@ -202,7 +202,14 @@ public class OperationalStateEngineService {
             return;
         }
 
-        deviceLinkageRepository.findByVehicleAndActiveTrue(state.getVehicle())
+        // findByVehicleAndActiveTrue() e' Optional (getSingleResult() por
+        // baixo) e quebra com IncorrectResultSizeDataAccessException se
+        // houver mais de um vinculo ativo pro mesmo veiculo (ex.: OGF5D31,
+        // que tinha 2 linkages ativos). findByVehicle() + stream evita isso.
+        deviceLinkageRepository.findByVehicle(state.getVehicle())
+                .stream()
+                .filter(dl -> Boolean.TRUE.equals(dl.getActive()))
+                .findFirst()
                 .map(DeviceLinkage::getDevice)
                 .map(device -> device != null ? device.getImei() : null)
                 .filter(imei -> imei != null && !imei.isBlank())

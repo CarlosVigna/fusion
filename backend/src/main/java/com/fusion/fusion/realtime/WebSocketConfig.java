@@ -44,7 +44,8 @@ public class WebSocketConfig
                 .setAllowedOriginPatterns(
                         "http://localhost:5173",
                         "http://localhost:5174",
-                        "https://fusion-pi-tan.vercel.app"
+                        "https://fusion-pi-tan.vercel.app",
+                        "https://fusion-monitor.vercel.app"
                 )
                 .withSockJS();
 
