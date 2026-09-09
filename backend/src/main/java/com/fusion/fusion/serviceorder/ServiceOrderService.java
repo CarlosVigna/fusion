@@ -13,7 +13,6 @@ import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalState;
 import com.fusion.fusion.vehicle.operational.VehicleOperationalStateRepository;
-import com.fusion.fusion.whatsapp.WhatsAppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -43,7 +42,6 @@ public class ServiceOrderService {
     private final VehicleOperationalStateRepository operationalStateRepository;
     private final OperationalSnapshotRepository operationalSnapshotRepository;
     private final ServiceOrderAuditLogRepository auditLogRepository;
-    private final WhatsAppService whatsAppService;
 
     // Mesmos padrões usados no formulário do frontend (ServiceOrders.jsx) —
     // mantidos aqui só como rede de segurança para quem chamar a API
@@ -103,13 +101,6 @@ public class ServiceOrderService {
                 .build();
         ServiceOrderResponse saved = toResponse(repository.save(so));
         audit(so, "CRIADA", null, null, so.getPlate());
-        if (isManual) {
-            whatsAppService.sendNewOrderAlert(
-                    so.getServiceType() != null ? so.getServiceType().name() : "INSTALACAO",
-                    so.getPlate(), so.getCustomerName(), so.getAddress(),
-                    so.getNeighborhood(), so.getCity(), so.getState(),
-                    so.getZipCode(), so.getCustomerPhone());
-        }
         return saved;
     }
 
@@ -316,29 +307,6 @@ public class ServiceOrderService {
                     so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null);
         }
 
-        // Notificações WhatsApp — agendamento confirmado (sem deslocamento pendente)
-        if (techChanged && so.getTechnician() != null && so.getScheduledDate() != null
-                && so.getSchedulingStatus() == SchedulingStatus.AGENDADO) {
-            whatsAppService.sendSchedulingAlert(
-                    so.getPlate(),
-                    so.getServiceType() != null ? so.getServiceType().name() : "",
-                    so.getCustomerName(),
-                    so.getTechnician().getName(),
-                    so.getScheduledDate() != null ? so.getScheduledDate().toString() : "—",
-                    so.getScheduledTime() != null ? so.getScheduledTime() : "—",
-                    so.getAddress(), so.getCity(), so.getState());
-        }
-        // Notificação de deslocamento pendente de aprovação
-        if (effectiveDisplacement != null && effectiveDisplacement.compareTo(BigDecimal.ZERO) > 0
-                && so.getFinancialApprovalStatus() == FinancialApprovalStatus.PENDENTE) {
-            whatsAppService.sendDisplacementPendingAlert(
-                    so.getPlate(),
-                    so.getServiceType() != null ? so.getServiceType().name() : "",
-                    so.getTechnician() != null ? so.getTechnician().getName() : "—",
-                    so.getDistanceKm(),
-                    effectiveDisplacement);
-        }
-
         return saved;
     }
 
@@ -348,13 +316,7 @@ public class ServiceOrderService {
         String oldStatus = so.getFinancialApprovalStatus() != null ? so.getFinancialApprovalStatus().name() : null;
 
         if (request.financialApprovalStatus() == FinancialApprovalStatus.REPROVADO) {
-            // Notificar antes de limpar os dados do técnico
-            String techName = so.getTechnician() != null ? so.getTechnician().getName() : "—";
             String prevStatusName = so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : "AGENDADO";
-            whatsAppService.sendDisplacementRejectedAlert(
-                    so.getPlate(),
-                    so.getServiceType() != null ? so.getServiceType().name() : "",
-                    techName);
 
             // Reverter OS para aberto
             so.setSchedulingStatus(SchedulingStatus.ABERTO);
@@ -370,21 +332,6 @@ public class ServiceOrderService {
                     "ABERTO — Deslocamento reprovado: OS retornada para agendamento");
         } else if (request.financialApprovalStatus() == FinancialApprovalStatus.APROVADO) {
             so.setSchedulingStatus(SchedulingStatus.AGENDADO);
-            whatsAppService.sendSchedulingAlert(
-                    so.getPlate(),
-                    so.getServiceType() != null ? so.getServiceType().name() : "",
-                    so.getCustomerName(),
-                    so.getTechnician() != null ? so.getTechnician().getName() : "—",
-                    so.getScheduledDate() != null ? so.getScheduledDate().toString() : "—",
-                    so.getScheduledTime() != null ? so.getScheduledTime() : "—",
-                    so.getAddress(), so.getCity(), so.getState());
-            whatsAppService.sendDisplacementApprovedAlert(
-                    so.getPlate(),
-                    so.getServiceType() != null ? so.getServiceType().name() : "",
-                    so.getTechnician() != null ? so.getTechnician().getName() : "—",
-                    so.getScheduledDate() != null ? so.getScheduledDate().toString() : "—",
-                    so.getScheduledTime() != null ? so.getScheduledTime() : "—",
-                    so.getDisplacementValue());
         }
 
         so.setFinancialApprovalStatus(request.financialApprovalStatus());
@@ -419,13 +366,6 @@ public class ServiceOrderService {
         if (so.getClosedAt() == null) so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
         ServiceOrderResponse saved = toResponse(repository.save(so));
         audit(so, "CONCLUIDA", "schedulingStatus", "AGENDADO", "CONCLUIDO");
-        whatsAppService.sendCompletionAlert(
-                so.getPlate(),
-                so.getServiceType() != null ? so.getServiceType().name() : "",
-                so.getCustomerName(),
-                so.getTechnician() != null ? so.getTechnician().getName() : "—",
-                so.getServiceValue(),
-                so.getTotalValue());
         return saved;
     }
 

@@ -10,7 +10,6 @@ import com.fusion.fusion.installation.InstallationSyncService;
 import com.fusion.fusion.vehicle.tracknme.TracknMeApiService;
 import com.fusion.fusion.vehicle.tracknme.TracknMeDeviceItem;
 import com.fusion.fusion.vehicle.tracknme.TracknMeSyncService;
-import com.fusion.fusion.whatsapp.WhatsAppService;
 import com.fusion.fusion.installation.InstallationStatus;
 import com.fusion.fusion.letter.LetterRecord;
 import com.fusion.fusion.letter.LetterRecordRepository;
@@ -452,7 +451,6 @@ public class SetupController {
     private final ServiceOrderService serviceOrderService;
     private final TracknMeSyncService tracknMeSyncService;
     private final TracknMeApiService tracknMeApiService;
-    private final WhatsAppService whatsAppService;
     private final EtlStatusService etlStatusService;
 
     private static final List<String> TRACKNME_STALE_CANDIDATES = List.of(

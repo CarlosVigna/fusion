@@ -5,7 +5,6 @@ import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
-import com.fusion.fusion.whatsapp.WhatsAppService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,7 +28,6 @@ public class InstallationSyncService {
 
     private final InstallationRepository installationRepository;
     private final EtlStatusService etlStatusService;
-    private final WhatsAppService whatsAppService;
     private final RestTemplate restTemplate;
     private final ServiceOrderService serviceOrderService;
 
@@ -41,6 +39,9 @@ public class InstallationSyncService {
 
     @Value("${portal.parceiro.client-secret:}")
     private String portalClientSecret;
+
+    @Value("${ntfy.topic:}")
+    private String ntfyTopic;
 
     private volatile InstallationSyncResult lastResult;
 
@@ -193,7 +194,7 @@ public class InstallationSyncService {
                         installation.getPortalCreatedAt()
                 );
 
-                whatsAppService.sendInstallationAlert(installation);
+                sendNtfyNotification(installation);
 
             }
 
@@ -451,6 +452,53 @@ public class InstallationSyncService {
             }
         }
         return null;
+    }
+
+    // Enviar notificação via Ntfy
+    private void sendNtfyNotification(Installation installation) {
+        try {
+            String message = montarMensagemInstalacao(installation);
+            RestTemplate rest = new RestTemplate();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Title", "INSTALAÇÃO NOVA");
+            headers.set("Priority", "high");
+            headers.set("Tags", "truck");
+            HttpEntity<String> entity = new HttpEntity<>(message, headers);
+            rest.postForEntity(
+                "https://ntfy.sh/" + ntfyTopic,
+                entity,
+                String.class
+            );
+            log.info("[NTFY] Notificação enviada para instalação {}", installation.getPlate());
+        } catch (Exception e) {
+            log.warn("[NTFY] Falha ao enviar notificação: {}", e.getMessage());
+        }
+    }
+
+    private String montarMensagemInstalacao(Installation installation) {
+        StringBuilder sb = new StringBuilder("INSTALAÇÃO NOVA:");
+        appendLine(sb, "NOME", installation.getCustomerName());
+        appendLine(sb, "ENDEREÇO", installation.getAddress());
+        appendLine(sb, "BAIRRO", installation.getNeighborhood());
+        if (hasValue(installation.getCity()) || hasValue(installation.getState())) {
+            sb.append("\nCIDADE/UF: ")
+              .append(installation.getCity() != null ? installation.getCity() : "")
+              .append("/")
+              .append(installation.getState() != null ? installation.getState() : "");
+        }
+        appendLine(sb, "CEP", installation.getZipCode());
+        appendLine(sb, "TELEFONE", installation.getPhone());
+        appendLine(sb, "PLACA", installation.getPlate());
+        appendLine(sb, "MODELO", installation.getModel());
+        return sb.toString();
+    }
+
+    private boolean hasValue(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private void appendLine(StringBuilder sb, String label, String value) {
+        if (hasValue(value)) sb.append("\n").append(label).append(": ").append(value);
     }
 
 }
