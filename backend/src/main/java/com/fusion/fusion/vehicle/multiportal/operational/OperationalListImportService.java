@@ -162,7 +162,9 @@ public class OperationalListImportService {
                 VehicleOperationalState state =
                         statesByVehicleId.get(vehicle.getId());
 
-                if (state == null) {
+                boolean isNewState = state == null;
+
+                if (isNewState) {
 
                     state = VehicleOperationalState.builder()
                             .vehicle(vehicle)
@@ -177,31 +179,52 @@ public class OperationalListImportService {
                                 getCellValue(row.getCell(8))
                         );
 
-                state.setOnline(online);
-
-                state.setCommunicationStatus(
+                CommunicationStatus newCommunicationStatus =
                         online
                                 ? CommunicationStatus.ONLINE
-                                : CommunicationStatus.OFFLINE
-                );
+                                : CommunicationStatus.OFFLINE;
 
-                state.setSpeed(
-                        parseDouble(getCellValue(row.getCell(7)))
-                );
+                Double newSpeed =
+                        parseDouble(getCellValue(row.getCell(7)));
 
-                state.setAddress(
-                        getCellValue(row.getCell(12))
-                );
+                String newAddress =
+                        getCellValue(row.getCell(12));
 
-                state.setBatteryLevel(
-                        parseBattery(getCellValue(row.getCell(14)))
-                );
+                Integer newBatteryLevel =
+                        parseBattery(getCellValue(row.getCell(14)));
 
                 LocalDateTime lastCommunicationAt =
                         parseDate(getCellValue(row.getCell(3)));
 
                 LocalDateTime lastPositionAt =
                         parseDate(getCellValue(row.getCell(4)));
+
+                // Sem isso, toda linha da planilha virava um UPDATE em
+                // vehicle_operational_states mesmo sem nenhum campo
+                // diferente do que ja estava salvo — statesToSave.add()
+                // era incondicional. Agora so' grava se algo realmente
+                // mudou (ou se e' um state novo).
+                boolean stateChanged =
+                        isNewState
+                                || !Objects.equals(state.getOnline(), online)
+                                || state.getCommunicationStatus() != newCommunicationStatus
+                                || !Objects.equals(state.getSpeed(), newSpeed)
+                                || !Objects.equals(state.getAddress(), newAddress)
+                                || !Objects.equals(state.getBatteryLevel(), newBatteryLevel)
+                                || (lastCommunicationAt != null
+                                        && !Objects.equals(state.getLastCommunicationAt(), lastCommunicationAt))
+                                || (lastPositionAt != null
+                                        && !Objects.equals(state.getLastPositionAt(), lastPositionAt));
+
+                state.setOnline(online);
+
+                state.setCommunicationStatus(newCommunicationStatus);
+
+                state.setSpeed(newSpeed);
+
+                state.setAddress(newAddress);
+
+                state.setBatteryLevel(newBatteryLevel);
 
                 if (lastCommunicationAt != null) {
                     state.setLastCommunicationAt(lastCommunicationAt);
@@ -221,9 +244,10 @@ public class OperationalListImportService {
                     vehiclesToSave.add(vehicle);
                 }
 
-                state.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
-
-                statesToSave.add(state);
+                if (stateChanged) {
+                    state.setUpdatedAt(LocalDateTime.now(ZoneOffset.UTC));
+                    statesToSave.add(state);
+                }
 
                 updated++;
 
