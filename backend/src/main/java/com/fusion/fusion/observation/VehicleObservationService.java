@@ -5,6 +5,7 @@ import com.fusion.fusion.common.security.CurrentUserService;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class VehicleObservationService {
@@ -44,17 +46,24 @@ public class VehicleObservationService {
             String text
     ) {
 
-        Vehicle vehicle = findVehicle(plate);
+        try {
 
-        VehicleObservation observation = VehicleObservation.builder()
-                .vehicle(vehicle)
-                .text(text)
-                .createdBy(currentUserService.getCurrentUserName())
-                .build();
+            Vehicle vehicle = findVehicle(plate);
 
-        repository.save(observation);
+            VehicleObservation observation = VehicleObservation.builder()
+                    .vehicle(vehicle)
+                    .text(text)
+                    .createdBy(currentUserService.getCurrentUserName())
+                    .build();
 
-        return VehicleObservationResponse.from(observation);
+            repository.save(observation);
+
+            return VehicleObservationResponse.from(observation);
+
+        } catch (Exception e) {
+            log.error("[OBSERVATION] Erro ao salvar observação para {}: {}", plate, e.getMessage(), e);
+            throw e;
+        }
 
     }
 

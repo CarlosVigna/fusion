@@ -1470,4 +1470,43 @@ public class SetupController {
 
     }
 
+    // Diagnostico temporario: compara as colunas reais de vehicle_observations
+    // no Neon com os campos esperados pela entidade VehicleObservation, para
+    // investigar exceptions silenciosas no POST /observations/vehicle/{plate}.
+    @GetMapping("/check-observations-schema")
+    public Map<String, Object> checkObservationsSchema() {
+
+        List<Map<String, Object>> columns = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT column_name, data_type, is_nullable, column_default
+                FROM information_schema.columns
+                WHERE table_name = 'vehicle_observations'
+                ORDER BY ordinal_position
+                """);
+
+        List<String> expectedColumns = List.of(
+                "id", "vehicle_id", "text", "created_at",
+                "created_by", "checked_off", "checked_at", "checked_by"
+        );
+
+        List<String> actualColumns = columns.stream()
+                .map(c -> String.valueOf(c.get("column_name")))
+                .toList();
+
+        List<String> missing = expectedColumns.stream()
+                .filter(c -> !actualColumns.contains(c))
+                .toList();
+
+        List<Map<String, Object>> sample = jdbcTemplate.getJdbcTemplate().queryForList(
+                "SELECT * FROM vehicle_observations ORDER BY id DESC LIMIT 3"
+        );
+
+        return Map.of(
+                "columns", columns,
+                "expectedColumns", expectedColumns,
+                "missingColumns", missing,
+                "sample", sample
+        );
+
+    }
+
 }
