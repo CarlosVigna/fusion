@@ -19,10 +19,7 @@ import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -34,12 +31,14 @@ import java.time.ZoneOffset;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -58,16 +57,13 @@ public class DeviceImportService {
     private final ImportHistoryService importHistoryService;
     private final ImportDiffLogRepository diffLogRepository;
 
-    // Spring nao aplica @Transactional em chamadas diretas this.method()
-    // (bypassa o proxy AOP). Self-injection via @Lazy garante que
-    // registerFailure() seja chamado pelo proxy e receba REQUIRES_NEW —
-    // mesmo padrao de OperationalStateEngineService.java.
-    @Lazy
-    @Autowired
-    private DeviceImportService self;
-
-    private static final int BATCH_SIZE = 50;
-
+    // Tudo carregado em memoria antes do loop (3 queries) em vez de
+    // findByNumberStr/findByPlate/findByVehicleAndDeviceAndActiveTrue por
+    // linha da planilha — o gargalo real contra o Neon nao era o commit
+    // em si, era a quantidade de round-trips (ida-e-volta de rede) por
+    // linha. Import inteiro cabe numa unica transacao porque nao ha mais
+    // nenhuma query "presa" no meio do loop.
+    @Transactional
     public DeviceImportResponse importFile(
             MultipartFile file
     ) {
@@ -105,133 +101,35 @@ public class DeviceImportService {
             int headerRow = findHeaderRow(sheet, "Número");
             int serialChip1Col = findColumnIndex(sheet, headerRow, "Serial Chip 1");
 
-            List<Row> rows = new ArrayList<>();
+            Map<String, Device> existingByNumberStr = deviceRepository.findAllWithVehicle().stream()
+                    .filter(d -> d.getNumberStr() != null)
+                    .collect(Collectors.toMap(Device::getNumberStr, d -> d, (a, b) -> a));
+
+            Map<String, Vehicle> vehiclesByPlate = vehicleRepository.findAll().stream()
+                    .filter(v -> v.getPlate() != null)
+                    .collect(Collectors.toMap(Vehicle::getPlate, v -> v, (a, b) -> a));
+
+            // Chave placa+numberStr em vez de vehicleId+deviceId: um
+            // Device novo criado nesta execucao ainda nao tem UUID (so' e'
+            // atribuido no saveAll no final), entao chavear por id
+            // colidiria com "null" entre varios devices novos diferentes
+            // na mesma planilha. String sempre disponivel evita isso.
+            Set<String> activeLinkagePairs = linkageRepository.findAllActiveWithVehicleAndDevice().stream()
+                    .filter(l -> l.getVehicle() != null && l.getDevice() != null
+                            && l.getVehicle().getPlate() != null && l.getDevice().getNumberStr() != null)
+                    .map(l -> l.getVehicle().getPlate() + "|" + l.getDevice().getNumberStr())
+                    .collect(Collectors.toCollection(HashSet::new));
+
+            List<Device> devicesToSave = new ArrayList<>();
+            List<DeviceLinkage> linkagesToSave = new ArrayList<>();
 
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
+
                 Row row = sheet.getRow(i);
-                if (row != null) {
-                    rows.add(row);
+
+                if (row == null) {
+                    continue;
                 }
-            }
-
-            // Lotes de BATCH_SIZE linhas, cada um em transacao propria via
-            // self (importFile() em si nao e' mais @Transactional) — uma
-            // planilha grande nao fica mais presa numa unica transacao/
-            // conexao do inicio ao fim contra o Neon, e uma falha no meio
-            // so reverte o lote atual, nao o arquivo inteiro.
-            for (int start = 0; start < rows.size(); start += BATCH_SIZE) {
-
-                List<Row> batch = rows.subList(
-                        start,
-                        Math.min(start + BATCH_SIZE, rows.size())
-                );
-
-                DeviceBatchResult result =
-                        self.processBatch(batch, serialChip1Col);
-
-                imported += result.imported();
-                linked += result.linked();
-                changed += result.changed();
-                addedDetails.addAll(result.addedDetails());
-                changedDetails.addAll(result.changedDetails());
-
-            }
-
-            workbook.close();
-
-            String backupName =
-                    namingService.build(
-                            ImportFileType.MULTIPORTAL_DEVICES,
-                            ".xlsx"
-                    );
-
-            backupService.moveToBackup(
-                    processingFile,
-                    ImportPlatform.MULTIPORTAL,
-                    backupName
-            );
-
-            importHistoryService.register(
-                    ImportType.MULTIPORTAL_DEVICE,
-                    backupName,
-                    imported
-            );
-
-            Map<String, Object> diffDetails = new HashMap<>();
-            diffDetails.put("added",   addedDetails);
-            diffDetails.put("removed", new ArrayList<>());
-            diffDetails.put("changed", changedDetails);
-            String detailsJson;
-            try {
-                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
-            } catch (Exception ex) {
-                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
-            }
-
-            // Sem mudanca real (nada adicionado/removido/alterado), o
-            // registro ainda entra pro historico mas ja sai "dismissed"
-            // — sem isso, todo import sem novidade nenhuma tocava o
-            // sino do mesmo jeito que um com mudanca de verdade.
-            boolean hasRealChange = imported > 0 || changed > 0;
-
-            LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
-
-            diffLogRepository.save(ImportDiffLog.builder()
-                    .importType(ImportType.MULTIPORTAL_DEVICE)
-                    .added(imported)
-                    .removed(0)
-                    .changed(changed)
-                    .detailsJson(detailsJson)
-                    .dismissed(!hasRealChange)
-                    .dismissedAt(hasRealChange ? null : diffCreatedAt)
-                    .createdAt(diffCreatedAt)
-                    .build());
-
-        } catch (Exception e) {
-
-            if (processingFile != null) {
-                fileManagerService.moveToFailed(processingFile);
-            }
-
-            // REQUIRES_NEW: cada lote ja e' uma transacao propria (ver
-            // processBatch()), entao uma falha aqui so reverte o lote que
-            // estava rodando — mas o registro de falha no historico ainda
-            // precisa da sua propria transacao pra nao ficar preso a ela.
-            self.registerFailure(file.getOriginalFilename());
-
-            throw new RuntimeException(
-                    "Erro ao importar dispositivos"
-            );
-
-        }
-
-        return new DeviceImportResponse(
-                imported,
-                linked
-        );
-
-    }
-
-    // Processa um lote de ate BATCH_SIZE linhas numa unica transacao —
-    // reduz drasticamente os round-trips "soltos" ao Neon em comparacao
-    // com o commit automatico por save() de antes, sem prender a planilha
-    // inteira numa unica transacao gigante (era o problema da versao
-    // anterior: uma falha no meio revertia tudo, e a conexao ficava
-    // presa do primeiro ao ultimo registro).
-    @Transactional
-    public DeviceBatchResult processBatch(
-            List<Row> rows,
-            int serialChip1Col
-    ) {
-
-        int imported = 0;
-        int linked = 0;
-        int changed = 0;
-
-        List<Map<String, String>> addedDetails   = new ArrayList<>();
-        List<Map<String, Object>> changedDetails  = new ArrayList<>();
-
-        for (Row row : rows) {
 
                 // numberStr é o identificador do dispositivo nesta planilha
                 // (é o que a planilha de Vínculo usa para casar com o Device).
@@ -243,16 +141,15 @@ public class DeviceImportService {
                     continue;
                 }
 
-                Optional<Device> optionalDevice =
-                        deviceRepository.findByNumberStr(numberStr);
+                Device existing = existingByNumberStr.get(numberStr);
 
-                boolean isNewDevice = optionalDevice.isEmpty();
+                boolean isNewDevice = existing == null;
 
                 Device device;
 
-                if (optionalDevice.isPresent()) {
+                if (!isNewDevice) {
 
-                    device = optionalDevice.get();
+                    device = existing;
 
                 } else {
 
@@ -275,6 +172,9 @@ public class DeviceImportService {
                                 && PlateValidator.isValidPlate(plate);
 
                 if (!hasValidPlate) {
+                    // Device novo sem placa valida e' descartado sem ser
+                    // salvo — mesmo comportamento de antes (o save() so'
+                    // acontecia depois deste ponto).
                     continue;
                 }
 
@@ -384,82 +284,138 @@ public class DeviceImportService {
                         )
                 );
 
-                deviceRepository.save(device);
+                if (isNewDevice) {
+                    // Visivel pra uma segunda linha com o mesmo numberStr
+                    // na mesma planilha (equivalente ao auto-flush que o
+                    // findByNumberStr via JPA teria disparado antes).
+                    existingByNumberStr.put(numberStr, device);
+                }
 
-                if (hasValidPlate) {
+                devicesToSave.add(device);
 
-                    Optional<Vehicle> optionalVehicle =
-                            vehicleRepository.findByPlate(plate);
+                Vehicle vehicle = vehiclesByPlate.get(plate);
 
-                    if (optionalVehicle.isPresent()) {
+                if (vehicle != null) {
 
-                        Vehicle vehicle = optionalVehicle.get();
+                    device.setVehicle(vehicle);
 
-                        device.setVehicle(vehicle);
+                    linked++;
 
-                        deviceRepository.save(device);
+                    if (isNewDevice) {
+                        Map<String, String> d = new HashMap<>();
+                        d.put("plate", plate);
+                        d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
+                        addedDetails.add(d);
+                    }
 
-                        linked++;
+                    String pairKey = plate + "|" + numberStr;
 
-                        if (isNewDevice) {
-                            Map<String, String> d = new HashMap<>();
-                            d.put("plate", plate);
-                            d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
-                            addedDetails.add(d);
-                        }
+                    if (!activeLinkagePairs.contains(pairKey)) {
 
-                        if (linkageRepository
-                                .findByVehicleAndDeviceAndActiveTrue(
-                                        vehicle,
-                                        device
-                                ).isEmpty()) {
+                        DeviceLinkage linkage =
+                                DeviceLinkage.builder()
+                                        .vehicle(vehicle)
+                                        .device(device)
+                                        .manufacturer(
+                                                device.getManufacturer()
+                                        )
+                                        .active(true)
+                                        .build();
 
-                            DeviceLinkage linkage =
-                                    DeviceLinkage.builder()
-                                            .vehicle(vehicle)
-                                            .device(device)
-                                            .manufacturer(
-                                                    device.getManufacturer()
-                                            )
-                                            .active(true)
-                                            .build();
-
-                            linkageRepository.save(linkage);
-
-                        }
+                        linkagesToSave.add(linkage);
+                        activeLinkagePairs.add(pairKey);
 
                     }
 
                 }
 
+            }
+
+            workbook.close();
+
+            if (!devicesToSave.isEmpty()) {
+                deviceRepository.saveAll(devicesToSave);
+            }
+
+            if (!linkagesToSave.isEmpty()) {
+                linkageRepository.saveAll(linkagesToSave);
+            }
+
+            String backupName =
+                    namingService.build(
+                            ImportFileType.MULTIPORTAL_DEVICES,
+                            ".xlsx"
+                    );
+
+            backupService.moveToBackup(
+                    processingFile,
+                    ImportPlatform.MULTIPORTAL,
+                    backupName
+            );
+
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_DEVICE,
+                    backupName,
+                    imported
+            );
+
+            Map<String, Object> diffDetails = new HashMap<>();
+            diffDetails.put("added",   addedDetails);
+            diffDetails.put("removed", new ArrayList<>());
+            diffDetails.put("changed", changedDetails);
+            String detailsJson;
+            try {
+                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
+            } catch (Exception ex) {
+                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
+            }
+
+            // Sem mudanca real (nada adicionado/removido/alterado), o
+            // registro ainda entra pro historico mas ja sai "dismissed"
+            // — sem isso, todo import sem novidade nenhuma tocava o
+            // sino do mesmo jeito que um com mudanca de verdade.
+            boolean hasRealChange = imported > 0 || changed > 0;
+
+            LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
+
+            diffLogRepository.save(ImportDiffLog.builder()
+                    .importType(ImportType.MULTIPORTAL_DEVICE)
+                    .added(imported)
+                    .removed(0)
+                    .changed(changed)
+                    .detailsJson(detailsJson)
+                    .dismissed(!hasRealChange)
+                    .dismissedAt(hasRealChange ? null : diffCreatedAt)
+                    .createdAt(diffCreatedAt)
+                    .build());
+
+        } catch (Exception e) {
+
+            if (processingFile != null) {
+                fileManagerService.moveToFailed(processingFile);
+            }
+
+            // Sem self/REQUIRES_NEW (removido a pedido) — esse registro
+            // agora esta' na MESMA transacao de importFile() e e'
+            // revertido junto se o metodo relancar a excecao. Import
+            // quebrado no meio nao deixa mais rastro de FAILED no
+            // historico/diff-log. Ver relatorio.
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_DEVICE,
+                    file.getOriginalFilename(),
+                    0,
+                    ImportStatus.FAILED
+            );
+
+            throw new RuntimeException(
+                    "Erro ao importar dispositivos"
+            );
+
         }
 
-        return new DeviceBatchResult(
+        return new DeviceImportResponse(
                 imported,
-                linked,
-                changed,
-                addedDetails,
-                changedDetails
-        );
-
-    }
-
-    private record DeviceBatchResult(
-            int imported,
-            int linked,
-            int changed,
-            List<Map<String, String>> addedDetails,
-            List<Map<String, Object>> changedDetails
-    ) {}
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void registerFailure(String originalFilename) {
-
-        importHistoryService.register(
-                ImportType.MULTIPORTAL_DEVICE,
-                originalFilename,
-                0,
-                ImportStatus.FAILED
+                linked
         );
 
     }

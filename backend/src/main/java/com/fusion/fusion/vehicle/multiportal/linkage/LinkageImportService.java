@@ -21,10 +21,7 @@ import com.fusion.fusion.vehicle.multiportal.device.Device;
 import com.fusion.fusion.vehicle.multiportal.device.DeviceRepository;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -41,8 +38,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -61,19 +58,17 @@ public class LinkageImportService {
     private final ImportHistoryService importHistoryService;
     private final ImportDiffLogRepository diffLogRepository;
 
-    // Spring nao aplica @Transactional em chamadas diretas this.method()
-    // (bypassa o proxy AOP). Self-injection via @Lazy garante que
-    // registerFailure() seja chamado pelo proxy e receba REQUIRES_NEW —
-    // mesmo padrao de OperationalStateEngineService.java.
-    @Lazy
-    @Autowired
-    private LinkageImportService self;
-
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
-    private static final int BATCH_SIZE = 50;
-
+    // Tudo carregado em memoria antes do loop (3 queries) em vez de
+    // findByPlate/findByNumberStr/findByVehicleAndActiveTrue/
+    // findByVehicleAndDeviceAndActiveTrue por linha da planilha — o
+    // gargalo real contra o Neon nao era o commit em si, era a
+    // quantidade de round-trips por linha. Import inteiro cabe numa
+    // unica transacao porque nao ha mais nenhuma query "presa" no meio
+    // do loop.
+    @Transactional
     public LinkageImportResponse importFile(
             MultipartFile file
     ) {
@@ -114,15 +109,37 @@ public class LinkageImportService {
 
             int headerRow = findHeaderRow(sheet, "Data Inicial");
 
+            Map<String, Vehicle> vehiclesByPlate = vehicleRepository.findAll().stream()
+                    .filter(v -> v.getPlate() != null)
+                    .collect(Collectors.toMap(Vehicle::getPlate, v -> v, (a, b) -> a));
+
+            Map<String, Device> devicesByNumberStr = deviceRepository.findAllWithVehicle().stream()
+                    .filter(d -> d.getNumberStr() != null)
+                    .collect(Collectors.toMap(Device::getNumberStr, d -> d, (a, b) -> a));
+
+            // Chaveado por placa, nao por vehicle.getId(): um Vehicle novo
+            // criado nesta execucao ainda nao tem UUID (so' e' atribuido
+            // no saveAll no final), entao chavear por id colidiria com
+            // "null" entre varios veiculos novos diferentes na mesma
+            // planilha. Placa e' sempre disponivel e e' a chave natural
+            // de qualquer forma (um veiculo tem no maximo um linkage
+            // ativo por vez, mesma premissa ja usada em outros pontos do
+            // sistema).
+            Map<String, DeviceLinkage> activeLinkageByPlate = repository.findAllActiveWithVehicleAndDevice().stream()
+                    .filter(l -> l.getVehicle() != null && l.getVehicle().getPlate() != null)
+                    .collect(Collectors.toMap(l -> l.getVehicle().getPlate(), l -> l, (a, b) -> a));
+
+            List<Vehicle> vehiclesToSave       = new ArrayList<>();
+            List<Device> devicesToSave         = new ArrayList<>();
+            List<DeviceLinkage> linkagesToSave = new ArrayList<>();
+
             // PASSO 1 — coletar todas as placas com pelo menos um vínculo "Aberto"
             // na planilha, para não soft-deletar veículos que aparecem como
             // encerrados em uma linha mas ativos em outra.
             Set<String> placasComVinculoAberto = new HashSet<>();
-            List<Row> rows = new ArrayList<>();
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
-                rows.add(row);
                 String plate = PlateNormalizer.normalize(getCellValue(row.getCell(2)));
                 if (!PlateValidator.isValidPlate(plate)) continue;
                 if ("Aberto".equalsIgnoreCase(getCellValue(row.getCell(7)))) {
@@ -130,34 +147,205 @@ public class LinkageImportService {
                 }
             }
 
-            // PASSO 2 — processar cada linha, em lotes de BATCH_SIZE, cada
-            // um em transacao propria via self (importFile() em si nao e'
-            // mais @Transactional) — uma planilha grande nao fica mais
-            // presa numa unica transacao/conexao do inicio ao fim contra o
-            // Neon, e uma falha no meio so reverte o lote atual.
-            for (int start = 0; start < rows.size(); start += BATCH_SIZE) {
+            // PASSO 2 — processar cada linha
+            for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
-                List<Row> batch = rows.subList(
-                        start,
-                        Math.min(start + BATCH_SIZE, rows.size())
-                );
+                Row row = sheet.getRow(i);
 
-                LinkageBatchResult result =
-                        self.processBatch(batch, placasComVinculoAberto);
+                if (row == null) {
+                    continue;
+                }
 
-                imported += result.imported();
-                active += result.active();
-                linkedVehicles += result.linkedVehicles();
-                vehiclesAdded += result.vehiclesAdded();
-                vehiclesRemoved += result.vehiclesRemoved();
-                linksChanged += result.linksChanged();
-                addedDetails.addAll(result.addedDetails());
-                removedDetails.addAll(result.removedDetails());
-                changedDetails.addAll(result.changedDetails());
+                String plate =
+                        PlateNormalizer.normalize(
+                                getCellValue(row.getCell(2))
+                        );
+
+                if (!PlateValidator.isValidPlate(plate)) {
+                    continue;
+                }
+
+                String status =
+                        getCellValue(row.getCell(7));
+
+                if (!"Aberto".equalsIgnoreCase(status)) {
+                    // Só desativar/soft-deletar se a placa não tem nenhum
+                    // vínculo "Aberto" em outra linha da mesma planilha.
+                    if (!placasComVinculoAberto.contains(plate)) {
+                        Vehicle vOpt = vehiclesByPlate.get(plate);
+                        if (vOpt != null
+                                && deactivateVehicleIfOrphaned(
+                                        vOpt, activeLinkageByPlate, linkagesToSave, vehiclesToSave
+                                )) {
+                            vehiclesRemoved++;
+                            Map<String, String> d = new HashMap<>();
+                            d.put("plate", plate);
+                            d.put("name", vOpt.getInsuredName() != null ? vOpt.getInsuredName() : "");
+                            removedDetails.add(d);
+                        }
+                    }
+                    continue;
+                }
+
+                boolean vehicleExisted = vehiclesByPlate.containsKey(plate);
+
+                Vehicle vehicle = vehiclesByPlate.get(plate);
+
+                if (vehicle == null) {
+
+                    vehicle = Vehicle.builder()
+                            .plate(plate)
+                            .platform(
+                                    VehiclePlatform.MULTIPORTAL
+                            )
+                            // Placa fora do padrao oficial (ex:
+                            // "CAMPFRANCK", "JEFFLONDRINA") nao e'
+                            // frota real — vai pra TEST em vez de
+                            // OPERATIONAL (default do Vehicle).
+                            .vehicleGroup(
+                                    PlateValidator.isStandardFormat(plate)
+                                            ? VehicleGroup.OPERATIONAL
+                                            : VehicleGroup.TEST
+                            )
+                            .build();
+
+                    vehiclesByPlate.put(plate, vehicle);
+                    vehiclesToSave.add(vehicle);
+
+                }
+
+                // Reativar veículo se foi soft-deletado em import anterior
+                if (Boolean.FALSE.equals(vehicle.getActive()) || vehicle.getDeletedAt() != null) {
+                    vehicle.setActive(true);
+                    vehicle.setDeletedAt(null);
+                    vehiclesToSave.add(vehicle);
+                    vehiclesAdded++;
+                    Map<String, String> d = new HashMap<>();
+                    d.put("plate", plate);
+                    d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
+                    addedDetails.add(d);
+                } else if (!vehicleExisted) {
+                    vehiclesAdded++;
+                    Map<String, String> d = new HashMap<>();
+                    d.put("plate", plate);
+                    d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
+                    addedDetails.add(d);
+                }
+
+                linkedVehicles++;
+
+                String numberStr =
+                        getCellValue(row.getCell(4));
+
+                Device device = devicesByNumberStr.get(numberStr);
+
+                if (device == null) {
+                    continue;
+                }
+
+                DeviceLinkage currentActiveLinkage =
+                        activeLinkageByPlate.get(plate);
+
+                if (currentActiveLinkage != null
+                        && !currentActiveLinkage
+                                .getDevice()
+                                .getId()
+                                .equals(device.getId())) {
+
+                    // veículo já tem outro dispositivo ativo — troca de
+                    // dispositivo precisa de aprovação, não troca direto
+                    pendingChangeService.detect(
+                            plate,
+                            "dispositivo",
+                            currentActiveLinkage
+                                    .getDevice()
+                                    .getNumberStr(),
+                            device.getNumberStr(),
+                            SOURCE_IMPORT
+                    );
+
+                    continue;
+
+                }
+
+                device.setVehicle(vehicle);
+
+                devicesToSave.add(device);
+
+                // Se currentActiveLinkage existe aqui, o device ja bateu
+                // (gate acima), entao e' o mesmo registro que
+                // findByVehicleAndDeviceAndActiveTrue(vehicle, device)
+                // acharia — nao precisa de uma segunda busca.
+                boolean isExistingLinkage = currentActiveLinkage != null;
+
+                DeviceLinkage linkage =
+                        isExistingLinkage
+                                ? currentActiveLinkage
+                                : DeviceLinkage.builder()
+                                        .vehicle(vehicle)
+                                        .device(device)
+                                        .active(true)
+                                        .build();
+
+                // Captura estado anterior para detectar mudanças reais
+                String prevManuf        = isExistingLinkage ? linkage.getManufacturer() : null;
+                LocalDateTime prevStart = isExistingLinkage ? linkage.getStartAt()      : null;
+                LocalDateTime prevEnd   = isExistingLinkage ? linkage.getEndAt()        : null;
+
+                String newManuf        = getCellValue(row.getCell(6));
+                LocalDateTime newStart = parseDate(getCellValue(row.getCell(0)));
+                LocalDateTime newEnd   = parseDate(getCellValue(row.getCell(1)));
+
+                // Já pode existir um vínculo criado pelo import de
+                // Dispositivos (sem datas) — aqui completamos/atualizamos
+                // as datas reais, sem nunca duplicar o registro.
+                linkage.setManufacturer(newManuf);
+                linkage.setStartAt(newStart);
+                linkage.setEndAt(newEnd);
+
+                linkagesToSave.add(linkage);
+                activeLinkageByPlate.put(plate, linkage);
+
+                if (isExistingLinkage) {
+                    boolean manufChanged = !Objects.equals(newManuf,  prevManuf);
+                    boolean startChanged = !Objects.equals(newStart,  prevStart);
+                    boolean endChanged   = !Objects.equals(newEnd,    prevEnd);
+                    if (manufChanged || startChanged || endChanged) {
+                        linksChanged++;
+                        String changedField = manufChanged ? "fabricante" : startChanged ? "data_inicio" : "data_fim";
+                        String fromVal = manufChanged ? (prevManuf  != null ? prevManuf          : "")
+                                       : startChanged ? (prevStart  != null ? prevStart.toString() : "")
+                                       :               (prevEnd    != null ? prevEnd.toString()   : "");
+                        String toVal   = manufChanged ? (newManuf   != null ? newManuf           : "")
+                                       : startChanged ? (newStart   != null ? newStart.toString()  : "")
+                                       :               (newEnd     != null ? newEnd.toString()    : "");
+                        Map<String, Object> d = new HashMap<>();
+                        d.put("plate", plate);
+                        d.put("field", changedField);
+                        d.put("from",  fromVal);
+                        d.put("to",    toVal);
+                        changedDetails.add(d);
+                    }
+                }
+
+                active++;
+                imported++;
 
             }
 
             workbook.close();
+
+            if (!vehiclesToSave.isEmpty()) {
+                vehicleRepository.saveAll(vehiclesToSave);
+            }
+
+            if (!devicesToSave.isEmpty()) {
+                deviceRepository.saveAll(devicesToSave);
+            }
+
+            if (!linkagesToSave.isEmpty()) {
+                repository.saveAll(linkagesToSave);
+            }
 
             String backupName =
                     namingService.build(
@@ -213,11 +401,17 @@ public class LinkageImportService {
                 fileManagerService.moveToFailed(processingFile);
             }
 
-            // REQUIRES_NEW: cada lote ja e' uma transacao propria (ver
-            // processBatch()), entao uma falha aqui so reverte o lote que
-            // estava rodando — mas o registro de falha no historico ainda
-            // precisa da sua propria transacao pra nao ficar preso a ela.
-            self.registerFailure(file.getOriginalFilename());
+            // Sem self/REQUIRES_NEW (removido a pedido) — esse registro
+            // agora esta' na MESMA transacao de importFile() e e'
+            // revertido junto se o metodo relancar a excecao. Import
+            // quebrado no meio nao deixa mais rastro de FAILED no
+            // historico/diff-log. Ver relatorio.
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_LINKAGE,
+                    file.getOriginalFilename(),
+                    0,
+                    ImportStatus.FAILED
+            );
 
             throw new RuntimeException(
                     "Erro ao importar vínculos"
@@ -233,276 +427,37 @@ public class LinkageImportService {
 
     }
 
-    // Processa um lote de ate BATCH_SIZE linhas numa unica transacao —
-    // reduz drasticamente os round-trips "soltos" ao Neon em comparacao
-    // com o commit automatico por save() de antes, sem prender a planilha
-    // inteira numa unica transacao gigante.
-    @Transactional
-    public LinkageBatchResult processBatch(
-            List<Row> rows,
-            Set<String> placasComVinculoAberto
+    // Chamado quando a planilha de vínculo traz status != "Aberto" para uma
+    // placa. Desativa o device_linkage ativo (se existir, via o mapa em
+    // memoria) e, em seguida, soft-deleta o veículo caso ele ainda
+    // estivesse ativo. Retorna true se o veículo foi efetivamente
+    // desativado. Acumula nas listas toSave em vez de salvar direto.
+    private boolean deactivateVehicleIfOrphaned(
+            Vehicle vehicle,
+            Map<String, DeviceLinkage> activeLinkageByPlate,
+            List<DeviceLinkage> linkagesToSave,
+            List<Vehicle> vehiclesToSave
     ) {
 
-        int imported = 0;
-        int active = 0;
-        int linkedVehicles = 0;
-        int vehiclesAdded = 0;
-        int vehiclesRemoved = 0;
-        int linksChanged = 0;
+        DeviceLinkage activeLinkage = activeLinkageByPlate.get(vehicle.getPlate());
 
-        List<Map<String, String>> addedDetails   = new ArrayList<>();
-        List<Map<String, String>> removedDetails  = new ArrayList<>();
-        List<Map<String, Object>> changedDetails  = new ArrayList<>();
-
-        for (Row row : rows) {
-
-                String plate =
-                        PlateNormalizer.normalize(
-                                getCellValue(row.getCell(2))
-                        );
-
-                if (!PlateValidator.isValidPlate(plate)) {
-                    continue;
-                }
-
-                String status =
-                        getCellValue(row.getCell(7));
-
-                if (!"Aberto".equalsIgnoreCase(status)) {
-                    // Só desativar/soft-deletar se a placa não tem nenhum
-                    // vínculo "Aberto" em outra linha da mesma planilha.
-                    if (!placasComVinculoAberto.contains(plate)) {
-                        Optional<Vehicle> vOpt = vehicleRepository.findByPlate(plate);
-                        if (deactivateVehicleIfOrphaned(plate)) {
-                            vehiclesRemoved++;
-                            Map<String, String> d = new HashMap<>();
-                            d.put("plate", plate);
-                            d.put("name", vOpt.map(v -> v.getInsuredName() != null ? v.getInsuredName() : "").orElse(""));
-                            removedDetails.add(d);
-                        }
-                    }
-                    continue;
-                }
-
-                boolean vehicleExisted = vehicleRepository.findByPlate(plate).isPresent();
-
-                Vehicle vehicle =
-                        vehicleRepository.findByPlate(plate)
-                                .orElseGet(() ->
-                                        vehicleRepository.save(
-                                                Vehicle.builder()
-                                                        .plate(plate)
-                                                        .platform(
-                                                                VehiclePlatform.MULTIPORTAL
-                                                        )
-                                                        // Placa fora do padrao oficial (ex:
-                                                        // "CAMPFRANCK", "JEFFLONDRINA") nao e'
-                                                        // frota real — vai pra TEST em vez de
-                                                        // OPERATIONAL (default do Vehicle).
-                                                        .vehicleGroup(
-                                                                PlateValidator.isStandardFormat(plate)
-                                                                        ? VehicleGroup.OPERATIONAL
-                                                                        : VehicleGroup.TEST
-                                                        )
-                                                        .build()
-                                        )
-                                );
-
-                // Reativar veículo se foi soft-deletado em import anterior
-                if (Boolean.FALSE.equals(vehicle.getActive()) || vehicle.getDeletedAt() != null) {
-                    vehicle.setActive(true);
-                    vehicle.setDeletedAt(null);
-                    vehicleRepository.save(vehicle);
-                    vehiclesAdded++;
-                    Map<String, String> d = new HashMap<>();
-                    d.put("plate", plate);
-                    d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
-                    addedDetails.add(d);
-                } else if (!vehicleExisted) {
-                    vehiclesAdded++;
-                    Map<String, String> d = new HashMap<>();
-                    d.put("plate", plate);
-                    d.put("name", vehicle.getInsuredName() != null ? vehicle.getInsuredName() : "");
-                    addedDetails.add(d);
-                }
-
-                linkedVehicles++;
-
-                String numberStr =
-                        getCellValue(row.getCell(4));
-
-                Optional<Device> optionalDevice =
-                        deviceRepository.findByNumberStr(numberStr);
-
-                if (optionalDevice.isEmpty()) {
-                    continue;
-                }
-
-                Device device = optionalDevice.get();
-
-                Optional<DeviceLinkage> currentActiveLinkage =
-                        repository.findByVehicleAndActiveTrue(vehicle);
-
-                if (currentActiveLinkage.isPresent()
-                        && !currentActiveLinkage.get()
-                                .getDevice()
-                                .getId()
-                                .equals(device.getId())) {
-
-                    // veículo já tem outro dispositivo ativo — troca de
-                    // dispositivo precisa de aprovação, não troca direto
-                    pendingChangeService.detect(
-                            plate,
-                            "dispositivo",
-                            currentActiveLinkage.get()
-                                    .getDevice()
-                                    .getNumberStr(),
-                            device.getNumberStr(),
-                            SOURCE_IMPORT
-                    );
-
-                    continue;
-
-                }
-
-                device.setVehicle(vehicle);
-
-                deviceRepository.save(device);
-
-                Optional<DeviceLinkage> existingLinkage =
-                        repository.findByVehicleAndDeviceAndActiveTrue(
-                                vehicle,
-                                device
-                        );
-
-                boolean isExistingLinkage = existingLinkage.isPresent();
-
-                DeviceLinkage linkage =
-                        existingLinkage.orElseGet(() ->
-                                DeviceLinkage.builder()
-                                        .vehicle(vehicle)
-                                        .device(device)
-                                        .active(true)
-                                        .build()
-                        );
-
-                // Captura estado anterior para detectar mudanças reais
-                String prevManuf        = isExistingLinkage ? linkage.getManufacturer() : null;
-                LocalDateTime prevStart = isExistingLinkage ? linkage.getStartAt()      : null;
-                LocalDateTime prevEnd   = isExistingLinkage ? linkage.getEndAt()        : null;
-
-                String newManuf        = getCellValue(row.getCell(6));
-                LocalDateTime newStart = parseDate(getCellValue(row.getCell(0)));
-                LocalDateTime newEnd   = parseDate(getCellValue(row.getCell(1)));
-
-                // Já pode existir um vínculo criado pelo import de
-                // Dispositivos (sem datas) — aqui completamos/atualizamos
-                // as datas reais, sem nunca duplicar o registro.
-                linkage.setManufacturer(newManuf);
-                linkage.setStartAt(newStart);
-                linkage.setEndAt(newEnd);
-
-                repository.save(linkage);
-
-                if (isExistingLinkage) {
-                    boolean manufChanged = !Objects.equals(newManuf,  prevManuf);
-                    boolean startChanged = !Objects.equals(newStart,  prevStart);
-                    boolean endChanged   = !Objects.equals(newEnd,    prevEnd);
-                    if (manufChanged || startChanged || endChanged) {
-                        linksChanged++;
-                        String changedField = manufChanged ? "fabricante" : startChanged ? "data_inicio" : "data_fim";
-                        String fromVal = manufChanged ? (prevManuf  != null ? prevManuf          : "")
-                                       : startChanged ? (prevStart  != null ? prevStart.toString() : "")
-                                       :               (prevEnd    != null ? prevEnd.toString()   : "");
-                        String toVal   = manufChanged ? (newManuf   != null ? newManuf           : "")
-                                       : startChanged ? (newStart   != null ? newStart.toString()  : "")
-                                       :               (newEnd     != null ? newEnd.toString()    : "");
-                        Map<String, Object> d = new HashMap<>();
-                        d.put("plate", plate);
-                        d.put("field", changedField);
-                        d.put("from",  fromVal);
-                        d.put("to",    toVal);
-                        changedDetails.add(d);
-                    }
-                }
-
-                active++;
-                imported++;
-
+        if (activeLinkage != null) {
+            activeLinkage.setActive(false);
+            if (activeLinkage.getEndAt() == null) {
+                activeLinkage.setEndAt(LocalDateTime.now(ZoneOffset.UTC));
+            }
+            linkagesToSave.add(activeLinkage);
+            activeLinkageByPlate.remove(vehicle.getPlate());
         }
 
-        return new LinkageBatchResult(
-                imported,
-                active,
-                linkedVehicles,
-                vehiclesAdded,
-                vehiclesRemoved,
-                linksChanged,
-                addedDetails,
-                removedDetails,
-                changedDetails
-        );
+        if (Boolean.TRUE.equals(vehicle.getActive())) {
+            vehicle.setActive(false);
+            vehicle.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
+            vehiclesToSave.add(vehicle);
+            return true;
+        }
 
-    }
-
-    private record LinkageBatchResult(
-            int imported,
-            int active,
-            int linkedVehicles,
-            int vehiclesAdded,
-            int vehiclesRemoved,
-            int linksChanged,
-            List<Map<String, String>> addedDetails,
-            List<Map<String, String>> removedDetails,
-            List<Map<String, Object>> changedDetails
-    ) {}
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void registerFailure(String originalFilename) {
-
-        importHistoryService.register(
-                ImportType.MULTIPORTAL_LINKAGE,
-                originalFilename,
-                0,
-                ImportStatus.FAILED
-        );
-
-    }
-
-    // Chamado quando a planilha de vínculo traz status != "Aberto" para uma
-    // placa. Desativa o device_linkage ativo (se existir) e, em seguida,
-    // soft-deleta o veículo caso não reste nenhum dispositivo ativo vinculado.
-    // Retorna true se o veículo foi efetivamente desativado.
-    private boolean deactivateVehicleIfOrphaned(String plate) {
-
-        final boolean[] deactivated = {false};
-
-        vehicleRepository.findByPlate(plate).ifPresent(vehicle -> {
-
-            repository.findByVehicleAndActiveTrue(vehicle).ifPresent(linkage -> {
-                linkage.setActive(false);
-                if (linkage.getEndAt() == null) {
-                    linkage.setEndAt(LocalDateTime.now(ZoneOffset.UTC));
-                }
-                repository.save(linkage);
-            });
-
-            // Após desativar, confirmar que não existe mais linkage ativo
-            // (guarda-chuva para o caso improvável de múltiplos linkages).
-            boolean stillHasActive = repository
-                    .findByVehicleAndActiveTrue(vehicle)
-                    .isPresent();
-
-            if (!stillHasActive && Boolean.TRUE.equals(vehicle.getActive())) {
-                vehicle.setActive(false);
-                vehicle.setDeletedAt(LocalDateTime.now(ZoneOffset.UTC));
-                vehicleRepository.save(vehicle);
-                deactivated[0] = true;
-            }
-
-        });
-
-        return deactivated[0];
+        return false;
 
     }
 
