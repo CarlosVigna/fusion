@@ -3,6 +3,7 @@ package com.fusion.fusion.setup;
 import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
+import com.fusion.fusion.etl.EtlTriggerService;
 import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
@@ -452,6 +453,7 @@ public class SetupController {
     private final TracknMeSyncService tracknMeSyncService;
     private final TracknMeApiService tracknMeApiService;
     private final EtlStatusService etlStatusService;
+    private final EtlTriggerService etlTriggerService;
 
     private static final List<String> TRACKNME_STALE_CANDIDATES = List.of(
             "SHE1J03", "PYC0H76", "IYL7E09", "GHE9I46", "FJO4527"
@@ -1505,6 +1507,26 @@ public class SetupController {
                 "expectedColumns", expectedColumns,
                 "missingColumns", missing,
                 "sample", sample
+        );
+
+    }
+
+    // Diagnostico temporario: dispara uma mensagem de teste pro grupo do
+    // WhatsApp via o mesmo caminho usado por instalacao nova de verdade
+    // (EtlTriggerService -> poll() do ETL local -> Baileys), sem precisar
+    // esperar uma instalacao real chegar do portal parceiro.
+    @GetMapping("/test-whatsapp")
+    public Map<String, Object> testWhatsapp() {
+
+        String message = "TESTE DE INTEGRAÇÃO\nSistema Fusion conectado via Baileys!";
+
+        etlTriggerService.request(ImportType.WHATSAPP_MESSAGE, message);
+
+        log.info("[SETUP] Mensagem de teste do WhatsApp enfileirada");
+
+        return Map.of(
+                "status", "OK",
+                "message", "Mensagem enfileirada — aguarde o proximo poll do ETL local (ate 15s) pra ela chegar no grupo."
         );
 
     }
