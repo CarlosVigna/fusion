@@ -9,54 +9,59 @@ const GROUP_ID = process.env.WHATSAPP_GROUP_ID; // ex: '120363xxxxxxxx@g.us'
 
 async function connectWhatsApp() {
 
-    // Sem WHATSAPP_GROUP_ID ainda da' pra conectar — e' exatamente o
-    // caso de descobrir o ID pela primeira vez (ver listener de grupos
-    // abaixo). sendToGroup() ja' e' seguro sem GROUP_ID (no-op).
     if (!GROUP_ID) {
-        log('[WHATSAPP] WHATSAPP_GROUP_ID não configurado ainda — conectando mesmo assim para listar os grupos disponíveis.');
+        log('[WHATSAPP] WHATSAPP_GROUP_ID não configurado ainda.');
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    try {
 
-    sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        logger: require('pino')({ level: 'silent' })
-    });
+        const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
-    sock.ev.on('creds.update', saveCreds);
+        sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: true,
+            logger: require('pino')({ level: 'silent' })
+        });
 
-    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
+        sock.ev.on('creds.update', saveCreds);
 
-        if (connection === 'open') {
+        sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
 
-            log('[WHATSAPP] Conectado.');
+            if (connection === 'open') {
+                log('[WHATSAPP] Conectado.');
+            }
 
-            // TEMPORÁRIO — remover depois de copiar o ID do grupo certo
-            // (ex: "Teste de integração") e configurar WHATSAPP_GROUP_ID.
-            try {
+            if (connection === 'close') {
 
-                const groups = await sock.groupFetchAllParticipating();
+                // statusCode logado explicitamente (nao so' o boolean) pra
+                // dar pra diagnosticar de verdade qual DisconnectReason
+                // causou o fechamento, em vez de so' ver "reconectar: false"
+                // sem saber o motivo.
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-                Object.values(groups).forEach(g => {
-                    console.log(`[WHATSAPP] Grupo: "${g.subject}" → ID: ${g.id}`);
-                });
+                log(`[WHATSAPP] Conexão encerrada (statusCode=${statusCode}) — reconectar: ${!isLoggedOut}`);
 
-            } catch (e) {
-
-                console.log('[WHATSAPP] Erro ao listar grupos:', e.message);
+                if (!isLoggedOut) {
+                    setTimeout(connectWhatsApp, 5000);
+                } else {
+                    log('[WHATSAPP] Sessão deslogada (statusCode 401) — não reconecta sozinho. Apague fusion-etl/whatsapp-auth e reinicie pra parear de novo.');
+                }
 
             }
 
-        }
+        });
 
-        if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            log(`[WHATSAPP] Conexão encerrada — reconectar: ${shouldReconnect}`);
-            if (shouldReconnect) setTimeout(connectWhatsApp, 5000);
-        }
+    } catch (e) {
 
-    });
+        // Sem isso, uma falha aqui (ex.: whatsapp-auth/ corrompido ou
+        // ausente depois de um redeploy) nunca chega no listener de
+        // connection.update acima — o processo simplesmente nunca mais
+        // tentaria se conectar, silenciosamente, sem nenhum log de erro.
+        log(`[WHATSAPP] Falha ao conectar: ${e.message} — tentando de novo em 5s`);
+        setTimeout(connectWhatsApp, 5000);
+
+    }
 
 }
 
