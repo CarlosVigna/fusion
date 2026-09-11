@@ -11,7 +11,8 @@ frontend/dist/
 
 # ETL
 fusion-etl/node_modules/
-fusion-etl/whatsapp-auth/
+fusion-etl/whatsapp-auth/*
+!fusion-etl/whatsapp-auth/creds.json
 
 # Env
 .env
