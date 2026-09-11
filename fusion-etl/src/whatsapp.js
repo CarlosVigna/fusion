@@ -9,9 +9,11 @@ const GROUP_ID = process.env.WHATSAPP_GROUP_ID; // ex: '120363xxxxxxxx@g.us'
 
 async function connectWhatsApp() {
 
+    // Sem WHATSAPP_GROUP_ID ainda da' pra conectar — e' exatamente o
+    // caso de descobrir o ID pela primeira vez (ver listener de grupos
+    // abaixo). sendToGroup() ja' e' seguro sem GROUP_ID (no-op).
     if (!GROUP_ID) {
-        log('[WHATSAPP] WHATSAPP_GROUP_ID não configurado — conexão não iniciada.');
-        return;
+        log('[WHATSAPP] WHATSAPP_GROUP_ID não configurado ainda — conectando mesmo assim para listar os grupos disponíveis.');
     }
 
     const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
@@ -24,10 +26,28 @@ async function connectWhatsApp() {
 
     sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+    sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
 
         if (connection === 'open') {
+
             log('[WHATSAPP] Conectado.');
+
+            // TEMPORÁRIO — remover depois de copiar o ID do grupo certo
+            // (ex: "Teste de integração") e configurar WHATSAPP_GROUP_ID.
+            try {
+
+                const groups = await sock.groupFetchAllParticipating();
+
+                Object.values(groups).forEach(g => {
+                    console.log(`[WHATSAPP] Grupo: "${g.subject}" → ID: ${g.id}`);
+                });
+
+            } catch (e) {
+
+                console.log('[WHATSAPP] Erro ao listar grupos:', e.message);
+
+            }
+
         }
 
         if (connection === 'close') {
