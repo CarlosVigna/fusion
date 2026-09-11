@@ -2,6 +2,7 @@ const axios = require('axios');
 const { log } = require('./file-utils');
 const { withRetry } = require('./retry');
 const { reportHeartbeat } = require('./etlStatusReporter');
+const { sendToGroup } = require('./whatsapp');
 
 const BACKEND_URL = process.env.BACKEND_URL;
 const ETL_API_KEY = process.env.ETL_API_KEY;
@@ -119,6 +120,31 @@ async function pollOnce(runners) {
         // chegaram juntos, processa um, termina, e já busca o próximo
         // em vez de aguardar 15s parado. Se a fila estiver vazia, o
         // poll retorna sem fazer nada e o setInterval assume de novo.
+        setTimeout(() => pollOnce(runners), 500);
+
+        return;
+
+    }
+
+    // Notificação de instalação nova pro grupo do WhatsApp (Baileys) —
+    // WHATSAPP_MESSAGE não é um ImportType de verdade, só reaproveita a
+    // fila do EtlTriggerService pra trazer o texto até aqui via
+    // triggerPlate. Sem heartbeat: o backend só aceita ImportType válido
+    // em /etl/heartbeat, e esse tipo nunca é gravado no etl_status.
+    if (data?.type === 'WHATSAPP_MESSAGE') {
+
+        log('[POLL] Mensagem de instalação recebida para o WhatsApp');
+
+        try {
+
+            await sendToGroup(data.triggerPlate);
+
+        } catch (error) {
+
+            log(`[POLL] Falha ao enviar mensagem ao WhatsApp: ${error.message}`);
+
+        }
+
         setTimeout(() => pollOnce(runners), 500);
 
         return;

@@ -66,10 +66,8 @@ public class DeviceImportService {
     @Autowired
     private DeviceImportService self;
 
-    // Agrupa todos os saves num unico commit em vez de um round-trip
-    // por linha da planilha — reduz drasticamente o tempo total contra
-    // o Neon (latencia por query maior que Postgres local/Railway).
-    @Transactional
+    private static final int BATCH_SIZE = 50;
+
     public DeviceImportResponse importFile(
             MultipartFile file
     ) {
@@ -107,13 +105,133 @@ public class DeviceImportService {
             int headerRow = findHeaderRow(sheet, "Número");
             int serialChip1Col = findColumnIndex(sheet, headerRow, "Serial Chip 1");
 
+            List<Row> rows = new ArrayList<>();
+
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
-
                 Row row = sheet.getRow(i);
-
-                if (row == null) {
-                    continue;
+                if (row != null) {
+                    rows.add(row);
                 }
+            }
+
+            // Lotes de BATCH_SIZE linhas, cada um em transacao propria via
+            // self (importFile() em si nao e' mais @Transactional) — uma
+            // planilha grande nao fica mais presa numa unica transacao/
+            // conexao do inicio ao fim contra o Neon, e uma falha no meio
+            // so reverte o lote atual, nao o arquivo inteiro.
+            for (int start = 0; start < rows.size(); start += BATCH_SIZE) {
+
+                List<Row> batch = rows.subList(
+                        start,
+                        Math.min(start + BATCH_SIZE, rows.size())
+                );
+
+                DeviceBatchResult result =
+                        self.processBatch(batch, serialChip1Col);
+
+                imported += result.imported();
+                linked += result.linked();
+                changed += result.changed();
+                addedDetails.addAll(result.addedDetails());
+                changedDetails.addAll(result.changedDetails());
+
+            }
+
+            workbook.close();
+
+            String backupName =
+                    namingService.build(
+                            ImportFileType.MULTIPORTAL_DEVICES,
+                            ".xlsx"
+                    );
+
+            backupService.moveToBackup(
+                    processingFile,
+                    ImportPlatform.MULTIPORTAL,
+                    backupName
+            );
+
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_DEVICE,
+                    backupName,
+                    imported
+            );
+
+            Map<String, Object> diffDetails = new HashMap<>();
+            diffDetails.put("added",   addedDetails);
+            diffDetails.put("removed", new ArrayList<>());
+            diffDetails.put("changed", changedDetails);
+            String detailsJson;
+            try {
+                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
+            } catch (Exception ex) {
+                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
+            }
+
+            // Sem mudanca real (nada adicionado/removido/alterado), o
+            // registro ainda entra pro historico mas ja sai "dismissed"
+            // — sem isso, todo import sem novidade nenhuma tocava o
+            // sino do mesmo jeito que um com mudanca de verdade.
+            boolean hasRealChange = imported > 0 || changed > 0;
+
+            LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
+
+            diffLogRepository.save(ImportDiffLog.builder()
+                    .importType(ImportType.MULTIPORTAL_DEVICE)
+                    .added(imported)
+                    .removed(0)
+                    .changed(changed)
+                    .detailsJson(detailsJson)
+                    .dismissed(!hasRealChange)
+                    .dismissedAt(hasRealChange ? null : diffCreatedAt)
+                    .createdAt(diffCreatedAt)
+                    .build());
+
+        } catch (Exception e) {
+
+            if (processingFile != null) {
+                fileManagerService.moveToFailed(processingFile);
+            }
+
+            // REQUIRES_NEW: cada lote ja e' uma transacao propria (ver
+            // processBatch()), entao uma falha aqui so reverte o lote que
+            // estava rodando — mas o registro de falha no historico ainda
+            // precisa da sua propria transacao pra nao ficar preso a ela.
+            self.registerFailure(file.getOriginalFilename());
+
+            throw new RuntimeException(
+                    "Erro ao importar dispositivos"
+            );
+
+        }
+
+        return new DeviceImportResponse(
+                imported,
+                linked
+        );
+
+    }
+
+    // Processa um lote de ate BATCH_SIZE linhas numa unica transacao —
+    // reduz drasticamente os round-trips "soltos" ao Neon em comparacao
+    // com o commit automatico por save() de antes, sem prender a planilha
+    // inteira numa unica transacao gigante (era o problema da versao
+    // anterior: uma falha no meio revertia tudo, e a conexao ficava
+    // presa do primeiro ao ultimo registro).
+    @Transactional
+    public DeviceBatchResult processBatch(
+            List<Row> rows,
+            int serialChip1Col
+    ) {
+
+        int imported = 0;
+        int linked = 0;
+        int changed = 0;
+
+        List<Map<String, String>> addedDetails   = new ArrayList<>();
+        List<Map<String, Object>> changedDetails  = new ArrayList<>();
+
+        for (Row row : rows) {
 
                 // numberStr é o identificador do dispositivo nesta planilha
                 // (é o que a planilha de Vínculo usa para casar com o Device).
@@ -314,83 +432,25 @@ public class DeviceImportService {
 
                 }
 
-            }
-
-            workbook.close();
-
-            String backupName =
-                    namingService.build(
-                            ImportFileType.MULTIPORTAL_DEVICES,
-                            ".xlsx"
-                    );
-
-            backupService.moveToBackup(
-                    processingFile,
-                    ImportPlatform.MULTIPORTAL,
-                    backupName
-            );
-
-            importHistoryService.register(
-                    ImportType.MULTIPORTAL_DEVICE,
-                    backupName,
-                    imported
-            );
-
-            Map<String, Object> diffDetails = new HashMap<>();
-            diffDetails.put("added",   addedDetails);
-            diffDetails.put("removed", new ArrayList<>());
-            diffDetails.put("changed", changedDetails);
-            String detailsJson;
-            try {
-                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
-            } catch (Exception ex) {
-                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
-            }
-
-            // Sem mudanca real (nada adicionado/removido/alterado), o
-            // registro ainda entra pro historico mas ja sai "dismissed"
-            // — sem isso, todo import sem novidade nenhuma tocava o
-            // sino do mesmo jeito que um com mudanca de verdade.
-            boolean hasRealChange = imported > 0 || changed > 0;
-
-            LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
-
-            diffLogRepository.save(ImportDiffLog.builder()
-                    .importType(ImportType.MULTIPORTAL_DEVICE)
-                    .added(imported)
-                    .removed(0)
-                    .changed(changed)
-                    .detailsJson(detailsJson)
-                    .dismissed(!hasRealChange)
-                    .dismissedAt(hasRealChange ? null : diffCreatedAt)
-                    .createdAt(diffCreatedAt)
-                    .build());
-
-        } catch (Exception e) {
-
-            if (processingFile != null) {
-                fileManagerService.moveToFailed(processingFile);
-            }
-
-            // REQUIRES_NEW: o metodo importFile() inteiro e' @Transactional,
-            // entao a excecao que caiu aqui vai reverter tudo o que essa
-            // execucao tinha salvo ate agora — sem uma transacao propria
-            // pro registro de falha, ele seria revertido junto e o import
-            // ficaria sem nenhum rastro no historico/diff-log.
-            self.registerFailure(file.getOriginalFilename());
-
-            throw new RuntimeException(
-                    "Erro ao importar dispositivos"
-            );
-
         }
 
-        return new DeviceImportResponse(
+        return new DeviceBatchResult(
                 imported,
-                linked
+                linked,
+                changed,
+                addedDetails,
+                changedDetails
         );
 
     }
+
+    private record DeviceBatchResult(
+            int imported,
+            int linked,
+            int changed,
+            List<Map<String, String>> addedDetails,
+            List<Map<String, Object>> changedDetails
+    ) {}
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registerFailure(String originalFilename) {

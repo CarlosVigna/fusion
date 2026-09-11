@@ -72,10 +72,8 @@ public class LinkageImportService {
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss");
 
-    // Agrupa todos os saves num unico commit em vez de um round-trip
-    // por linha da planilha — reduz drasticamente o tempo total contra
-    // o Neon (latencia por query maior que Postgres local/Railway).
-    @Transactional
+    private static final int BATCH_SIZE = 50;
+
     public LinkageImportResponse importFile(
             MultipartFile file
     ) {
@@ -120,9 +118,11 @@ public class LinkageImportService {
             // na planilha, para não soft-deletar veículos que aparecem como
             // encerrados em uma linha mas ativos em outra.
             Set<String> placasComVinculoAberto = new HashSet<>();
+            List<Row> rows = new ArrayList<>();
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;
+                rows.add(row);
                 String plate = PlateNormalizer.normalize(getCellValue(row.getCell(2)));
                 if (!PlateValidator.isValidPlate(plate)) continue;
                 if ("Aberto".equalsIgnoreCase(getCellValue(row.getCell(7)))) {
@@ -130,14 +130,131 @@ public class LinkageImportService {
                 }
             }
 
-            // PASSO 2 — processar cada linha
-            for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
+            // PASSO 2 — processar cada linha, em lotes de BATCH_SIZE, cada
+            // um em transacao propria via self (importFile() em si nao e'
+            // mais @Transactional) — uma planilha grande nao fica mais
+            // presa numa unica transacao/conexao do inicio ao fim contra o
+            // Neon, e uma falha no meio so reverte o lote atual.
+            for (int start = 0; start < rows.size(); start += BATCH_SIZE) {
 
-                Row row = sheet.getRow(i);
+                List<Row> batch = rows.subList(
+                        start,
+                        Math.min(start + BATCH_SIZE, rows.size())
+                );
 
-                if (row == null) {
-                    continue;
-                }
+                LinkageBatchResult result =
+                        self.processBatch(batch, placasComVinculoAberto);
+
+                imported += result.imported();
+                active += result.active();
+                linkedVehicles += result.linkedVehicles();
+                vehiclesAdded += result.vehiclesAdded();
+                vehiclesRemoved += result.vehiclesRemoved();
+                linksChanged += result.linksChanged();
+                addedDetails.addAll(result.addedDetails());
+                removedDetails.addAll(result.removedDetails());
+                changedDetails.addAll(result.changedDetails());
+
+            }
+
+            workbook.close();
+
+            String backupName =
+                    namingService.build(
+                            ImportFileType.MULTIPORTAL_LINKS,
+                            ".xlsx"
+                    );
+
+            backupService.moveToBackup(
+                    processingFile,
+                    ImportPlatform.MULTIPORTAL,
+                    backupName
+            );
+
+            importHistoryService.register(
+                    ImportType.MULTIPORTAL_LINKAGE,
+                    backupName,
+                    imported
+            );
+
+            Map<String, Object> diffDetails = new HashMap<>();
+            diffDetails.put("added",   addedDetails);
+            diffDetails.put("removed", removedDetails);
+            diffDetails.put("changed", changedDetails);
+            String detailsJson;
+            try {
+                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
+            } catch (Exception ex) {
+                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
+            }
+
+            // Sem mudanca real (nada adicionado/removido/alterado), o
+            // registro ainda entra pro historico mas ja sai "dismissed"
+            // — sem isso, todo import sem novidade nenhuma tocava o
+            // sino do mesmo jeito que um com mudanca de verdade.
+            boolean hasRealChange = vehiclesAdded > 0 || vehiclesRemoved > 0 || linksChanged > 0;
+
+            LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
+
+            diffLogRepository.save(ImportDiffLog.builder()
+                    .importType(ImportType.MULTIPORTAL_LINKAGE)
+                    .added(vehiclesAdded)
+                    .removed(vehiclesRemoved)
+                    .changed(linksChanged)
+                    .detailsJson(detailsJson)
+                    .dismissed(!hasRealChange)
+                    .dismissedAt(hasRealChange ? null : diffCreatedAt)
+                    .createdAt(diffCreatedAt)
+                    .build());
+
+        } catch (Exception e) {
+
+            if (processingFile != null) {
+                fileManagerService.moveToFailed(processingFile);
+            }
+
+            // REQUIRES_NEW: cada lote ja e' uma transacao propria (ver
+            // processBatch()), entao uma falha aqui so reverte o lote que
+            // estava rodando — mas o registro de falha no historico ainda
+            // precisa da sua propria transacao pra nao ficar preso a ela.
+            self.registerFailure(file.getOriginalFilename());
+
+            throw new RuntimeException(
+                    "Erro ao importar vínculos"
+            );
+
+        }
+
+        return new LinkageImportResponse(
+                imported,
+                active,
+                linkedVehicles
+        );
+
+    }
+
+    // Processa um lote de ate BATCH_SIZE linhas numa unica transacao —
+    // reduz drasticamente os round-trips "soltos" ao Neon em comparacao
+    // com o commit automatico por save() de antes, sem prender a planilha
+    // inteira numa unica transacao gigante.
+    @Transactional
+    public LinkageBatchResult processBatch(
+            List<Row> rows,
+            Set<String> placasComVinculoAberto
+    ) {
+
+        int imported = 0;
+        int active = 0;
+        int linkedVehicles = 0;
+        int vehiclesAdded = 0;
+        int vehiclesRemoved = 0;
+        int linksChanged = 0;
+
+        List<Map<String, String>> addedDetails   = new ArrayList<>();
+        List<Map<String, String>> removedDetails  = new ArrayList<>();
+        List<Map<String, Object>> changedDetails  = new ArrayList<>();
+
+        for (Row row : rows) {
 
                 String plate =
                         PlateNormalizer.normalize(
@@ -312,84 +429,33 @@ public class LinkageImportService {
                 active++;
                 imported++;
 
-            }
-
-            workbook.close();
-
-            String backupName =
-                    namingService.build(
-                            ImportFileType.MULTIPORTAL_LINKS,
-                            ".xlsx"
-                    );
-
-            backupService.moveToBackup(
-                    processingFile,
-                    ImportPlatform.MULTIPORTAL,
-                    backupName
-            );
-
-            importHistoryService.register(
-                    ImportType.MULTIPORTAL_LINKAGE,
-                    backupName,
-                    imported
-            );
-
-            Map<String, Object> diffDetails = new HashMap<>();
-            diffDetails.put("added",   addedDetails);
-            diffDetails.put("removed", removedDetails);
-            diffDetails.put("changed", changedDetails);
-            String detailsJson;
-            try {
-                detailsJson = new ObjectMapper().writeValueAsString(diffDetails);
-            } catch (Exception ex) {
-                detailsJson = "{\"added\":[],\"removed\":[],\"changed\":[]}";
-            }
-
-            // Sem mudanca real (nada adicionado/removido/alterado), o
-            // registro ainda entra pro historico mas ja sai "dismissed"
-            // — sem isso, todo import sem novidade nenhuma tocava o
-            // sino do mesmo jeito que um com mudanca de verdade.
-            boolean hasRealChange = vehiclesAdded > 0 || vehiclesRemoved > 0 || linksChanged > 0;
-
-            LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
-
-            diffLogRepository.save(ImportDiffLog.builder()
-                    .importType(ImportType.MULTIPORTAL_LINKAGE)
-                    .added(vehiclesAdded)
-                    .removed(vehiclesRemoved)
-                    .changed(linksChanged)
-                    .detailsJson(detailsJson)
-                    .dismissed(!hasRealChange)
-                    .dismissedAt(hasRealChange ? null : diffCreatedAt)
-                    .createdAt(diffCreatedAt)
-                    .build());
-
-        } catch (Exception e) {
-
-            if (processingFile != null) {
-                fileManagerService.moveToFailed(processingFile);
-            }
-
-            // REQUIRES_NEW: o metodo importFile() inteiro e' @Transactional,
-            // entao a excecao que caiu aqui vai reverter tudo o que essa
-            // execucao tinha salvo ate agora — sem uma transacao propria
-            // pro registro de falha, ele seria revertido junto e o import
-            // ficaria sem nenhum rastro no historico/diff-log.
-            self.registerFailure(file.getOriginalFilename());
-
-            throw new RuntimeException(
-                    "Erro ao importar vínculos"
-            );
-
         }
 
-        return new LinkageImportResponse(
+        return new LinkageBatchResult(
                 imported,
                 active,
-                linkedVehicles
+                linkedVehicles,
+                vehiclesAdded,
+                vehiclesRemoved,
+                linksChanged,
+                addedDetails,
+                removedDetails,
+                changedDetails
         );
 
     }
+
+    private record LinkageBatchResult(
+            int imported,
+            int active,
+            int linkedVehicles,
+            int vehiclesAdded,
+            int vehiclesRemoved,
+            int linksChanged,
+            List<Map<String, String>> addedDetails,
+            List<Map<String, String>> removedDetails,
+            List<Map<String, Object>> changedDetails
+    ) {}
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void registerFailure(String originalFilename) {

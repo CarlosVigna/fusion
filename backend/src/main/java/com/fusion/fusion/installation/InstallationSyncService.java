@@ -3,6 +3,7 @@ package com.fusion.fusion.installation;
 import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
+import com.fusion.fusion.etl.EtlTriggerService;
 import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class InstallationSyncService {
 
     private final InstallationRepository installationRepository;
     private final EtlStatusService etlStatusService;
+    private final EtlTriggerService etlTriggerService;
     private final RestTemplate restTemplate;
     private final ServiceOrderService serviceOrderService;
 
@@ -195,6 +197,8 @@ public class InstallationSyncService {
                 );
 
                 sendNtfyNotification(installation);
+
+                queueWhatsAppMessage(installation);
 
             }
 
@@ -472,6 +476,21 @@ public class InstallationSyncService {
             log.info("[NTFY] Notificação enviada para instalação {}", installation.getPlate());
         } catch (Exception e) {
             log.warn("[NTFY] Falha ao enviar notificação: {}", e.getMessage());
+        }
+    }
+
+    // Enfileira o texto da instalacao pro ETL local repassar ao grupo do
+    // WhatsApp via Baileys. Reaproveita o EtlTriggerService (fila em
+    // memoria ja usada pelos triggers manuais de Dispositivos/Vinculos/
+    // Posicionamento) com um ImportType dedicado que nunca vira heartbeat
+    // real — so serve pra carregar o texto ate' o poll() do ETL local.
+    private void queueWhatsAppMessage(Installation installation) {
+        try {
+            String message = montarMensagemInstalacao(installation);
+            etlTriggerService.request(ImportType.WHATSAPP_MESSAGE, message);
+            log.info("[WHATSAPP] Mensagem de instalação enfileirada para {}", installation.getPlate());
+        } catch (Exception e) {
+            log.warn("[WHATSAPP] Falha ao enfileirar mensagem: {}", e.getMessage());
         }
     }
 

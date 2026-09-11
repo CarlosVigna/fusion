@@ -9,10 +9,15 @@ backend/.mvn/wrapper/maven-wrapper.jar
 frontend/node_modules/
 frontend/dist/
 
+# ETL
+fusion-etl/node_modules/
+fusion-etl/whatsapp-auth/
+
 # Env
 .env
 backend/.env
 frontend/.env
+fusion-etl/.env
 
 # Logs
 *.log

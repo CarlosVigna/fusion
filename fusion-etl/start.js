@@ -22,3 +22,6 @@ require('./scheduler');
 
 console.log('[START] Iniciando polling de atualização manual...');
 require('./src/triggerPoller').start();
+
+console.log('[START] Conectando ao WhatsApp (Baileys)...');
+require('./src/whatsapp').connectWhatsApp();
