@@ -1,5 +1,6 @@
 package com.fusion.fusion.setup;
 
+import org.springframework.beans.factory.annotation.Value;
 import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
@@ -456,6 +457,9 @@ public class SetupController {
     private final EtlStatusService etlStatusService;
     private final EtlTriggerService etlTriggerService;
     private final DeviceRepository deviceRepository;
+
+    @Value("${spring.datasource.url}")
+    private String datasourceUrl;
 
     private static final List<String> TRACKNME_STALE_CANDIDATES = List.of(
             "SHE1J03", "PYC0H76", "IYL7E09", "GHE9I46", "FJO4527"
@@ -1540,9 +1544,9 @@ public class SetupController {
     // confirmar (ou descartar) a hipotese de mismatch de formatacao
     // entre banco e planilha.
     @GetMapping("/diagnose-devices")
-    public List<Map<String, Object>> diagnoseDevices() {
+    public Map<String, Object> diagnoseDevices() {
 
-        return deviceRepository.findAll().stream()
+        List<Map<String, Object>> devices = deviceRepository.findAll().stream()
                 .limit(5)
                 .map(d -> {
                     Map<String, Object> m = new LinkedHashMap<>();
@@ -1552,6 +1556,26 @@ public class SetupController {
                     return m;
                 })
                 .toList();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("datasourceUrl", maskDatasourcePassword(datasourceUrl));
+        result.put("devices", devices);
+        return result;
+
+    }
+
+    // Mascara userinfo (usuario:senha@host) e ?password=... embutidos na
+    // URL — host/porta/database/query flags (ex.: sslmode) continuam
+    // visiveis, o suficiente pra confirmar se aponta pro Railway ou Neon.
+    private String maskDatasourcePassword(String url) {
+
+        if (url == null) {
+            return null;
+        }
+
+        return url
+                .replaceAll("://([^:/@]+):([^@]+)@", "://$1:***@")
+                .replaceAll("(?i)(password=)[^&]*", "$1***");
 
     }
 
