@@ -26,4 +26,8 @@ public interface ImportHistoryRepository
             ImportStatus status
     );
 
+    // Usado pela limpeza periodica (CleanupScheduler) — historico de
+    // import e' puro registro passado, sem estado "pendente" a preservar.
+    long deleteByCreatedAtBefore(LocalDateTime before);
+
 }

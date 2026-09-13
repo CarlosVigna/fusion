@@ -17,4 +17,9 @@ public interface ImportDiffLogRepository extends JpaRepository<ImportDiffLog, UU
             java.time.LocalDateTime from,
             java.time.LocalDateTime to);
 
+    // Usado pela limpeza periodica (CleanupScheduler) — so remove diffs ja
+    // dismissados (vistos no sino). Um diff ainda nao visto nunca e'
+    // apagado so por idade.
+    long deleteByDismissedTrueAndCreatedAtBefore(java.time.LocalDateTime before);
+
 }
