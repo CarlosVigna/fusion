@@ -127,6 +127,11 @@ public class DeviceImportService {
             List<Device> devicesToSave = new ArrayList<>();
             List<DeviceLinkage> linkagesToSave = new ArrayList<>();
 
+            // TEMPORARIO — investigacao de mismatch de formatacao entre o
+            // numberStr lido da planilha e o que esta' gravado no banco.
+            // Remover junto com GET /setup/diagnose-devices.
+            int diagnosedRows = 0;
+
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
                 Row row = sheet.getRow(i);
@@ -143,6 +148,14 @@ public class DeviceImportService {
 
                 if (numberStr == null || numberStr.isBlank()) {
                     continue;
+                }
+
+                if (diagnosedRows < 3) {
+                    log.info(
+                            "[DIAGNOSE-DEVICE] linha={} numberStr=\"{}\" length={}",
+                            i, numberStr, numberStr.length()
+                    );
+                    diagnosedRows++;
                 }
 
                 Device existing = existingByNumberStr.get(numberStr);

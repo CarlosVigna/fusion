@@ -5,6 +5,7 @@ import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.etl.EtlTriggerService;
 import com.fusion.fusion.importation.ImportType;
+import com.fusion.fusion.vehicle.multiportal.device.DeviceRepository;
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
 import com.fusion.fusion.installation.InstallationSyncService;
@@ -454,6 +455,7 @@ public class SetupController {
     private final TracknMeApiService tracknMeApiService;
     private final EtlStatusService etlStatusService;
     private final EtlTriggerService etlTriggerService;
+    private final DeviceRepository deviceRepository;
 
     private static final List<String> TRACKNME_STALE_CANDIDATES = List.of(
             "SHE1J03", "PYC0H76", "IYL7E09", "GHE9I46", "FJO4527"
@@ -1528,6 +1530,28 @@ public class SetupController {
                 "status", "OK",
                 "message", "Mensagem enfileirada — aguarde o proximo poll do ETL local (ate 15s) pra ela chegar no grupo."
         );
+
+    }
+
+    // TEMPORARIO — investigacao de por que DeviceImportService trata
+    // devices existentes como novos. Mostra o numberStr exato (entre
+    // aspas, pra revelar espaco em branco) e o tamanho da string de
+    // cada um dos 5 primeiros devices do banco. Remover depois de
+    // confirmar (ou descartar) a hipotese de mismatch de formatacao
+    // entre banco e planilha.
+    @GetMapping("/diagnose-devices")
+    public List<Map<String, Object>> diagnoseDevices() {
+
+        return deviceRepository.findAll().stream()
+                .limit(5)
+                .map(d -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", d.getId());
+                    m.put("numberStr", "\"" + d.getNumberStr() + "\"");
+                    m.put("numberStrLength", d.getNumberStr() != null ? d.getNumberStr().length() : null);
+                    return m;
+                })
+                .toList();
 
     }
 
