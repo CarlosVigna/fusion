@@ -1555,4 +1555,23 @@ public class SetupController {
 
     }
 
+    // Correcao pontual: numberStr foi gravado com aspas literais em volta
+    // do valor (ex.: "\"91234567\"" em vez de "91234567") em algum import
+    // anterior — confirmado via GET /setup/diagnose-devices. Isso fazia
+    // DeviceImportService.existingByNumberStr nunca bater com o numberStr
+    // limpo lido da planilha, tratando devices existentes como novos.
+    @PostMapping("/fix-device-numberstr")
+    public Map<String, Object> fixDeviceNumberStr() {
+
+        int updated = jdbcTemplate.getJdbcTemplate().update(
+                "UPDATE devices SET number_str = REPLACE(number_str, '\"', '') WHERE number_str LIKE '\"%\"'"
+        );
+
+        return Map.of(
+                "status", "OK",
+                "updated", updated
+        );
+
+    }
+
 }
