@@ -109,6 +109,9 @@ public class DeviceImportService {
                     .filter(d -> d.getNumberStr() != null)
                     .collect(Collectors.toMap(Device::getNumberStr, d -> d, (a, b) -> a));
 
+            // TEMPORARIO — ver comentario do diagnosedRows mais abaixo.
+            log.info("[DIAGNOSE] existingByNumberStr.size()={}", existingByNumberStr.size());
+
             Map<String, Vehicle> vehiclesByPlate = vehicleRepository.findAll().stream()
                     .filter(v -> v.getPlate() != null)
                     .collect(Collectors.toMap(Vehicle::getPlate, v -> v, (a, b) -> a));
@@ -154,6 +157,10 @@ public class DeviceImportService {
                     log.info(
                             "[DIAGNOSE-DEVICE] linha={} numberStr=\"{}\" length={}",
                             i, numberStr, numberStr.length()
+                    );
+                    log.info(
+                            "[DIAGNOSE] numberStr='{}' found={}",
+                            numberStr, existingByNumberStr.containsKey(numberStr)
                     );
                     diagnosedRows++;
                 }
