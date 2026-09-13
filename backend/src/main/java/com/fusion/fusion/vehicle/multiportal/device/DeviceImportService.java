@@ -18,6 +18,7 @@ import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeviceImportService {
@@ -71,6 +73,8 @@ public class DeviceImportService {
         int imported = 0;
         int linked = 0;
         int changed = 0;
+        int updated = 0;
+        int unchanged = 0;
 
         List<Map<String, String>> addedDetails   = new ArrayList<>();
         List<Map<String, Object>> changedDetails  = new ArrayList<>();
@@ -178,6 +182,18 @@ public class DeviceImportService {
                     continue;
                 }
 
+                // Snapshot ANTES de qualquer device.set*() desta linha —
+                // usado no gate de "mudou de verdade" mais abaixo, pra o
+                // saveAll() nao regravar todo device processado, so' os
+                // que tiveram algum campo realmente alterado.
+                Boolean prevActive       = device.getActive();
+                String prevOperator      = device.getOperator();
+                String prevLineNumber    = device.getLineNumber();
+                String prevImei          = device.getImei();
+                String prevModel         = device.getModel();
+                String prevManufacturer  = device.getManufacturer();
+                String prevVehiclePlate  = device.getVehicle() != null ? device.getVehicle().getPlate() : null;
+
                 String imei =
                         getCellValue(row.getCell(12));
 
@@ -203,12 +219,6 @@ public class DeviceImportService {
                 // não "mudança".
                 boolean requiresApproval =
                         !isNewDevice && hasValidPlate;
-
-                // Captura estado anterior para detectar alterações
-                String prevOperator     = device.getOperator();
-                String prevLineNumber   = device.getLineNumber();
-                String prevManufacturer = device.getManufacturer();
-                String prevModel        = device.getModel();
 
                 applySensitiveField(
                         device::getOperator,
@@ -291,8 +301,6 @@ public class DeviceImportService {
                     existingByNumberStr.put(numberStr, device);
                 }
 
-                devicesToSave.add(device);
-
                 Vehicle vehicle = vehiclesByPlate.get(plate);
 
                 if (vehicle != null) {
@@ -327,6 +335,34 @@ public class DeviceImportService {
 
                     }
 
+                }
+
+                String newVehiclePlate = device.getVehicle() != null ? device.getVehicle().getPlate() : null;
+
+                // So' regrava o device se algo realmente mudou. Comparar
+                // vehicle por placa (nao por Objects.equals(Vehicle,
+                // Vehicle) direto) porque Vehicle nao sobrescreve equals()
+                // — duas referencias carregando o MESMO registro do banco
+                // (uma vinda do device.getVehicle() eager, outra do mapa
+                // vehiclesByPlate) sao objetos Java diferentes e
+                // Objects.equals() bateria sempre false por identidade,
+                // fazendo TODO device vinculado parecer "mudado".
+                boolean deviceChanged = isNewDevice
+                        || !Objects.equals(device.getActive(), prevActive)
+                        || !Objects.equals(device.getOperator(), prevOperator)
+                        || !Objects.equals(device.getLineNumber(), prevLineNumber)
+                        || !Objects.equals(device.getImei(), prevImei)
+                        || !Objects.equals(device.getModel(), prevModel)
+                        || !Objects.equals(device.getManufacturer(), prevManufacturer)
+                        || !Objects.equals(newVehiclePlate, prevVehiclePlate);
+
+                if (deviceChanged) {
+                    devicesToSave.add(device);
+                    if (!isNewDevice) {
+                        updated++;
+                    }
+                } else {
+                    unchanged++;
                 }
 
             }
@@ -389,6 +425,11 @@ public class DeviceImportService {
                     .createdAt(diffCreatedAt)
                     .build());
 
+            log.info(
+                    "[DEVICE-IMPORT] imported={} updated={} unchanged={} linked={} changed={} devicesToSave={} linkagesToSave={}",
+                    imported, updated, unchanged, linked, changed, devicesToSave.size(), linkagesToSave.size()
+            );
+
         } catch (Exception e) {
 
             if (processingFile != null) {
@@ -415,7 +456,9 @@ public class DeviceImportService {
 
         return new DeviceImportResponse(
                 imported,
-                linked
+                linked,
+                updated,
+                unchanged
         );
 
     }

@@ -6,7 +6,11 @@ public record LinkageImportResponse(
 
         Integer activeLinkages,
 
-        Integer linkedVehicles
+        Integer linkedVehicles,
+
+        Integer updatedLinkages,
+
+        Integer unchangedLinkages
 
 ) {
 }

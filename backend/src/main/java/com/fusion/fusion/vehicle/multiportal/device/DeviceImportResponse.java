@@ -4,7 +4,11 @@ public record DeviceImportResponse(
 
         Integer importedDevices,
 
-        Integer linkedVehicles
+        Integer linkedVehicles,
+
+        Integer updatedDevices,
+
+        Integer unchangedDevices
 
 ) {
 }

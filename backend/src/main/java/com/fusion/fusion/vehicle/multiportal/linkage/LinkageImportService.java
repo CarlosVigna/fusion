@@ -20,6 +20,7 @@ import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.device.Device;
 import com.fusion.fusion.vehicle.multiportal.device.DeviceRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LinkageImportService {
@@ -79,6 +81,8 @@ public class LinkageImportService {
         int vehiclesAdded = 0;
         int vehiclesRemoved = 0;
         int linksChanged = 0;
+        int updated = 0;
+        int unchanged = 0;
 
         List<Map<String, String>> addedDetails   = new ArrayList<>();
         List<Map<String, String>> removedDetails  = new ArrayList<>();
@@ -268,9 +272,22 @@ public class LinkageImportService {
 
                 }
 
+                // Comparar por placa, nao Objects.equals(Vehicle, Vehicle)
+                // direto — Vehicle nao sobrescreve equals(), entao duas
+                // referencias pro mesmo registro (device.getVehicle()
+                // eager vs o mapa vehiclesByPlate) sao objetos Java
+                // diferentes e a comparacao bateria sempre false.
+                String prevDeviceVehiclePlate =
+                        device.getVehicle() != null ? device.getVehicle().getPlate() : null;
+
                 device.setVehicle(vehicle);
 
-                devicesToSave.add(device);
+                boolean deviceVehicleChanged =
+                        !Objects.equals(prevDeviceVehiclePlate, vehicle.getPlate());
+
+                if (deviceVehicleChanged) {
+                    devicesToSave.add(device);
+                }
 
                 // Se currentActiveLinkage existe aqui, o device ja bateu
                 // (gate acima), entao e' o mesmo registro que
@@ -303,33 +320,47 @@ public class LinkageImportService {
                 linkage.setStartAt(newStart);
                 linkage.setEndAt(newEnd);
 
-                linkagesToSave.add(linkage);
+                boolean manufChanged = !Objects.equals(newManuf,  prevManuf);
+                boolean startChanged = !Objects.equals(newStart,  prevStart);
+                boolean endChanged   = !Objects.equals(newEnd,    prevEnd);
+                boolean isNewLinkage = !isExistingLinkage;
+
+                if (isNewLinkage || manufChanged || startChanged || endChanged) {
+                    linkagesToSave.add(linkage);
+                }
+
                 activeLinkageByPlate.put(plate, linkage);
 
-                if (isExistingLinkage) {
-                    boolean manufChanged = !Objects.equals(newManuf,  prevManuf);
-                    boolean startChanged = !Objects.equals(newStart,  prevStart);
-                    boolean endChanged   = !Objects.equals(newEnd,    prevEnd);
-                    if (manufChanged || startChanged || endChanged) {
-                        linksChanged++;
-                        String changedField = manufChanged ? "fabricante" : startChanged ? "data_inicio" : "data_fim";
-                        String fromVal = manufChanged ? (prevManuf  != null ? prevManuf          : "")
-                                       : startChanged ? (prevStart  != null ? prevStart.toString() : "")
-                                       :               (prevEnd    != null ? prevEnd.toString()   : "");
-                        String toVal   = manufChanged ? (newManuf   != null ? newManuf           : "")
-                                       : startChanged ? (newStart   != null ? newStart.toString()  : "")
-                                       :               (newEnd     != null ? newEnd.toString()    : "");
-                        Map<String, Object> d = new HashMap<>();
-                        d.put("plate", plate);
-                        d.put("field", changedField);
-                        d.put("from",  fromVal);
-                        d.put("to",    toVal);
-                        changedDetails.add(d);
-                    }
+                if (isNewLinkage) {
+
+                    imported++;
+
+                } else if (manufChanged || startChanged || endChanged) {
+
+                    updated++;
+                    linksChanged++;
+
+                    String changedField = manufChanged ? "fabricante" : startChanged ? "data_inicio" : "data_fim";
+                    String fromVal = manufChanged ? (prevManuf  != null ? prevManuf          : "")
+                                   : startChanged ? (prevStart  != null ? prevStart.toString() : "")
+                                   :               (prevEnd    != null ? prevEnd.toString()   : "");
+                    String toVal   = manufChanged ? (newManuf   != null ? newManuf           : "")
+                                   : startChanged ? (newStart   != null ? newStart.toString()  : "")
+                                   :               (newEnd     != null ? newEnd.toString()    : "");
+                    Map<String, Object> d = new HashMap<>();
+                    d.put("plate", plate);
+                    d.put("field", changedField);
+                    d.put("from",  fromVal);
+                    d.put("to",    toVal);
+                    changedDetails.add(d);
+
+                } else {
+
+                    unchanged++;
+
                 }
 
                 active++;
-                imported++;
 
             }
 
@@ -395,6 +426,12 @@ public class LinkageImportService {
                     .createdAt(diffCreatedAt)
                     .build());
 
+            log.info(
+                    "[LINKAGE-IMPORT] imported={} updated={} unchanged={} active={} vehiclesAdded={} vehiclesRemoved={} devicesToSave={} linkagesToSave={} vehiclesToSave={}",
+                    imported, updated, unchanged, active, vehiclesAdded, vehiclesRemoved,
+                    devicesToSave.size(), linkagesToSave.size(), vehiclesToSave.size()
+            );
+
         } catch (Exception e) {
 
             if (processingFile != null) {
@@ -422,7 +459,9 @@ public class LinkageImportService {
         return new LinkageImportResponse(
                 imported,
                 active,
-                linkedVehicles
+                linkedVehicles,
+                updated,
+                unchanged
         );
 
     }
