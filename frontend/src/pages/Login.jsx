@@ -150,6 +150,19 @@ export default function Login() {
 
     }
 
+    // O backend ja dispara o motor sozinho apos o import de Posicionamento
+    // terminar (EngineAsyncService.runAfterImport(), dentro de POST
+    // /imports/upload) — mas so' se MULTIPORTAL_ULTIMA_POSICAO realmente
+    // rodou (ETL local ligado). Chamada explicita aqui garante o
+    // recalculo mesmo quando so' Dispositivos/Vinculos foram atualizados.
+    // Fire-and-forget: nao trava o login esperando o motor terminar, a
+    // Grid se atualiza sozinha via WebSocket GRID_UPDATED quando ele acaba.
+    try {
+      await triggerImport("OPERATIONAL_ENGINE");
+    } catch (err) {
+      console.error(err);
+    }
+
     setSyncing(false);
 
   }

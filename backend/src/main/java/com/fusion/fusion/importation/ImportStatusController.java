@@ -125,6 +125,20 @@ public class ImportStatusController {
                 ));
             }
 
+            // Roda 100% dentro do backend — nao depende do ETL local, entao
+            // nao passa pela fila do EtlTriggerService (que so' faz sentido
+            // pra jobs que precisam do scrape no PC do usuario). Reaproveita
+            // o EngineAsyncService.runAfterImport() ja usado no pos-import
+            // automatico de Posicionamento: responde na hora, motor roda em
+            // background e avisa via WebSocket GRID_UPDATED ao terminar.
+            if (type == ImportType.OPERATIONAL_ENGINE) {
+                engineAsyncService.runAfterImport();
+                return ResponseEntity.ok(Map.of(
+                        "status", "SUCCESS",
+                        "message", "Motor operacional disparado — processando em segundo plano"
+                ));
+            }
+
             if (type != null) {
                 etlTriggerService.request(type);
             }
@@ -239,6 +253,10 @@ public class ImportStatusController {
 
                 case WHATSAPP_MESSAGE -> throw new IllegalArgumentException(
                         "Tipo WHATSAPP_MESSAGE não suporta upload manual"
+                );
+
+                case OPERATIONAL_ENGINE -> throw new IllegalArgumentException(
+                        "Tipo OPERATIONAL_ENGINE não suporta upload manual"
                 );
 
             };
