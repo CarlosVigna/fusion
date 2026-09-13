@@ -1579,16 +1579,71 @@ public class SetupController {
 
     }
 
-    // Correcao pontual: numberStr foi gravado com aspas literais em volta
-    // do valor (ex.: "\"91234567\"" em vez de "91234567") em algum import
-    // anterior — confirmado via GET /setup/diagnose-devices. Isso fazia
-    // DeviceImportService.existingByNumberStr nunca bater com o numberStr
-    // limpo lido da planilha, tratando devices existentes como novos.
+    // TEMPORARIO — LIKE '"%"' (exige aspas nas DUAS pontas) voltou 0 mesmo
+    // com aspas visiveis no valor. Hipotese: espaco em branco (ou padding
+    // de um CHAR(n) em vez de VARCHAR) depois da aspa de fechamento faz o
+    // ultimo caractere real nao ser a aspa. Compara varias formas de
+    // detectar "comeca com aspa" (equivalentes entre si) contra a forma
+    // "comeca E termina com aspa" (original, e a mesma coisa apos TRIM)
+    // pra achar exatamente onde a diferenca esta'.
+    @GetMapping("/diagnose-numberstr-quotes")
+    public Map<String, Object> diagnoseNumberStrQuotes() {
+
+        Map<String, Object> counts = new LinkedHashMap<>();
+
+        counts.put("total", jdbcTemplate.getJdbcTemplate()
+                .queryForObject("SELECT count(*) FROM devices", Long.class));
+
+        counts.put("likeStartOnly_percentQuote", jdbcTemplate.getJdbcTemplate()
+                .queryForObject("SELECT count(*) FROM devices WHERE number_str LIKE '\"%'", Long.class));
+
+        counts.put("regexStart_caretQuote", jdbcTemplate.getJdbcTemplate()
+                .queryForObject("SELECT count(*) FROM devices WHERE number_str ~ '^\"'", Long.class));
+
+        counts.put("leftEquals_quote", jdbcTemplate.getJdbcTemplate()
+                .queryForObject("SELECT count(*) FROM devices WHERE LEFT(number_str, 1) = '\"'", Long.class));
+
+        counts.put("likeBothEnds_original", jdbcTemplate.getJdbcTemplate()
+                .queryForObject("SELECT count(*) FROM devices WHERE number_str LIKE '\"%\"'", Long.class));
+
+        counts.put("likeBothEnds_afterTrim", jdbcTemplate.getJdbcTemplate()
+                .queryForObject("SELECT count(*) FROM devices WHERE TRIM(number_str) LIKE '\"%\"'", Long.class));
+
+        List<Map<String, Object>> sample = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT id,
+                       number_str,
+                       LENGTH(number_str) AS len,
+                       LENGTH(TRIM(number_str)) AS trimmed_len,
+                       ASCII(LEFT(number_str, 1)) AS first_char_code,
+                       ASCII(RIGHT(number_str, 1)) AS last_char_code
+                FROM devices
+                WHERE number_str LIKE '"%' OR LEFT(number_str, 1) = '"'
+                LIMIT 5
+                """);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("counts", counts);
+        result.put("sample", sample);
+        return result;
+
+    }
+
+    // Correcao: numberStr foi gravado com aspas em volta do valor em
+    // algum import anterior (confirmado via GET /setup/diagnose-devices),
+    // fazendo DeviceImportService.existingByNumberStr nunca bater com o
+    // numberStr limpo lido da planilha e tratar devices existentes como
+    // novos. A primeira versao (LIKE '"%"' direto) voltou 0 — provavel
+    // espaco em branco sobrando depois da aspa de fechamento (ver
+    // diagnose-numberstr-quotes acima). TRIM(number_str) antes de
+    // verificar/remover as aspas cobre esse caso independente da causa
+    // exata.
     @PostMapping("/fix-device-numberstr")
     public Map<String, Object> fixDeviceNumberStr() {
 
         int updated = jdbcTemplate.getJdbcTemplate().update(
-                "UPDATE devices SET number_str = REPLACE(number_str, '\"', '') WHERE number_str LIKE '\"%\"'"
+                "UPDATE devices " +
+                "SET number_str = TRIM(BOTH '\"' FROM TRIM(number_str)) " +
+                "WHERE TRIM(number_str) LIKE '\"%' OR TRIM(number_str) LIKE '%\"'"
         );
 
         return Map.of(
