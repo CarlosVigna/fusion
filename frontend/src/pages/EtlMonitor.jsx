@@ -39,6 +39,28 @@ function formatDuration(ms) {
 
 }
 
+// updatedRecords so' vem preenchido pra Dispositivos/Vinculos (unicos
+// tipos que distinguem "novo" de "existente alterado" — ver
+// DeviceImportService/LinkageImportService). Pros demais tipos, cai no
+// numero cru de sempre.
+function formatImportSummary(item) {
+
+  const imported = item.processedRecords ?? 0;
+
+  const updated = item.updatedRecords;
+
+  if (updated == null) {
+    return item.processedRecords ?? "--";
+  }
+
+  if (imported > 0 || updated > 0) {
+    return `${imported} novos, ${updated} alterados`;
+  }
+
+  return "Sem alterações";
+
+}
+
 function StatusBadge({ status }) {
 
   if (status === "RUNNING") {
@@ -276,7 +298,7 @@ export default function EtlMonitor() {
                     </td>
 
                     <td className="px-4 py-3">
-                      {item.processedRecords ?? "--"}
+                      {formatImportSummary(item)}
                     </td>
 
                     <td className="px-4 py-3">

@@ -40,6 +40,28 @@ public class ImportHistoryService {
 
     ) {
 
+        register(type, fileName, processedRecords, null, status);
+
+    }
+
+    // Overload usado por DeviceImportService/LinkageImportService, que
+    // distinguem "novos" (processedRecords) de "existentes alterados"
+    // (updatedRecords) — os demais tipos de import continuam usando os
+    // overloads acima, sem essa distincao (updatedRecords fica null).
+    public void register(
+
+            ImportType type,
+
+            String fileName,
+
+            Integer processedRecords,
+
+            Integer updatedRecords,
+
+            ImportStatus status
+
+    ) {
+
         // Chamado tanto a partir de requisições autenticadas (upload manual)
         // quanto do orchestrator agendado (sem usuário logado) — nesse
         // segundo caso, importedBy fica nulo (import do sistema).
@@ -50,6 +72,7 @@ public class ImportHistoryService {
                         .type(type)
                         .fileName(fileName)
                         .processedRecords(processedRecords)
+                        .updatedRecords(updatedRecords)
                         .status(status)
                         .importedBy(user)
                         .build();

@@ -28,6 +28,11 @@ public class ImportHistory {
 
     private Integer processedRecords;
 
+    // Registros existentes que tiveram algum campo realmente alterado
+    // (ver DeviceImportService/LinkageImportService) — nulo pros demais
+    // tipos de import, que nao rastreiam essa distincao.
+    private Integer updatedRecords;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private ImportStatus status = ImportStatus.SUCCESS;

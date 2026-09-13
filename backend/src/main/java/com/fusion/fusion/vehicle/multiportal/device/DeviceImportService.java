@@ -392,7 +392,9 @@ public class DeviceImportService {
             importHistoryService.register(
                     ImportType.MULTIPORTAL_DEVICE,
                     backupName,
-                    imported
+                    imported,
+                    updated,
+                    ImportStatus.SUCCESS
             );
 
             Map<String, Object> diffDetails = new HashMap<>();
@@ -410,7 +412,7 @@ public class DeviceImportService {
             // registro ainda entra pro historico mas ja sai "dismissed"
             // — sem isso, todo import sem novidade nenhuma tocava o
             // sino do mesmo jeito que um com mudanca de verdade.
-            boolean hasRealChange = imported > 0 || changed > 0;
+            boolean hasRealChange = imported > 0 || changed > 0 || updated > 0;
 
             LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
 

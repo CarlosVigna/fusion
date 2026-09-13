@@ -393,7 +393,9 @@ public class LinkageImportService {
             importHistoryService.register(
                     ImportType.MULTIPORTAL_LINKAGE,
                     backupName,
-                    imported
+                    imported,
+                    updated,
+                    ImportStatus.SUCCESS
             );
 
             Map<String, Object> diffDetails = new HashMap<>();
@@ -411,7 +413,7 @@ public class LinkageImportService {
             // registro ainda entra pro historico mas ja sai "dismissed"
             // — sem isso, todo import sem novidade nenhuma tocava o
             // sino do mesmo jeito que um com mudanca de verdade.
-            boolean hasRealChange = vehiclesAdded > 0 || vehiclesRemoved > 0 || linksChanged > 0;
+            boolean hasRealChange = vehiclesAdded > 0 || vehiclesRemoved > 0 || linksChanged > 0 || updated > 0;
 
             LocalDateTime diffCreatedAt = LocalDateTime.now(ZoneOffset.UTC);
 

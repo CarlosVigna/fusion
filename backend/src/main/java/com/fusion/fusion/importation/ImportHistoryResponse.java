@@ -10,6 +10,8 @@ public record ImportHistoryResponse(
 
         Integer processedRecords,
 
+        Integer updatedRecords,
+
         ImportStatus status,
 
         LocalDateTime createdAt,
@@ -24,6 +26,7 @@ public record ImportHistoryResponse(
                 history.getType(),
                 history.getFileName(),
                 history.getProcessedRecords(),
+                history.getUpdatedRecords(),
                 history.getStatus(),
                 history.getCreatedAt(),
                 history.getImportedBy() != null
