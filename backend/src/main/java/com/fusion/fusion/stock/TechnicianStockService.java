@@ -22,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -188,14 +189,41 @@ public class TechnicianStockService {
             return;
         }
 
-        var stockOpt = stockRepository.findFirstByImeiAndStatusOrderByCreatedAtDesc(imei, StockStatus.EM_ESTOQUE);
+        Optional<TechnicianStock> stockOpt =
+                stockRepository.findFirstByImeiAndStatusOrderByCreatedAtDesc(imei, StockStatus.EM_ESTOQUE);
 
         if (stockOpt.isEmpty()) {
             log.warn("[STOCK] IMEI {} posicionou em {} mas não está em nenhum estoque de técnico", imei, plate);
             return;
         }
 
-        TechnicianStock stock = stockOpt.get();
+        registerPendingIfNeeded(stockOpt.get(), imei, plate);
+
+    }
+
+    // Mesma logica de checkImeiOnPositioning(imei, plate), mas recebendo o
+    // TechnicianStock ja' resolvido a partir de um Map<imei, TechnicianStock>
+    // pre-carregado (ver OperationalStateEngineService.processAll()) — evita
+    // 1 findFirstByImeiAndStatusOrderByCreatedAtDesc por veiculo a cada
+    // ciclo do motor.
+    public void checkImeiOnPositioning(String imei, String plate, Map<String, TechnicianStock> stockByImei) {
+
+        if (imei == null || imei.isBlank()) {
+            return;
+        }
+
+        TechnicianStock stock = stockByImei.get(imei);
+
+        if (stock == null) {
+            log.warn("[STOCK] IMEI {} posicionou em {} mas não está em nenhum estoque de técnico", imei, plate);
+            return;
+        }
+
+        registerPendingIfNeeded(stock, imei, plate);
+
+    }
+
+    private void registerPendingIfNeeded(TechnicianStock stock, String imei, String plate) {
 
         if (pendingRepository.findFirstByStockAndConfirmedFalse(stock).isPresent()) {
             return;

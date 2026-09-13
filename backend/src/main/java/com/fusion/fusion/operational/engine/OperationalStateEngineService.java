@@ -7,6 +7,9 @@ import com.fusion.fusion.operational.detector.OperationalDetector;
 import com.fusion.fusion.operational.detector.StaleUpdateDetector;
 import com.fusion.fusion.operational.rules.OperationalRulesService;
 import com.fusion.fusion.signalcontrol.SignalReturnAlertService;
+import com.fusion.fusion.stock.StockStatus;
+import com.fusion.fusion.stock.TechnicianStock;
+import com.fusion.fusion.stock.TechnicianStockRepository;
 import com.fusion.fusion.stock.TechnicianStockService;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
@@ -31,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -61,6 +65,9 @@ public class OperationalStateEngineService {
 
     private final TechnicianStockService
             technicianStockService;
+
+    private final TechnicianStockRepository
+            technicianStockRepository;
 
     // Spring nao aplica @Transactional em chamadas diretas this.method()
     // (bypassa o proxy AOP). Self-injection via @Lazy garante que
@@ -102,6 +109,37 @@ public class OperationalStateEngineService {
         Map<UUID, VehicleObservation> latestObservationByVehicleId =
                 observationService.findLatestByVehicleId();
 
+        // Idem para os linkages ativos e o estoque de tecnicos — eram 1-2
+        // reads por veiculo dentro de checkTechnicianStockPositioning()
+        // (deviceLinkageRepository.findByVehicle + stockRepository.
+        // findFirstByImei...), agora carregados uma vez so'.
+        Map<UUID, DeviceLinkage> activeLinkageByVehicleId =
+                deviceLinkageRepository.findAllActiveWithVehicleAndDevice()
+                        .stream()
+                        .filter(l -> l.getVehicle() != null)
+                        .collect(Collectors.toMap(
+                                l -> l.getVehicle().getId(),
+                                l -> l,
+                                (a, b) -> a
+                        ));
+
+        // IMEI nao e' unico por design (equipamento devolvido pode
+        // reaparecer em estoque de outro tecnico depois — ver comentario
+        // em TechnicianStockRepository) — o merge precisa ficar com o
+        // EM_ESTOQUE mais recente, igual o ORDER BY created_at DESC que
+        // findFirstByImeiAndStatusOrderByCreatedAtDesc fazia no banco.
+        // Um merge simples tipo (a, b) -> a dependeria da ordem arbitraria
+        // de findAll() e poderia pegar o registro errado.
+        Map<String, TechnicianStock> stockByImei =
+                technicianStockRepository.findAll()
+                        .stream()
+                        .filter(s -> s.getImei() != null && s.getStatus() == StockStatus.EM_ESTOQUE)
+                        .collect(Collectors.toMap(
+                                TechnicianStock::getImei,
+                                s -> s,
+                                (a, b) -> a.getCreatedAt().isAfter(b.getCreatedAt()) ? a : b
+                        ));
+
         for (VehicleOperationalState state : states) {
 
             try {
@@ -113,7 +151,9 @@ public class OperationalStateEngineService {
                         ),
                         latestObservationByVehicleId.get(
                                 state.getVehicle().getId()
-                        )
+                        ),
+                        activeLinkageByVehicleId,
+                        stockByImei
                 );
 
             } catch (Exception e) {
@@ -141,7 +181,9 @@ public class OperationalStateEngineService {
     public void processSingle(
             VehicleOperationalState state,
             OperationalSnapshot existingSnapshot,
-            VehicleObservation lastObservation
+            VehicleObservation lastObservation,
+            Map<UUID, DeviceLinkage> activeLinkageByVehicleId,
+            Map<String, TechnicianStock> stockByImei
     ) {
 
         Integer previousDelayMinutes =
@@ -172,7 +214,7 @@ public class OperationalStateEngineService {
                 existingSnapshot
         );
 
-        checkTechnicianStockPositioning(state);
+        checkTechnicianStockPositioning(state, activeLinkageByVehicleId, stockByImei);
 
         if (previousStatus != newStatus) {
 
@@ -196,26 +238,37 @@ public class OperationalStateEngineService {
     // checkImeiOnPositioning() e' idempotente (nao duplica pendencia se
     // ja existe uma nao confirmada), entao chamar isso todo ciclo
     // horario do motor pra todo veiculo com posicao e' seguro.
-    private void checkTechnicianStockPositioning(VehicleOperationalState state) {
+    private void checkTechnicianStockPositioning(
+            VehicleOperationalState state,
+            Map<UUID, DeviceLinkage> activeLinkageByVehicleId,
+            Map<String, TechnicianStock> stockByImei
+    ) {
 
         if (state.getLastCommunicationAt() == null || state.getVehicle() == null) {
             return;
         }
 
-        // findByVehicleAndActiveTrue() e' Optional (getSingleResult() por
-        // baixo) e quebra com IncorrectResultSizeDataAccessException se
-        // houver mais de um vinculo ativo pro mesmo veiculo (ex.: OGF5D31,
-        // que tinha 2 linkages ativos). findByVehicle() + stream evita isso.
-        deviceLinkageRepository.findByVehicle(state.getVehicle())
-                .stream()
-                .filter(dl -> Boolean.TRUE.equals(dl.getActive()))
-                .findFirst()
-                .map(DeviceLinkage::getDevice)
-                .map(device -> device != null ? device.getImei() : null)
-                .filter(imei -> imei != null && !imei.isBlank())
-                .ifPresent(imei -> technicianStockService.checkImeiOnPositioning(
-                        imei, state.getVehicle().getPlate()
-                ));
+        // Mapa ja' vem so' com linkages active=true (query em processAll()
+        // filtra isso), entao um get() aqui equivale ao
+        // findByVehicle().filter(active).findFirst() de antes — sem o
+        // round-trip por veiculo. Continua pegando "o primeiro" achado em
+        // caso de mais de um linkage ativo pro mesmo veiculo (anomalia,
+        // mesma premissa de antes).
+        DeviceLinkage activeLinkage =
+                activeLinkageByVehicleId.get(state.getVehicle().getId());
+
+        String imei =
+                activeLinkage != null && activeLinkage.getDevice() != null
+                        ? activeLinkage.getDevice().getImei()
+                        : null;
+
+        if (imei == null || imei.isBlank()) {
+            return;
+        }
+
+        technicianStockService.checkImeiOnPositioning(
+                imei, state.getVehicle().getPlate(), stockByImei
+        );
 
     }
 
