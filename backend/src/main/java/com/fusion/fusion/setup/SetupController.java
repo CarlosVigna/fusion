@@ -1,12 +1,10 @@
 package com.fusion.fusion.setup;
 
-import org.springframework.beans.factory.annotation.Value;
 import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.etl.EtlTriggerService;
 import com.fusion.fusion.importation.ImportType;
-import com.fusion.fusion.vehicle.multiportal.device.DeviceRepository;
 import com.fusion.fusion.installation.Installation;
 import com.fusion.fusion.installation.InstallationRepository;
 import com.fusion.fusion.installation.InstallationSyncService;
@@ -456,10 +454,6 @@ public class SetupController {
     private final TracknMeApiService tracknMeApiService;
     private final EtlStatusService etlStatusService;
     private final EtlTriggerService etlTriggerService;
-    private final DeviceRepository deviceRepository;
-
-    @Value("${spring.datasource.url}")
-    private String datasourceUrl;
 
     private static final List<String> TRACKNME_STALE_CANDIDATES = List.of(
             "SHE1J03", "PYC0H76", "IYL7E09", "GHE9I46", "FJO4527"
@@ -1533,122 +1527,6 @@ public class SetupController {
         return Map.of(
                 "status", "OK",
                 "message", "Mensagem enfileirada — aguarde o proximo poll do ETL local (ate 15s) pra ela chegar no grupo."
-        );
-
-    }
-
-    // TEMPORARIO — investigacao de por que DeviceImportService trata
-    // devices existentes como novos. Mostra o numberStr exato (entre
-    // aspas, pra revelar espaco em branco) e o tamanho da string de
-    // cada um dos 5 primeiros devices do banco. Remover depois de
-    // confirmar (ou descartar) a hipotese de mismatch de formatacao
-    // entre banco e planilha.
-    @GetMapping("/diagnose-devices")
-    public Map<String, Object> diagnoseDevices() {
-
-        List<Map<String, Object>> devices = deviceRepository.findAll().stream()
-                .limit(5)
-                .map(d -> {
-                    Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("id", d.getId());
-                    m.put("numberStr", "\"" + d.getNumberStr() + "\"");
-                    m.put("numberStrLength", d.getNumberStr() != null ? d.getNumberStr().length() : null);
-                    return m;
-                })
-                .toList();
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("datasourceUrl", maskDatasourcePassword(datasourceUrl));
-        result.put("devices", devices);
-        return result;
-
-    }
-
-    // Mascara userinfo (usuario:senha@host) e ?password=... embutidos na
-    // URL — host/porta/database/query flags (ex.: sslmode) continuam
-    // visiveis, o suficiente pra confirmar se aponta pro Railway ou Neon.
-    private String maskDatasourcePassword(String url) {
-
-        if (url == null) {
-            return null;
-        }
-
-        return url
-                .replaceAll("://([^:/@]+):([^@]+)@", "://$1:***@")
-                .replaceAll("(?i)(password=)[^&]*", "$1***");
-
-    }
-
-    // TEMPORARIO — LIKE '"%"' (exige aspas nas DUAS pontas) voltou 0 mesmo
-    // com aspas visiveis no valor. Hipotese: espaco em branco (ou padding
-    // de um CHAR(n) em vez de VARCHAR) depois da aspa de fechamento faz o
-    // ultimo caractere real nao ser a aspa. Compara varias formas de
-    // detectar "comeca com aspa" (equivalentes entre si) contra a forma
-    // "comeca E termina com aspa" (original, e a mesma coisa apos TRIM)
-    // pra achar exatamente onde a diferenca esta'.
-    @GetMapping("/diagnose-numberstr-quotes")
-    public Map<String, Object> diagnoseNumberStrQuotes() {
-
-        Map<String, Object> counts = new LinkedHashMap<>();
-
-        counts.put("total", jdbcTemplate.getJdbcTemplate()
-                .queryForObject("SELECT count(*) FROM devices", Long.class));
-
-        counts.put("likeStartOnly_percentQuote", jdbcTemplate.getJdbcTemplate()
-                .queryForObject("SELECT count(*) FROM devices WHERE number_str LIKE '\"%'", Long.class));
-
-        counts.put("regexStart_caretQuote", jdbcTemplate.getJdbcTemplate()
-                .queryForObject("SELECT count(*) FROM devices WHERE number_str ~ '^\"'", Long.class));
-
-        counts.put("leftEquals_quote", jdbcTemplate.getJdbcTemplate()
-                .queryForObject("SELECT count(*) FROM devices WHERE LEFT(number_str, 1) = '\"'", Long.class));
-
-        counts.put("likeBothEnds_original", jdbcTemplate.getJdbcTemplate()
-                .queryForObject("SELECT count(*) FROM devices WHERE number_str LIKE '\"%\"'", Long.class));
-
-        counts.put("likeBothEnds_afterTrim", jdbcTemplate.getJdbcTemplate()
-                .queryForObject("SELECT count(*) FROM devices WHERE TRIM(number_str) LIKE '\"%\"'", Long.class));
-
-        List<Map<String, Object>> sample = jdbcTemplate.getJdbcTemplate().queryForList("""
-                SELECT id,
-                       number_str,
-                       LENGTH(number_str) AS len,
-                       LENGTH(TRIM(number_str)) AS trimmed_len,
-                       ASCII(LEFT(number_str, 1)) AS first_char_code,
-                       ASCII(RIGHT(number_str, 1)) AS last_char_code
-                FROM devices
-                WHERE number_str LIKE '"%' OR LEFT(number_str, 1) = '"'
-                LIMIT 5
-                """);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("counts", counts);
-        result.put("sample", sample);
-        return result;
-
-    }
-
-    // Correcao: numberStr foi gravado com aspas em volta do valor em
-    // algum import anterior (confirmado via GET /setup/diagnose-devices),
-    // fazendo DeviceImportService.existingByNumberStr nunca bater com o
-    // numberStr limpo lido da planilha e tratar devices existentes como
-    // novos. A primeira versao (LIKE '"%"' direto) voltou 0 — provavel
-    // espaco em branco sobrando depois da aspa de fechamento (ver
-    // diagnose-numberstr-quotes acima). TRIM(number_str) antes de
-    // verificar/remover as aspas cobre esse caso independente da causa
-    // exata.
-    @PostMapping("/fix-device-numberstr")
-    public Map<String, Object> fixDeviceNumberStr() {
-
-        int updated = jdbcTemplate.getJdbcTemplate().update(
-                "UPDATE devices " +
-                "SET number_str = TRIM(BOTH '\"' FROM TRIM(number_str)) " +
-                "WHERE TRIM(number_str) LIKE '\"%' OR TRIM(number_str) LIKE '%\"'"
-        );
-
-        return Map.of(
-                "status", "OK",
-                "updated", updated
         );
 
     }

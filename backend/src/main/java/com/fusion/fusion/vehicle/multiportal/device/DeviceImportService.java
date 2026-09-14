@@ -109,9 +109,6 @@ public class DeviceImportService {
                     .filter(d -> d.getNumberStr() != null)
                     .collect(Collectors.toMap(Device::getNumberStr, d -> d, (a, b) -> a));
 
-            // TEMPORARIO — ver comentario do diagnosedRows mais abaixo.
-            log.info("[DIAGNOSE] existingByNumberStr.size()={}", existingByNumberStr.size());
-
             Map<String, Vehicle> vehiclesByPlate = vehicleRepository.findAll().stream()
                     .filter(v -> v.getPlate() != null)
                     .collect(Collectors.toMap(Vehicle::getPlate, v -> v, (a, b) -> a));
@@ -130,11 +127,6 @@ public class DeviceImportService {
             List<Device> devicesToSave = new ArrayList<>();
             List<DeviceLinkage> linkagesToSave = new ArrayList<>();
 
-            // TEMPORARIO — investigacao de mismatch de formatacao entre o
-            // numberStr lido da planilha e o que esta' gravado no banco.
-            // Remover junto com GET /setup/diagnose-devices.
-            int diagnosedRows = 0;
-
             for (int i = headerRow + 1; i <= sheet.getLastRowNum(); i++) {
 
                 Row row = sheet.getRow(i);
@@ -151,18 +143,6 @@ public class DeviceImportService {
 
                 if (numberStr == null || numberStr.isBlank()) {
                     continue;
-                }
-
-                if (diagnosedRows < 3) {
-                    log.info(
-                            "[DIAGNOSE-DEVICE] linha={} numberStr=\"{}\" length={}",
-                            i, numberStr, numberStr.length()
-                    );
-                    log.info(
-                            "[DIAGNOSE] numberStr='{}' found={}",
-                            numberStr, existingByNumberStr.containsKey(numberStr)
-                    );
-                    diagnosedRows++;
                 }
 
                 Device existing = existingByNumberStr.get(numberStr);
@@ -394,13 +374,9 @@ public class DeviceImportService {
 
             workbook.close();
 
-            log.info("[DIAGNOSE] devicesToSave.size()={} (deveriam ser só novos ou alterados)", devicesToSave.size());
-
             if (!devicesToSave.isEmpty()) {
                 deviceRepository.saveAll(devicesToSave);
             }
-
-            log.info("[DIAGNOSE] imported={} changed={} updated={} unchanged={}", imported, changed, updated, unchanged);
 
             if (!linkagesToSave.isEmpty()) {
                 linkageRepository.saveAll(linkagesToSave);
