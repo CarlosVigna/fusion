@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -50,6 +51,26 @@ public class EtlController {
                         sinistroAnalysisService.claimNextPending().orElse(null)
                 )
         );
+
+    }
+
+    // Fila separada da de /poll — suporta varias mensagens pendentes
+    // (uma por instalacao nova), diferente do Map de 1-pendente-por-tipo
+    // usado pelos scrapes. Chamado em loop pelo ETL local ate' vir
+    // message=null (fila vazia). Collections.singletonMap (nao Map.of)
+    // porque precisa aceitar valor null quando a fila esta' vazia.
+    @GetMapping("/poll-whatsapp")
+    public ResponseEntity<?> pollWhatsApp(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
+    ) {
+
+        if (!isValidKey(providedKey)) {
+            return unauthorized();
+        }
+
+        String message = triggerService.pollWhatsApp();
+
+        return ResponseEntity.ok(Collections.singletonMap("message", message));
 
     }
 

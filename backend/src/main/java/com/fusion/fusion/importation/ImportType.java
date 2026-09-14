@@ -17,14 +17,12 @@ public enum ImportType {
     // Ja previsto na constraint de etl_status (EtlStatusConstraintMigration)
     // desde antes de existir aqui — so' nao tinha nenhum jeito de disparar
     // manualmente ate' agora.
-    OPERATIONAL_ENGINE,
+    OPERATIONAL_ENGINE
 
-    // Nao e' um import de verdade — so reaproveita a fila em memoria do
-    // EtlTriggerService (Map<ImportType, TriggerEntry>) pra levar o texto
-    // de uma notificacao de instalacao nova ate' o ETL local, que repassa
-    // pro grupo do WhatsApp via Baileys (ver InstallationSyncService e
-    // fusion-etl/src/whatsapp.js). Nunca e' gravado em etl_status nem
-    // import_history — so' passa pelo poll() do EtlTriggerService.
-    WHATSAPP_MESSAGE
+    // WHATSAPP_MESSAGE removido — mensagem de instalacao nova agora usa
+    // a fila dedicada EtlTriggerService.requestWhatsApp()/pollWhatsApp()
+    // (Queue<String>, suporta varias pendentes), nao mais esse enum via
+    // request(ImportType, String) (Map de 1 pendente por tipo, perdia
+    // mensagem quando 2+ instalacoes chegavam no mesmo ciclo de sync).
 
 }

@@ -480,14 +480,16 @@ public class InstallationSyncService {
     }
 
     // Enfileira o texto da instalacao pro ETL local repassar ao grupo do
-    // WhatsApp via Baileys. Reaproveita o EtlTriggerService (fila em
-    // memoria ja usada pelos triggers manuais de Dispositivos/Vinculos/
-    // Posicionamento) com um ImportType dedicado que nunca vira heartbeat
-    // real — so serve pra carregar o texto ate' o poll() do ETL local.
+    // WhatsApp via Baileys. Usa a fila dedicada do EtlTriggerService
+    // (requestWhatsApp/pollWhatsApp, suporta multiplas mensagens
+    // pendentes) — nao a fila generica de 1-pendente-por-tipo, que
+    // perdia mensagem quando duas instalacoes novas chegavam no mesmo
+    // ciclo de sync (a segunda sobrescrevia a primeira antes do ETL
+    // local reivindicar).
     private void queueWhatsAppMessage(Installation installation) {
         try {
             String message = montarMensagemInstalacao(installation);
-            etlTriggerService.request(ImportType.WHATSAPP_MESSAGE, message);
+            etlTriggerService.requestWhatsApp(message);
             log.info("[WHATSAPP] Mensagem de instalação enfileirada para {}", installation.getPlate());
         } catch (Exception e) {
             log.warn("[WHATSAPP] Falha ao enfileirar mensagem: {}", e.getMessage());

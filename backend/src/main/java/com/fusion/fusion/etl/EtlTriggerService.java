@@ -7,7 +7,9 @@ import java.time.Instant;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 // Fila de pedidos de scrape pendentes — em memória, de propósito.
 // O backend nunca chama o ETL (ele está atrás do NAT da rede do
@@ -20,7 +22,21 @@ public class EtlTriggerService {
 
     private record TriggerEntry(Instant timestamp, String plate) {}
 
+    // 1 pendente por tipo — correto pros jobs de scrape (Dispositivos/
+    // Vinculos/Posicao/i4pro), onde um segundo clique em "Atualizar
+    // agora" antes do primeiro ser reivindicado deve mesmo substituir o
+    // pedido anterior (nao faz sentido rodar o mesmo scrape duas vezes
+    // seguidas). Mensagem de WhatsApp NAO se encaixa nesse modelo — cada
+    // instalacao nova precisa da sua propria mensagem entregue, entao
+    // fica numa fila separada abaixo.
     private final Map<ImportType, TriggerEntry> pending = new ConcurrentHashMap<>();
+
+    // Fila especifica pra mensagens de WhatsApp — suporta multiplas
+    // pendentes. Sem isso, duas instalacoes novas no mesmo ciclo de sync
+    // (30min) faziam a segunda chamada a request(WHATSAPP_MESSAGE, ...)
+    // sobrescrever a primeira no Map acima antes do ETL local conseguir
+    // reivindicar (caso real: BCG6D83 perdida, PWT3869 sobrescreveu).
+    private final Queue<String> whatsappQueue = new ConcurrentLinkedQueue<>();
 
     public void request(ImportType type) {
         request(type, null);
@@ -41,6 +57,17 @@ public class EtlTriggerService {
                     pending.remove(entry.getKey());
                     return new EtlTriggerPayload(entry.getKey(), plate);
                 });
+    }
+
+    public void requestWhatsApp(String message) {
+        whatsappQueue.offer(message);
+    }
+
+    // Reivindica (remove) a mensagem mais antiga da fila, ou null se
+    // vazia. Chamado repetidamente pelo ETL local ate' esvaziar —
+    // diferente de poll() acima, aqui pode haver varias pendentes.
+    public String pollWhatsApp() {
+        return whatsappQueue.poll();
     }
 
     public record EtlTriggerPayload(ImportType type, String plate) {}

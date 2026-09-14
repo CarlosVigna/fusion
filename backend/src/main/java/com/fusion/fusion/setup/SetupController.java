@@ -1513,14 +1513,15 @@ public class SetupController {
 
     // Diagnostico temporario: dispara uma mensagem de teste pro grupo do
     // WhatsApp via o mesmo caminho usado por instalacao nova de verdade
-    // (EtlTriggerService -> poll() do ETL local -> Baileys), sem precisar
-    // esperar uma instalacao real chegar do portal parceiro.
+    // (EtlTriggerService.requestWhatsApp -> pollWhatsApp() do ETL local
+    // -> Baileys), sem precisar esperar uma instalacao real chegar do
+    // portal parceiro.
     @GetMapping("/test-whatsapp")
     public Map<String, Object> testWhatsapp() {
 
         String message = "TESTE DE INTEGRAÇÃO\nSistema Fusion conectado via Baileys!";
 
-        etlTriggerService.request(ImportType.WHATSAPP_MESSAGE, message);
+        etlTriggerService.requestWhatsApp(message);
 
         log.info("[SETUP] Mensagem de teste do WhatsApp enfileirada");
 

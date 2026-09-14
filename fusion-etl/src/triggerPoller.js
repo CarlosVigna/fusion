@@ -48,7 +48,57 @@ function buildRunners() {
 
 let running = false;
 
+// Fila separada da de /etl/poll — suporta varias mensagens pendentes
+// (uma por instalacao nova), entao esvazia tudo a cada tick em vez de
+// pegar so' uma. Roda ANTES do `if (running) return`, independente de
+// um scrape de Dispositivos/Vinculos/Posicao estar em andamento —
+// notificacao de instalacao nao deveria esperar um scrape longo
+// terminar pra ser entregue.
+async function drainWhatsAppQueue() {
+
+    while (true) {
+
+        let message;
+
+        try {
+
+            const response = await axios.get(`${BACKEND_URL}/etl/poll-whatsapp`, {
+                headers: { 'X-ETL-Key': ETL_API_KEY },
+                timeout: 10000,
+            });
+
+            message = response.data?.message;
+
+        } catch (error) {
+
+            log(`[POLL] Falha ao buscar mensagens do WhatsApp: ${error.message}`);
+            return;
+
+        }
+
+        if (!message) {
+            return;
+        }
+
+        log('[POLL] Mensagem de instalação recebida para o WhatsApp');
+
+        try {
+
+            await sendToGroup(message);
+
+        } catch (error) {
+
+            log(`[POLL] Falha ao enviar mensagem ao WhatsApp: ${error.message}`);
+
+        }
+
+    }
+
+}
+
 async function pollOnce(runners) {
+
+    await drainWhatsAppQueue();
 
     if (running) {
         return;
@@ -120,31 +170,6 @@ async function pollOnce(runners) {
         // chegaram juntos, processa um, termina, e já busca o próximo
         // em vez de aguardar 15s parado. Se a fila estiver vazia, o
         // poll retorna sem fazer nada e o setInterval assume de novo.
-        setTimeout(() => pollOnce(runners), 500);
-
-        return;
-
-    }
-
-    // Notificação de instalação nova pro grupo do WhatsApp (Baileys) —
-    // WHATSAPP_MESSAGE não é um ImportType de verdade, só reaproveita a
-    // fila do EtlTriggerService pra trazer o texto até aqui via
-    // triggerPlate. Sem heartbeat: o backend só aceita ImportType válido
-    // em /etl/heartbeat, e esse tipo nunca é gravado no etl_status.
-    if (data?.type === 'WHATSAPP_MESSAGE') {
-
-        log('[POLL] Mensagem de instalação recebida para o WhatsApp');
-
-        try {
-
-            await sendToGroup(data.triggerPlate);
-
-        } catch (error) {
-
-            log(`[POLL] Falha ao enviar mensagem ao WhatsApp: ${error.message}`);
-
-        }
-
         setTimeout(() => pollOnce(runners), 500);
 
         return;

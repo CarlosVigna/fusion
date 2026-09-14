@@ -93,6 +93,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/imports/upload",
                                 "/etl/poll",
+                                "/etl/poll-whatsapp",
                                 "/installations/sync",
                                 "/sinistro/upload"
                         ).permitAll()

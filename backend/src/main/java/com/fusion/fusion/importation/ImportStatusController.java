@@ -251,10 +251,6 @@ public class ImportStatusController {
                         "Tipo I4PRO não suporta upload manual"
                 );
 
-                case WHATSAPP_MESSAGE -> throw new IllegalArgumentException(
-                        "Tipo WHATSAPP_MESSAGE não suporta upload manual"
-                );
-
                 case OPERATIONAL_ENGINE -> throw new IllegalArgumentException(
                         "Tipo OPERATIONAL_ENGINE não suporta upload manual"
                 );
