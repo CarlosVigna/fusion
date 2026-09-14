@@ -389,9 +389,13 @@ public class DeviceImportService {
 
             workbook.close();
 
+            log.info("[DIAGNOSE] devicesToSave.size()={} (deveriam ser só novos ou alterados)", devicesToSave.size());
+
             if (!devicesToSave.isEmpty()) {
                 deviceRepository.saveAll(devicesToSave);
             }
+
+            log.info("[DIAGNOSE] imported={} changed={} updated={} unchanged={}", imported, changed, updated, unchanged);
 
             if (!linkagesToSave.isEmpty()) {
                 linkageRepository.saveAll(linkagesToSave);
