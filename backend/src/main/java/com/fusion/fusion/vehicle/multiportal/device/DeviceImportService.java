@@ -177,11 +177,14 @@ public class DeviceImportService {
 
                 } else {
 
+                    // imported++ NAO acontece aqui — um device novo com
+                    // placa invalida cai no `continue` logo abaixo e
+                    // nunca chega a devicesToSave, mas antes contava como
+                    // "importado" mesmo assim. Contagem real fica la'
+                    // embaixo, junto do devicesToSave.add(device).
                     device = Device.builder()
                             .numberStr(numberStr)
                             .build();
-
-                    imported++;
 
                 }
 
@@ -378,7 +381,9 @@ public class DeviceImportService {
 
                 if (deviceChanged) {
                     devicesToSave.add(device);
-                    if (!isNewDevice) {
+                    if (isNewDevice) {
+                        imported++;
+                    } else {
                         updated++;
                     }
                 } else {
