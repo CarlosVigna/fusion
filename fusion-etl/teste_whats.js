@@ -11,10 +11,7 @@ async function connect() {
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false,
-        logger: pino({ level: 'silent' }),
-        browser: ['Fusion', 'Chrome', '120.0.0'],
-        connectTimeoutMs: 60000,
-        defaultQueryTimeoutMs: 60000,
+        logger: pino({ level: 'silent' })
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -32,12 +29,8 @@ async function connect() {
             });
         }
         if (connection === 'close') {
-            const code = lastDisconnect?.error?.output?.statusCode;
-            console.log('Conexão fechada. Código:', code);
-            if (code !== DisconnectReason.loggedOut) {
-                console.log('Tentando reconectar...');
-                setTimeout(connect, 5000);
-            }
+            console.log('Conexão fechada.');
+            process.exit(0);
         }
     });
 }

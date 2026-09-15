@@ -527,14 +527,14 @@ public class PolicyService {
                     first.get("status"), first.get("status_descricao"));
         }
 
-        List<Map<String, Object>> vigentes = items.stream()
-                .sorted((a, b) -> {
-                    LocalDate da = parsePortalDate((String) a.get("fim_vigencia"));
-                    LocalDate db = parsePortalDate((String) b.get("fim_vigencia"));
-                    if (da == null) return 1;
-                    if (db == null) return -1;
-                    return db.compareTo(da);
-                })
+                List<Map<String, Object>> vigentes = items.stream()
+                .sorted(Comparator
+                        .comparingInt((Map<String, Object> item) ->
+                                statusPriority((String) item.get("status")))
+                        .thenComparing(item -> {
+                            LocalDate d = parsePortalDate((String) item.get("fim_vigencia"));
+                            return d != null ? d : LocalDate.MIN;
+                        }, Comparator.reverseOrder()))
                 .toList();
 
         if (vigentes.isEmpty()) {
