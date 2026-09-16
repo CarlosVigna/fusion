@@ -49,7 +49,22 @@ public class PolicyService {
 
     public List<PolicyResponse> findAll(String plate, String statusStr) {
 
-        return policyRepository.findAllActive()
+        // Deduplicado por placa ANTES de filtrar — sem isso, uma placa
+        // com apolice vigente E apolice encerrada aparecia duas vezes na
+        // grade (cada uma com o status computado individualmente
+        // "certo", mas a dupla confundia o usuario). Ver
+        // pickBestPolicy()/statusPriority(PolicyStatus) — mesma logica
+        // reaproveitada em startVerificationAsync().
+        Map<String, Policy> bestByPlate = policyRepository.findAllActive()
+                .stream()
+                .filter(p -> p.getPlate() != null)
+                .collect(Collectors.toMap(
+                        p -> p.getPlate().toUpperCase(),
+                        p -> p,
+                        PolicyService::pickBestPolicy
+                ));
+
+        return bestByPlate.values()
                 .stream()
                 .filter(p -> {
                     if (plate == null || plate.isBlank()) return true;
@@ -66,6 +81,49 @@ public class PolicyService {
                 .map(PolicyResponse::from)
                 .toList();
 
+    }
+
+    // Escolhe a "melhor" apolice entre duas quando ha mais de uma pra
+    // mesma placa — reaproveitado em findAll() (grade principal) e em
+    // startVerificationAsync() (conferencia com o portal), pra nunca
+    // tratar uma apolice vencida/cancelada/encerrada como se fosse a
+    // atual quando existe uma vigente pra mesma placa. Prioridade por
+    // status computado (menor = melhor); empate desfeito pelo endDate
+    // mais distante — mesmo criterio ja usado nos merges antigos
+    // (so que agora com o status entrando na comparacao tambem, nao so
+    // a data).
+    private static Policy pickBestPolicy(Policy a, Policy b) {
+
+        int pa = statusPriority(PolicyResponse.computeStatus(a));
+        int pb = statusPriority(PolicyResponse.computeStatus(b));
+
+        if (pa != pb) {
+            return pa < pb ? a : b;
+        }
+
+        if (a.getEndDate() == null) return b;
+        if (b.getEndDate() == null) return a;
+
+        return a.getEndDate().isAfter(b.getEndDate()) ? a : b;
+
+    }
+
+    // Prioridade por PolicyStatus ja computado (menor = melhor) — mesmo
+    // conceito do statusPriority(String) que ja existe mais abaixo pras
+    // strings cruas do portal, mas aplicado ao status LOCAL apos
+    // computeStatus(). ACTIVE/EXPIRING/FUTURE juntos porque o resto do
+    // arquivo ja trata os tres como "vigente" (mesmo agrupamento usado
+    // em activePoliciesByPlate). SUPERSEDED fica por ultimo — e' um
+    // registro explicitamente substituido por outro mais novo (ver
+    // update()).
+    private static int statusPriority(PolicyStatus status) {
+        return switch (status) {
+            case ACTIVE, EXPIRING, FUTURE -> 1;
+            case EXPIRED -> 2;
+            case CLOSED -> 3;
+            case CANCELLED -> 4;
+            case SUPERSEDED -> 5;
+        };
     }
 
     public List<PendingVehicleResponse> findPendingVehicles() {
@@ -1028,40 +1086,45 @@ public class PolicyService {
 
             List<Policy> allPolicies = policyRepository.findAllActive();
 
-            // Fase 1: apólices vigentes — mais recente por placa
-            Map<String, Policy> activePoliciesByPlate = allPolicies.stream()
-                    .filter(p -> {
-                        PolicyStatus s = PolicyResponse.computeStatus(p);
+            // Deduplica por placa UMA vez, com a mesma prioridade de
+            // findAll() (pickBestPolicy) — antes, Fase 1 e Fase 2 faziam
+            // merges independentes so' por endDate, e Fase 2 dependia de
+            // um guard separado (!activePoliciesByPlate.containsKey(...))
+            // pra nao reprocessar a "perdedora". Deduplicando primeiro,
+            // cada placa cai em exatamente um resultado (o vencedor), e
+            // os dois grupos abaixo sao so' um split desse resultado por
+            // status — uma apolice EXPIRED nunca entra na Fase 2 se a
+            // vencedora da deduplicacao pra aquela placa for ACTIVE.
+            Map<String, Policy> bestPolicyByPlate = allPolicies.stream()
+                    .filter(p -> p.getPlate() != null)
+                    .collect(Collectors.toMap(
+                            p -> p.getPlate().toUpperCase(),
+                            p -> p,
+                            PolicyService::pickBestPolicy
+                    ));
+
+            // Fase 1: apólices vigentes (vencedoras da deduplicacao)
+            Map<String, Policy> activePoliciesByPlate = bestPolicyByPlate.entrySet().stream()
+                    .filter(e -> {
+                        PolicyStatus s = PolicyResponse.computeStatus(e.getValue());
                         return s == PolicyStatus.ACTIVE
                                 || s == PolicyStatus.EXPIRING
                                 || s == PolicyStatus.FUTURE;
                     })
-                    .collect(Collectors.toMap(
-                            p -> p.getPlate().toUpperCase(),
-                            p -> p,
-                            (a, b) -> {
-                                if (a.getEndDate() == null) return b;
-                                if (b.getEndDate() == null) return a;
-                                return a.getEndDate().isAfter(b.getEndDate()) ? a : b;
-                            }
-                    ));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            // Fase 2: apólices encerradas (EXPIRED/CANCELLED/CLOSED) — mais recente por placa, excluindo placas já ativas
-            Map<String, Policy> inactivePoliciesByPlate = allPolicies.stream()
-                    .filter(p -> {
-                        PolicyStatus s = PolicyResponse.computeStatus(p);
-                        return (s == PolicyStatus.EXPIRED || s == PolicyStatus.CANCELLED || s == PolicyStatus.CLOSED)
-                                && !activePoliciesByPlate.containsKey(p.getPlate().toUpperCase());
+            // Fase 2: apólices encerradas (EXPIRED/CANCELLED/CLOSED) —
+            // so' as vencedoras da deduplicacao que caem nesses status;
+            // disjunto de activePoliciesByPlate por construcao (mesma
+            // origem, filtros mutuamente exclusivos sobre o vencedor).
+            Map<String, Policy> inactivePoliciesByPlate = bestPolicyByPlate.entrySet().stream()
+                    .filter(e -> {
+                        PolicyStatus s = PolicyResponse.computeStatus(e.getValue());
+                        return s == PolicyStatus.EXPIRED
+                                || s == PolicyStatus.CANCELLED
+                                || s == PolicyStatus.CLOSED;
                     })
-                    .collect(Collectors.toMap(
-                            p -> p.getPlate().toUpperCase(),
-                            p -> p,
-                            (a, b) -> {
-                                if (a.getEndDate() == null) return b;
-                                if (b.getEndDate() == null) return a;
-                                return a.getEndDate().isAfter(b.getEndDate()) ? a : b;
-                            }
-                    ));
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             // Fase 3: veículos sem apólice alguma
             Set<String> allPolicyPlates = new HashSet<>();
