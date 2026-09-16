@@ -1532,4 +1532,13 @@ public class SetupController {
 
     }
 
+    // TEMPORARIO — diagnostico completo da selecao de apolice pra uma
+    // placa especifica. Ver PolicyService.testPolicySelection().
+    @GetMapping("/test-policy")
+    public Map<String, Object> testPolicy(@RequestParam String plate) {
+
+        return policyService.testPolicySelection(plate);
+
+    }
+
 }

@@ -584,6 +584,72 @@ public class PolicyService {
 
     }
 
+    // TEMPORARIO — diagnostico completo da selecao de apolice pra uma
+    // placa especifica, usado por GET /setup/test-policy. Chama o portal
+    // duas vezes de proposito (aqui, pra montar a lista de candidatas com
+    // o motivo do ranking; e dentro de fetchFromPortal(), reaproveitado
+    // sem alteracao nenhuma) — jeito mais simples de expor "quantas
+    // vieram e por que essa foi escolhida" sem duplicar ou mexer na
+    // logica de selecao ja corrigida em fetchFromPortal() (commit
+    // d004dc9). So' aceitavel por ser um endpoint manual de diagnostico,
+    // nao um caminho de producao chamado em volume.
+    public Map<String, Object> testPolicySelection(String plate) {
+
+        if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Credenciais do portal parceiro não configuradas " +
+                    "(portal.parceiro.client-id / portal.parceiro.client-secret)"
+            );
+        }
+
+        String token = getPortalToken();
+
+        HttpHeaders getHeaders = new HttpHeaders();
+        getHeaders.setBearerAuth(token);
+
+        String url = portalUrl
+                + "/seguro/auto/v1/protocolos/apolices"
+                + "?pesquisa=" + plate.toUpperCase()
+                + "&inicio=01/01/2017&fim=31/12/2030&page=0&size=50";
+
+        ResponseEntity<Object> response = restTemplate.exchange(
+                url,
+                HttpMethod.GET,
+                new HttpEntity<>(getHeaders),
+                Object.class
+        );
+
+        List<Map<String, Object>> items = extractItems(response.getBody());
+
+        List<Map<String, Object>> candidates = items.stream()
+                .map(i -> {
+                    Map<String, Object> c = new LinkedHashMap<String, Object>();
+                    c.put("numero_apolice", i.get("numero_apolice"));
+                    c.put("status", i.get("status"));
+                    c.put("status_descricao", i.get("status_descricao"));
+                    c.put("fim_vigencia", i.get("fim_vigencia"));
+                    c.put("statusPriority", statusPriority((String) i.get("status")));
+                    return c;
+                })
+                .sorted(Comparator
+                        .comparingInt((Map<String, Object> c) -> (int) c.get("statusPriority"))
+                        .thenComparing(c -> {
+                            LocalDate d = parsePortalDate((String) c.get("fim_vigencia"));
+                            return d != null ? d : LocalDate.MIN;
+                        }, Comparator.reverseOrder()))
+                .toList();
+
+        EtlPolicyResult selected = fetchFromPortal(plate);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("plate", plate);
+        result.put("totalFound", items.size());
+        result.put("candidatesRankedBySelectionOrder", candidates);
+        result.put("selected", selected);
+        return result;
+
+    }
+
     @SuppressWarnings("unchecked")
     private String getPortalToken() {
 
