@@ -527,6 +527,18 @@ public class PolicyService {
                     first.get("status"), first.get("status_descricao"));
         }
 
+        // TEMPORARIO — diagnostico da selecao quando o portal retorna mais
+        // de uma linha pra mesma placa. Loga todas as candidatas ANTES da
+        // ordenacao (status + fim_vigencia de cada uma).
+        if (items.size() > 1) {
+            for (Map<String, Object> candidate : items) {
+                log.info(
+                        "[POLICY-DIAGNOSE] candidata placa={} numero_apolice={} status={} fim_vigencia={}",
+                        plate, candidate.get("numero_apolice"), candidate.get("status"), candidate.get("fim_vigencia")
+                );
+            }
+        }
+
                 List<Map<String, Object>> vigentes = items.stream()
                 .sorted(Comparator
                         .comparingInt((Map<String, Object> item) ->
@@ -543,6 +555,12 @@ public class PolicyService {
         }
 
         Map<String, Object> item = vigentes.get(0);
+
+        // TEMPORARIO — ver comentario acima.
+        log.info(
+                "[POLICY-DIAGNOSE] placa={} totalApolices={} selecionada: numero_apolice={} status={} fim_vigencia={}",
+                plate, items.size(), item.get("numero_apolice"), item.get("status"), item.get("fim_vigencia")
+        );
 
         EtlPolicyResult result = new EtlPolicyResult(true, new EtlPolicyResult.EtlPolicyData(
                 (String) item.get("numero_apolice"),
