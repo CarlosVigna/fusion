@@ -55,7 +55,9 @@ public class PolicyService {
         // "certo", mas a dupla confundia o usuario). Ver
         // pickBestPolicy()/statusPriority(PolicyStatus) — mesma logica
         // reaproveitada em startVerificationAsync().
-        Map<String, Policy> bestByPlate = policyRepository.findAllActive()
+        List<Policy> allPoliciesRaw = policyRepository.findAllActive();
+
+        Map<String, Policy> bestByPlate = allPoliciesRaw
                 .stream()
                 .filter(p -> p.getPlate() != null)
                 .collect(Collectors.toMap(
@@ -63,6 +65,23 @@ public class PolicyService {
                         p -> p,
                         PolicyService::pickBestPolicy
                 ));
+
+        // TEMPORARIO — diagnostico da deduplicacao.
+        log.info(
+                "[POLICY-DEDUP] total={} apos_dedup={} descartadas={}",
+                allPoliciesRaw.size(), bestByPlate.size(), allPoliciesRaw.size() - bestByPlate.size()
+        );
+
+        Policy rzl = bestByPlate.get("RZL4F12");
+        if (rzl != null) {
+            log.info(
+                    "[POLICY-DEDUP] RZL4F12 vencedora: id={} numero_apolice={} status_cru={} status_computado={} endDate={}",
+                    rzl.getId(), rzl.getPolicyNumber(), rzl.getStatus(),
+                    PolicyResponse.computeStatus(rzl), rzl.getEndDate()
+            );
+        } else {
+            log.info("[POLICY-DEDUP] RZL4F12 não encontrada em bestByPlate");
+        }
 
         return bestByPlate.values()
                 .stream()
@@ -84,15 +103,14 @@ public class PolicyService {
     }
 
     // Escolhe a "melhor" apolice entre duas quando ha mais de uma pra
-    // mesma placa — reaproveitado em findAll() (grade principal) e em
-    // startVerificationAsync() (conferencia com o portal), pra nunca
-    // tratar uma apolice vencida/cancelada/encerrada como se fosse a
-    // atual quando existe uma vigente pra mesma placa. Prioridade por
-    // status computado (menor = melhor); empate desfeito pelo endDate
-    // mais distante — mesmo criterio ja usado nos merges antigos
-    // (so que agora com o status entrando na comparacao tambem, nao so
-    // a data).
-    private static Policy pickBestPolicy(Policy a, Policy b) {
+    // mesma placa/veiculo — reaproveitado em findAll() e
+    // startVerificationAsync() (agrupados por placa) e em
+    // LineCancelService.syncFromPolicies() (agrupado por veiculo, pacote
+    // diferente — por isso publico), pra nunca tratar uma apolice
+    // vencida/cancelada/encerrada como se fosse a atual quando existe uma
+    // vigente pro mesmo veiculo/placa. Prioridade por status computado
+    // (menor = melhor); empate desfeito pelo endDate mais distante.
+    public static Policy pickBestPolicy(Policy a, Policy b) {
 
         int pa = statusPriority(PolicyResponse.computeStatus(a));
         int pb = statusPriority(PolicyResponse.computeStatus(b));

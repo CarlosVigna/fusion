@@ -1541,4 +1541,46 @@ public class SetupController {
 
     }
 
+    // TEMPORARIO — raio-x da tabela policies pra investigar duplicatas
+    // por placa e status cru desatualizado (ver PolicyService.pickBestPolicy()
+    // e LineCancelService.syncFromPolicies()).
+    @GetMapping("/policy-db-stats")
+    public Map<String, Object> policyDbStats() {
+
+        List<Map<String, Object>> platesWithMultiplePolicies = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT plate, COUNT(*) AS total
+                FROM policies
+                GROUP BY plate
+                HAVING COUNT(*) > 1
+                ORDER BY total DESC
+                """);
+
+        List<Map<String, Object>> statusDistribution = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT status, COUNT(*) AS total
+                FROM policies
+                GROUP BY status
+                ORDER BY total DESC
+                """);
+
+        Long activeButEndDateInPast = jdbcTemplate.getJdbcTemplate().queryForObject(
+                "SELECT COUNT(*) FROM policies WHERE status = 'ACTIVE' AND end_date < CURRENT_DATE",
+                Long.class
+        );
+
+        List<Map<String, Object>> specificPlates = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT id, plate, policy_number, status, status_descricao, start_date, end_date, vehicle_id
+                FROM policies
+                WHERE plate IN ('RZL4F12', 'SOX2I19', 'QNB0C22')
+                ORDER BY plate, end_date DESC NULLS LAST
+                """);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("platesWithMultiplePolicies", platesWithMultiplePolicies);
+        result.put("statusDistribution", statusDistribution);
+        result.put("activeButEndDateInPast", activeButEndDateInPast);
+        result.put("specificPlates", specificPlates);
+        return result;
+
+    }
+
 }

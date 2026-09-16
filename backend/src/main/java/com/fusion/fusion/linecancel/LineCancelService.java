@@ -4,6 +4,7 @@ import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.policy.Policy;
 import com.fusion.fusion.policy.PolicyRepository;
 import com.fusion.fusion.policy.PolicyResponse;
+import com.fusion.fusion.policy.PolicyService;
 import com.fusion.fusion.policy.PolicyStatus;
 import com.fusion.fusion.vehicle.Vehicle;
 import com.fusion.fusion.vehicle.multiportal.device.Device;
@@ -36,6 +37,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 // Controle de cancelamento de linha de chip — veiculos cuja apolice foi
 // cancelada/encerrada precisam ter a linha do chip cancelada junto com
@@ -211,10 +213,28 @@ public class LineCancelService {
             }
         }
 
+        List<Policy> allPolicies = policyRepository.findAllActive();
+
+        // Mesma priorizacao de PolicyService.pickBestPolicy() (ACTIVE/
+        // EXPIRING/FUTURE > EXPIRED > CLOSED > CANCELLED > SUPERSEDED),
+        // mas agrupada por VEICULO em vez de placa — o que importa aqui
+        // e' "esse veiculo especifico ja tem cobertura vigente por outra
+        // apolice", nao a placa em si. Usado abaixo pra nunca gerar
+        // LineCancel de uma apolice encerrada/vencida/cancelada quando o
+        // mesmo veiculo tem uma apolice vigente.
+        Map<UUID, Policy> bestPolicyByVehicleId = allPolicies.stream()
+                .filter(p -> p.getVehicle() != null)
+                .collect(Collectors.toMap(
+                        p -> p.getVehicle().getId(),
+                        p -> p,
+                        PolicyService::pickBestPolicy
+                ));
+
         int created = 0;
         int backfilled = 0;
+        int skippedHasActivePolicy = 0;
 
-        for (Policy policy : policyRepository.findAllActive()) {
+        for (Policy policy : allPolicies) {
 
             Vehicle vehicle = policy.getVehicle();
 
@@ -228,6 +248,22 @@ public class LineCancelService {
 
             if (!TARGET_STATUSES.contains(computed)) {
                 continue;
+            }
+
+            // Esse veiculo tem uma apolice vigente (ACTIVE/EXPIRING/
+            // FUTURE) — a linha nao deve ser cancelada so' porque ESSA
+            // apolice em particular encerrou; outra ja cobre o veiculo
+            // (era o caso do RZL4F12: apolice antiga encerrada gerando
+            // LineCancel mesmo com uma vigente pro mesmo veiculo).
+            Policy bestForVehicle = bestPolicyByVehicleId.get(vehicle.getId());
+            if (bestForVehicle != null) {
+                PolicyStatus bestStatus = PolicyResponse.computeStatus(bestForVehicle);
+                if (bestStatus == PolicyStatus.ACTIVE
+                        || bestStatus == PolicyStatus.EXPIRING
+                        || bestStatus == PolicyStatus.FUTURE) {
+                    skippedHasActivePolicy++;
+                    continue;
+                }
             }
 
             if (policy.getEndDate() == null) {
@@ -297,8 +333,8 @@ public class LineCancelService {
 
         }
 
-        log.info("[LINE-CANCEL] Sync concluido — {} novo(s), {} atualizado(s) com IMEI/ICCID/MSISDN backfillado",
-                created, backfilled);
+        log.info("[LINE-CANCEL] Sync concluido — {} novo(s), {} atualizado(s) com IMEI/ICCID/MSISDN backfillado, {} ignorado(s) por veiculo ja ter apolice vigente",
+                created, backfilled, skippedHasActivePolicy);
 
         return created;
 
