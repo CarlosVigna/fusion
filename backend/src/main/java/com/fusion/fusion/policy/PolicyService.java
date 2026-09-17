@@ -56,7 +56,7 @@ public class PolicyService {
         // "certo", mas a dupla confundia o usuario). Ver
         // pickBestPolicy()/statusPriority(PolicyStatus) — mesma logica
         // reaproveitada em startVerificationAsync().
-        List<Policy> allPoliciesRaw = policyRepository.findAllActive()
+        List<Policy> allPoliciesRaw = policyRepository.findAllActiveWithVehicle()
                 .stream()
                 .filter(p -> p.getVehicle() == null || p.getVehicle().getVehicleGroup() != VehicleGroup.TEST)
                 .toList();
@@ -1082,12 +1082,24 @@ public class PolicyService {
 
     private final ConcurrentHashMap<String, VerificationJob> verificationJobs = new ConcurrentHashMap<>();
 
+    // Roda em thread @Async — sem OpenSessionInView (que so cobre a
+    // thread da requisicao HTTP original), qualquer acesso lazy (ex:
+    // policy.getVehicle().getVehicleGroup() no filtro abaixo) fora de
+    // uma sessao Hibernate aberta estoura LazyInitializationException.
+    // findAllActiveWithVehicle() resolve com JOIN FETCH — o vehicle ja
+    // vem totalmente carregado, sem precisar de sessao depois. De
+    // proposito SEM @Transactional cobrindo o metodo inteiro: o loop
+    // abaixo faz uma chamada HTTP bloqueante por placa
+    // (fetchFromPortal(), minutos pra centenas de veiculos), e segurar
+    // uma unica transacao/conexao aberta por todo esse tempo e' o mesmo
+    // anti-padrao que VehiclePortalSyncService.syncAll() e
+    // OperationalStateEngineService.processAll() evitam de proposito.
     @Async
     public void startVerificationAsync(String jobId) {
 
         try {
 
-            List<Policy> allPolicies = policyRepository.findAllActive().stream()
+            List<Policy> allPolicies = policyRepository.findAllActiveWithVehicle().stream()
                     .filter(p -> p.getVehicle() == null || p.getVehicle().getVehicleGroup() != VehicleGroup.TEST)
                     .toList();
 
