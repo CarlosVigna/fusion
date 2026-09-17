@@ -2,6 +2,7 @@ package com.fusion.fusion.policy;
 
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.vehicle.Vehicle;
+import com.fusion.fusion.vehicle.VehicleGroup;
 import com.fusion.fusion.vehicle.VehicleRepository;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkage;
 import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
@@ -55,7 +56,10 @@ public class PolicyService {
         // "certo", mas a dupla confundia o usuario). Ver
         // pickBestPolicy()/statusPriority(PolicyStatus) — mesma logica
         // reaproveitada em startVerificationAsync().
-        List<Policy> allPoliciesRaw = policyRepository.findAllActive();
+        List<Policy> allPoliciesRaw = policyRepository.findAllActive()
+                .stream()
+                .filter(p -> p.getVehicle() == null || p.getVehicle().getVehicleGroup() != VehicleGroup.TEST)
+                .toList();
 
         Map<String, Policy> bestByPlate = allPoliciesRaw
                 .stream()
@@ -848,36 +852,17 @@ public class PolicyService {
                 ));
 
         boolean cancelled = req.status() == PolicyStatus.CANCELLED;
-        PolicyStatus existingStatus = existing.getStatus();
-        boolean keyChanged = !cancelled
-                && existingStatus != PolicyStatus.SUPERSEDED
-                && existingStatus != PolicyStatus.CANCELLED
-                && (!Objects.equals(existing.getPolicyNumber(), req.policyNumber())
-                        || !Objects.equals(existing.getEndDate(), req.endDate()));
 
-        if (keyChanged) {
-            existing.setStatus(PolicyStatus.SUPERSEDED);
-            policyRepository.save(existing);
-
-            Policy newPolicy = Policy.builder()
-                    .vehicle(existing.getVehicle())
-                    .plate(existing.getPlate())
-                    .policyNumber(req.policyNumber())
-                    .startDate(req.startDate())
-                    .endDate(req.endDate())
-                    .status(PolicyStatus.ACTIVE)
-                    .insuredName(req.insuredName())
-                    .cpfCnpj(req.cpfCnpj())
-                    .vehicleModel(req.vehicleModel())
-                    .vehicleBrand(req.vehicleBrand())
-                    .bonus(req.bonus())
-                    .statusDescricao(req.statusDescricao())
-                    .source(req.source() != null ? req.source() : PolicySource.ETL)
-                    .build();
-
-            return PolicyResponse.from(policyRepository.save(newPolicy));
-        }
-
+        // Antes, mudar policyNumber/endDate (ex: renovacao aceita na tela
+        // de Conferencia) marcava a existente como SUPERSEDED e criava uma
+        // linha nova — a antiga ficava esquecida no banco com o status
+        // velho (EXPIRED/CANCELLED/CLOSED) pra sempre, gerando duplicata
+        // por placa (era o caso da RZL4F12/SOX2I19/QNB0C22 investigado
+        // antes). Agora so' atualiza os campos da mesma linha — o status
+        // computado (PolicyResponse.computeStatus) e' derivado de
+        // endDate/statusDescricao, entao uma apolice EXPIRED com endDate
+        // atualizado pra frente volta a ser ACTIVE/EXPIRING sozinha, sem
+        // precisar duplicar registro.
         existing.setPolicyNumber(req.policyNumber());
         existing.setStartDate(req.startDate());
         existing.setEndDate(req.endDate());
@@ -1102,7 +1087,9 @@ public class PolicyService {
 
         try {
 
-            List<Policy> allPolicies = policyRepository.findAllActive();
+            List<Policy> allPolicies = policyRepository.findAllActive().stream()
+                    .filter(p -> p.getVehicle() == null || p.getVehicle().getVehicleGroup() != VehicleGroup.TEST)
+                    .toList();
 
             // Deduplica por placa UMA vez, com a mesma prioridade de
             // findAll() (pickBestPolicy) — antes, Fase 1 e Fase 2 faziam
@@ -1151,6 +1138,7 @@ public class PolicyService {
 
             List<Vehicle> pendingVehicles = vehicleRepository.findAll().stream()
                     .filter(v -> v.getDeletedAt() == null
+                            && v.getVehicleGroup() != VehicleGroup.TEST
                             && !allPolicyPlates.contains(v.getPlate().toUpperCase()))
                     .toList();
 

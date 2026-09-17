@@ -515,7 +515,11 @@ export default function Policies() {
     setAcceptingStatusChangeId(entry.id);
     try {
       if (entry.newStatus === "ACTIVE") {
-        await createPolicy({
+        // Atualiza a apólice encerrada existente em vez de criar uma
+        // nova linha — evita duplicar registro pra mesma placa quando a
+        // renovação é aceita (a antiga ficava esquecida com status
+        // vencido pra sempre; ver PolicyService.update()).
+        await updatePolicy(entry.id, {
           plate:           entry.plate,
           policyNumber:    entry.portalData.policyNumber,
           startDate:       entry.portalData.startDate,

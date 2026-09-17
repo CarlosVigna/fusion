@@ -51,11 +51,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -1579,6 +1582,80 @@ public class SetupController {
         result.put("statusDistribution", statusDistribution);
         result.put("activeButEndDateInPast", activeButEndDateInPast);
         result.put("specificPlates", specificPlates);
+        return result;
+
+    }
+
+    // TEMPORARIO — corrige em lote as apolices com status=ACTIVE cru mas
+    // end_date ja vencido (ver policyDbStats() acima, activeButEndDateInPast).
+    // Usa a mesma priorizacao de PolicyService.pickBestPolicy(), agrupada
+    // por veiculo, pra distinguir "essa apolice venceu mas o veiculo ja
+    // tem outra vigente" (-> SUPERSEDED) de "essa apolice venceu e e' a
+    // unica/melhor que o veiculo tem" (-> EXPIRED de verdade).
+    @PostMapping("/fix-expired-policies")
+    public Map<String, Object> fixExpiredPolicies() {
+
+        LocalDate today = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
+
+        List<Policy> allPolicies = policyRepository.findAllActive();
+
+        Map<UUID, Policy> bestPolicyByVehicleId = allPolicies.stream()
+                .filter(p -> p.getVehicle() != null)
+                .collect(Collectors.toMap(
+                        p -> p.getVehicle().getId(),
+                        p -> p,
+                        PolicyService::pickBestPolicy
+                ));
+
+        List<Policy> outdated = allPolicies.stream()
+                .filter(p -> p.getStatus() == PolicyStatus.ACTIVE
+                        && p.getEndDate() != null
+                        && p.getEndDate().isBefore(today))
+                .toList();
+
+        List<Map<String, Object>> changes = new ArrayList<>();
+        List<Policy> toSave = new ArrayList<>();
+
+        for (Policy p : outdated) {
+
+            Policy bestForVehicle = p.getVehicle() != null
+                    ? bestPolicyByVehicleId.get(p.getVehicle().getId())
+                    : null;
+
+            boolean hasOtherActivePolicy = bestForVehicle != null
+                    && !Objects.equals(bestForVehicle.getId(), p.getId())
+                    && switch (PolicyResponse.computeStatus(bestForVehicle)) {
+                        case ACTIVE, EXPIRING, FUTURE -> true;
+                        default -> false;
+                    };
+
+            PolicyStatus oldStatus = p.getStatus();
+            PolicyStatus newStatus = hasOtherActivePolicy
+                    ? PolicyStatus.SUPERSEDED
+                    : PolicyStatus.EXPIRED;
+
+            p.setStatus(newStatus);
+            toSave.add(p);
+
+            Map<String, Object> change = new LinkedHashMap<>();
+            change.put("id", p.getId());
+            change.put("plate", p.getPlate());
+            change.put("policyNumber", p.getPolicyNumber());
+            change.put("endDate", p.getEndDate());
+            change.put("oldStatus", oldStatus);
+            change.put("newStatus", newStatus);
+            changes.add(change);
+
+        }
+
+        if (!toSave.isEmpty()) {
+            policyRepository.saveAll(toSave);
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("totalFound", outdated.size());
+        result.put("totalUpdated", changes.size());
+        result.put("changes", changes);
         return result;
 
     }
