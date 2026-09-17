@@ -203,7 +203,7 @@ public class LineCancelService {
     // de preenchimento manual (ver setCancelledAt()); pra CLOSED/EXPIRED
     // nem chega a ser usado, a referencia e' sempre policyEndDate.
     @Transactional
-    public int syncFromPolicies() {
+    public LineCancelSyncResult syncFromPolicies() {
 
         Map<UUID, DeviceLinkage> activeLinkageByVehicleId = new HashMap<>();
 
@@ -333,10 +333,52 @@ public class LineCancelService {
 
         }
 
-        log.info("[LINE-CANCEL] Sync concluido — {} novo(s), {} atualizado(s) com IMEI/ICCID/MSISDN backfillado, {} ignorado(s) por veiculo ja ter apolice vigente",
-                created, backfilled, skippedHasActivePolicy);
+        // Reconciliacao dos registros JA existentes: um LineCancel pode
+        // ter sido criado (nesta sync ou numa anterior, inclusive antes
+        // do guard de bestPolicyByVehicleId acima existir — era o caso
+        // do RZL4F12) pra um veiculo que desde entao passou a ter uma
+        // apolice vigente. So mexe em AGUARDANDO/VERIFICAR/PRONTO —
+        // SOLICITADO/CONCLUIDO sao avancos manuais definitivos (mesma
+        // regra de updateStatus()): se a operadora ja foi acionada ou a
+        // linha ja foi de fato cancelada, isso e' um evento historico
+        // real e nao deve ser apagado so' porque o veiculo ganhou uma
+        // apolice nova depois. Remove em vez de marcar CONCLUIDO porque
+        // o registro nunca chegou a representar um cancelamento
+        // efetivo — nenhuma acao humana foi tomada, entao nao ha
+        // "conclusao" pra registrar; ele so nao deveria mais existir.
+        int resolvedObsolete = 0;
 
-        return created;
+        for (LineCancel lc : repository.findAll()) {
+
+            if (lc.getStatus() == LineCancelStatus.SOLICITADO
+                    || lc.getStatus() == LineCancelStatus.CONCLUIDO) {
+                continue;
+            }
+
+            Vehicle lcVehicle = lc.getVehicle();
+            if (lcVehicle == null) {
+                continue;
+            }
+
+            Policy bestForVehicle = bestPolicyByVehicleId.get(lcVehicle.getId());
+            if (bestForVehicle == null) {
+                continue;
+            }
+
+            PolicyStatus bestStatus = PolicyResponse.computeStatus(bestForVehicle);
+            if (bestStatus == PolicyStatus.ACTIVE
+                    || bestStatus == PolicyStatus.EXPIRING
+                    || bestStatus == PolicyStatus.FUTURE) {
+                repository.delete(lc);
+                resolvedObsolete++;
+            }
+
+        }
+
+        log.info("[LINE-CANCEL] Sync concluido — {} novo(s), {} atualizado(s) com IMEI/ICCID/MSISDN backfillado, {} ignorado(s) por veiculo ja ter apolice vigente, {} obsoleto(s) removido(s) por veiculo ter apolice vigente",
+                created, backfilled, skippedHasActivePolicy, resolvedObsolete);
+
+        return new LineCancelSyncResult(created, backfilled, skippedHasActivePolicy, resolvedObsolete);
 
     }
 

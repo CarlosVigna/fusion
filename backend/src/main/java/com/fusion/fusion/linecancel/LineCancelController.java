@@ -35,9 +35,14 @@ public class LineCancelController {
     @PostMapping("/sync")
     public Map<String, Integer> sync() {
 
-        int created = service.syncFromPolicies();
+        LineCancelSyncResult result = service.syncFromPolicies();
 
-        return Map.of("created", created);
+        return Map.of(
+                "created", result.created(),
+                "backfilled", result.backfilled(),
+                "skippedHasActivePolicy", result.skippedHasActivePolicy(),
+                "resolvedObsolete", result.resolvedObsolete()
+        );
 
     }
 
