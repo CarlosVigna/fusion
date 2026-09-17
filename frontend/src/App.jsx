@@ -22,7 +22,7 @@ function App() {
 
     // So busca a preferencia de tema do backend se ja tiver sessao —
     // a tela de login fica com o ultimo tema aplicado localmente
-    // (default "dark") ate o usuario logar.
+    // (default "red") ate o usuario logar.
     if (localStorage.getItem("fusion_token")) {
 
       loadTheme();

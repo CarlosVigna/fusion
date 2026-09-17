@@ -131,6 +131,30 @@
   color-scheme: dark;
 }
 
+[data-theme="red"] {
+  /* Preto/cinza-escuro com identidade vermelha (charcoal + vinho) —
+     fundo e cards quase pretos, muted em vermelho-acinzentado, texto
+     em branco puro. Cores de status/alerta/badge continuam fixas
+     (ver comentario no topo do arquivo), so' o fundo/cards/bordas/
+     texto neutro mudam. */
+  --zinc-50: 253 245 245;
+  --zinc-100: 250 232 232;
+  --zinc-200: 245 205 205;
+  --zinc-300: 235 165 165;
+  --zinc-400: 214 110 110;
+  --zinc-500: 185 70 70;
+  --zinc-600: 150 45 45;
+  --zinc-700: 105 35 38;
+  --zinc-800: 58 28 30;
+  --zinc-900: 35 20 21;
+  --zinc-950: 17 11 12;
+
+  --canvas-fg: 255 255 255;
+  --canvas-bg: 17 11 12;
+
+  color-scheme: dark;
+}
+
 html {
   font-size: 85%;
 }

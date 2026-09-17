@@ -9,7 +9,7 @@ const STORAGE_KEY = "fusion_theme";
 
 const THEME_PREFERENCE_KEY = "theme";
 
-const VALID_THEMES = ["dark", "light", "blue", "emerald", "violet", "midnight"];
+const VALID_THEMES = ["dark", "light", "blue", "emerald", "violet", "midnight", "red"];
 
 function applyTheme(theme) {
 
@@ -22,7 +22,7 @@ function applyTheme(theme) {
 }
 
 // Apply immediately on module load so dark: classes take effect before React mounts
-const _initialTheme = localStorage.getItem(STORAGE_KEY) || "dark";
+const _initialTheme = localStorage.getItem(STORAGE_KEY) || "red";
 applyTheme(_initialTheme);
 
 export const useThemeStore = create((set) => ({
@@ -37,7 +37,7 @@ export const useThemeStore = create((set) => ({
 
       const saved = await getPreference(THEME_PREFERENCE_KEY);
 
-      const theme = VALID_THEMES.includes(saved) ? saved : "dark";
+      const theme = VALID_THEMES.includes(saved) ? saved : "red";
 
       applyTheme(theme);
 

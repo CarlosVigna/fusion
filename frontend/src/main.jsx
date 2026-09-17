@@ -5,7 +5,7 @@ window.global = window;
 // e buscar a preferencia real no backend.
 document.documentElement.setAttribute(
   "data-theme",
-  localStorage.getItem("fusion_theme") || "dark"
+  localStorage.getItem("fusion_theme") || "red"
 );
 
 import React from "react";

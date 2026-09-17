@@ -48,6 +48,11 @@ const THEMES = [
     label: "Midnight",
     swatch: ["#05070a", "#0d1117", "#f8fafc"],
   },
+  {
+    key: "red",
+    label: "Vermelho",
+    swatch: ["#110b0c", "#231415", "#d66e6e"],
+  },
 ];
 
 function resizePhoto(file) {
