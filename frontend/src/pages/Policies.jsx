@@ -245,6 +245,7 @@ export default function Policies() {
   const [pendingVehicles, setPendingVehicles] = useState([]);
   const [inactivePolicies, setInactivePolicies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [plateFilter, setPlateFilter] = useState("");
 
   // Create / edit modal
   const [modalOpen, setModalOpen] = useState(false);
@@ -311,6 +312,28 @@ export default function Policies() {
   const historyPolicies = useMemo(
     () => policies.filter((p) => p.status === "SUPERSEDED"),
     [policies]
+  );
+
+  const plateNeedle = plateFilter.trim().toUpperCase();
+
+  const filteredPendingVehicles = useMemo(
+    () => pendingVehicles.filter((v) => !plateNeedle || (v.plate || "").toUpperCase().includes(plateNeedle)),
+    [pendingVehicles, plateNeedle]
+  );
+
+  const filteredInactivePolicies = useMemo(
+    () => inactivePolicies.filter((p) => !plateNeedle || (p.plate || "").toUpperCase().includes(plateNeedle)),
+    [inactivePolicies, plateNeedle]
+  );
+
+  const filteredActivePolicies = useMemo(
+    () => activePolicies.filter((p) => !plateNeedle || (p.plate || "").toUpperCase().includes(plateNeedle)),
+    [activePolicies, plateNeedle]
+  );
+
+  const filteredHistoryPolicies = useMemo(
+    () => historyPolicies.filter((p) => !plateNeedle || (p.plate || "").toUpperCase().includes(plateNeedle)),
+    [historyPolicies, plateNeedle]
   );
 
   function openCreateModal(vehicle) {
@@ -642,6 +665,21 @@ export default function Policies() {
         </button>
       </div>
 
+      {tab !== "reports" && (
+        <div className="max-w-xs">
+          <label className="mb-1.5 block text-xs text-zinc-400">Placa</label>
+          <input
+            value={plateFilter}
+            onChange={(e) => setPlateFilter(e.target.value)}
+            placeholder="Ex: ABC1D23"
+            className="
+              w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2
+              text-sm text-white focus:outline-none focus:ring-1 focus:ring-zinc-500
+            "
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className="py-16 text-center text-zinc-500">Carregando...</div>
       ) : (
@@ -649,9 +687,11 @@ export default function Policies() {
           {/* ── Sem Apólice ── */}
           {tab === "pending" && (
             <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-              {pendingVehicles.length === 0 ? (
+              {filteredPendingVehicles.length === 0 ? (
                 <p className="py-12 text-center text-zinc-500">
-                  Todos os veículos possuem apólice vigente
+                  {pendingVehicles.length === 0
+                    ? "Todos os veículos possuem apólice vigente"
+                    : "Nenhum veículo encontrado para essa placa"}
                 </p>
               ) : (
                 <div className="overflow-x-auto">
@@ -666,7 +706,7 @@ export default function Policies() {
                       </tr>
                     </thead>
                     <tbody>
-                      {pendingVehicles.map((vehicle) => (
+                      {filteredPendingVehicles.map((vehicle) => (
                         <tr key={vehicle.id} className="border-t border-zinc-800 hover:bg-zinc-800/40">
                           <td className="px-4 py-3 font-mono font-semibold">{vehicle.plate}</td>
                           <td className="px-4 py-3 text-sm">{vehicle.insuredName || "--"}</td>
@@ -711,20 +751,20 @@ export default function Policies() {
           {/* ── Encerradas ── */}
           {tab === "inactive" && (
             <div className="space-y-3">
-              {inactivePolicies.length > 0 && (
+              {filteredInactivePolicies.length > 0 && (
                 <div className="flex items-center justify-between">
                   <p className="text-sm text-zinc-400">
-                    {inactivePolicies.length} registro{inactivePolicies.length !== 1 ? "s" : ""}
+                    {filteredInactivePolicies.length} registro{filteredInactivePolicies.length !== 1 ? "s" : ""}
                   </p>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => exportInactivasExcel(inactivePolicies)}
+                      onClick={() => exportInactivasExcel(filteredInactivePolicies)}
                       className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
                     >
                       Exportar Excel
                     </button>
                     <button
-                      onClick={() => exportInativasPDF(inactivePolicies)}
+                      onClick={() => exportInativasPDF(filteredInactivePolicies)}
                       className="rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:bg-zinc-800 hover:text-white"
                     >
                       Exportar PDF
@@ -733,7 +773,7 @@ export default function Policies() {
                 </div>
               )}
             <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-              {inactivePolicies.length === 0 ? (
+              {filteredInactivePolicies.length === 0 ? (
                 <p className="py-12 text-center text-zinc-500">Nenhuma apólice encerrada ou cancelada</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -751,7 +791,7 @@ export default function Policies() {
                       </tr>
                     </thead>
                     <tbody>
-                      {inactivePolicies.map((policy) => (
+                      {filteredInactivePolicies.map((policy) => (
                         <tr key={policy.id} className="border-t border-zinc-800 hover:bg-zinc-800/40">
                           <td className="px-4 py-3 font-mono font-semibold">{policy.plate || "--"}</td>
                           <td className="px-4 py-3 text-sm">{policy.insuredName || "--"}</td>
@@ -795,7 +835,7 @@ export default function Policies() {
           {/* ── Vigentes ── */}
           {tab === "active" && (
             <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-                {activePolicies.length === 0 ? (
+                {filteredActivePolicies.length === 0 ? (
                   <p className="py-12 text-center text-zinc-500">Nenhuma apólice vigente cadastrada</p>
                 ) : (
                   <div className="overflow-x-auto">
@@ -814,7 +854,7 @@ export default function Policies() {
                         </tr>
                       </thead>
                       <tbody>
-                        {activePolicies.map((policy) => {
+                        {filteredActivePolicies.map((policy) => {
                           const days = daysRemaining(policy.endDate);
                           return (
                             <tr key={policy.id} className="border-t border-zinc-800 hover:bg-zinc-800/40">
@@ -865,7 +905,7 @@ export default function Policies() {
           {/* ── Histórico ── */}
           {tab === "history" && (
             <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-              {historyPolicies.length === 0 ? (
+              {filteredHistoryPolicies.length === 0 ? (
                 <p className="py-12 text-center text-zinc-500">Nenhum registro histórico</p>
               ) : (
                 <div className="overflow-x-auto">
@@ -882,7 +922,7 @@ export default function Policies() {
                       </tr>
                     </thead>
                     <tbody>
-                      {historyPolicies.map((policy) => (
+                      {filteredHistoryPolicies.map((policy) => (
                         <tr key={policy.id} className="border-t border-zinc-800 hover:bg-zinc-800/40">
                           <td className="px-4 py-3 font-mono font-semibold">{policy.plate || "--"}</td>
                           <td className="px-4 py-3 text-sm">{policy.insuredName || "--"}</td>
