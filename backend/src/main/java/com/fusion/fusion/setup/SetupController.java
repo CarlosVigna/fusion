@@ -19,11 +19,14 @@ import com.fusion.fusion.observation.VehicleObservation;
 import com.fusion.fusion.observation.VehicleObservationService;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshot;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
+import com.fusion.fusion.policy.EtlPolicyResult;
 import com.fusion.fusion.policy.Policy;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
 import com.fusion.fusion.policy.PolicyRepository;
+import com.fusion.fusion.policy.PolicyRequest;
 import com.fusion.fusion.policy.PolicyResponse;
 import com.fusion.fusion.policy.PolicyService;
+import com.fusion.fusion.policy.PolicySource;
 import com.fusion.fusion.policy.PolicyStatus;
 import com.fusion.fusion.signalcontrol.SignalControlService;
 import com.fusion.fusion.vehicle.PlateValidator;
@@ -1723,6 +1726,103 @@ public class SetupController {
         result.put("policiesFixed", policiesFixed);
         result.put("lineCancelsResolved", lineCancelsResolved);
         return result;
+
+    }
+
+    // TEMPORARIO — pega toda apolice com status=EXPIRED cru e confere
+    // de novo no portal parceiro via PolicyService.fetchFromPortal(),
+    // que ja aplica a mesma prioridade de selecao (statusPriority sobre
+    // as strings do portal — vigente primeiro, empate por fim_vigencia
+    // mais recente) usada em todo o resto do fluxo de apolices. Cobre o
+    // caso de uma apolice marcada EXPIRED aqui (seja pelo sync normal,
+    // seja por fixExpiredPolicies()) cuja renovacao ja saiu no portal
+    // mas ainda nao foi refletida no banco.
+    @PostMapping("/fix-expired-policies-portal")
+    public List<Map<String, Object>> fixExpiredPoliciesPortal() {
+
+        List<Policy> expiredPolicies = policyRepository.findAllActiveWithVehicle().stream()
+                .filter(p -> p.getStatus() == PolicyStatus.EXPIRED)
+                .toList();
+
+        List<Map<String, Object>> report = new ArrayList<>();
+
+        for (Policy policy : expiredPolicies) {
+
+            String plate = policy.getPlate();
+            String wasPolicy = policy.getPolicyNumber();
+            LocalDate wasEndDate = policy.getEndDate();
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("plate", plate);
+            entry.put("wasPolicy", wasPolicy);
+            entry.put("wasEndDate", wasEndDate);
+
+            try {
+
+                EtlPolicyResult portalResult = policyService.fetchFromPortal(plate);
+
+                if (!portalResult.found() || portalResult.data() == null) {
+                    entry.put("nowPolicy", wasPolicy);
+                    entry.put("nowEndDate", wasEndDate);
+                    entry.put("action", "NOT_FOUND");
+                    report.add(entry);
+                    continue;
+                }
+
+                EtlPolicyResult.EtlPolicyData portal = portalResult.data();
+
+                LocalDate portalEndDate = portal.endDate() != null
+                        ? LocalDate.parse(portal.endDate())
+                        : null;
+
+                boolean changed = !Objects.equals(wasPolicy, portal.policyNumber())
+                        || !Objects.equals(wasEndDate, portalEndDate);
+
+                if (!changed) {
+                    entry.put("nowPolicy", wasPolicy);
+                    entry.put("nowEndDate", wasEndDate);
+                    entry.put("action", "UNCHANGED");
+                    report.add(entry);
+                    continue;
+                }
+
+                PolicyRequest req = new PolicyRequest(
+                        plate,
+                        portal.policyNumber(),
+                        portal.startDate() != null ? LocalDate.parse(portal.startDate()) : null,
+                        portalEndDate,
+                        null,
+                        portal.insuredName(),
+                        portal.cpfCnpj(),
+                        portal.vehicleModel(),
+                        portal.vehicleBrand(),
+                        portal.bonus(),
+                        portal.statusDescricao(),
+                        PolicySource.ETL
+                );
+
+                policyService.update(policy.getId(), req);
+
+                entry.put("nowPolicy", portal.policyNumber());
+                entry.put("nowEndDate", portalEndDate);
+                entry.put("action", "UPDATED");
+                report.add(entry);
+
+            } catch (Exception e) {
+
+                log.warn("[SETUP] Falha ao reconsultar apolice expirada no portal, placa={}: {}",
+                        plate, e.getMessage());
+
+                entry.put("nowPolicy", wasPolicy);
+                entry.put("nowEndDate", wasEndDate);
+                entry.put("action", "NOT_FOUND");
+                report.add(entry);
+
+            }
+
+        }
+
+        return report;
 
     }
 
