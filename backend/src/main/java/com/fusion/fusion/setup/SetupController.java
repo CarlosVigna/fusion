@@ -1833,13 +1833,15 @@ public class SetupController {
 
     }
 
-    // TAREFA 1 — auditoria completa da frota (apolices, cadastro,
-    // dispositivo/vinculo, ultima comunicacao), 1 Excel com 4 abas. Ver
+    // Auditoria completa da frota (apolices, cadastro, dispositivo/
+    // vinculo, ultima comunicacao), 1 Excel com 4 abas. Ver
     // FullAuditService pra logica de comparacao banco-vs-portal/vinculo/
     // sinal e a coloracao das linhas (vermelho = problema concreto,
-    // amarelo = precisa revisao).
-    @PostMapping("/full-audit")
-    public ResponseEntity<ByteArrayResource> fullAudit() {
+    // amarelo = precisa revisao). Nome diferente de fullAudit() (que ja
+    // existia, GET /setup/full-audit — reconciliacao Multiportal x
+    // Fusion, endpoint totalmente diferente) pra nao colidir.
+    @PostMapping("/full-audit-excel")
+    public ResponseEntity<ByteArrayResource> fullAuditExcel() {
 
         byte[] bytes = fullAuditService.generate();
 
