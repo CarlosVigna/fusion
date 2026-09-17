@@ -730,6 +730,25 @@ public class PolicyService {
 
     }
 
+    // Verificacao leve de saude do portal parceiro — reaproveita
+    // getPortalToken() (obtem um token novo de verdade, mesma chamada
+    // de login usada em toda apolice), sem baixar nenhuma apolice.
+    // Usado por GET /setup/system-health. Lanca a excecao original em
+    // vez de engolir/retornar boolean pra quem chama poder mostrar o
+    // motivo real (credencial ausente, portal fora, timeout, etc).
+    public void checkPortalHealth() {
+
+        if (portalClientId.isBlank() || portalClientSecret.isBlank()) {
+            throw new IllegalStateException(
+                    "Credenciais do portal parceiro não configuradas " +
+                    "(portal.parceiro.client-id / portal.parceiro.client-secret)"
+            );
+        }
+
+        getPortalToken();
+
+    }
+
     @SuppressWarnings("unchecked")
     private String getPortalToken() {
 

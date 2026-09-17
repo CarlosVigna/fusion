@@ -2,6 +2,7 @@ package com.fusion.fusion.setup;
 
 import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
+import com.fusion.fusion.etl.EtlStatusResponse;
 import com.fusion.fusion.etl.EtlStatusService;
 import com.fusion.fusion.etl.EtlTriggerService;
 import com.fusion.fusion.importation.ImportType;
@@ -38,11 +39,14 @@ import com.fusion.fusion.vehicle.multiportal.linkage.DeviceLinkageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,6 +54,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -460,6 +466,7 @@ public class SetupController {
     private final TracknMeApiService tracknMeApiService;
     private final EtlStatusService etlStatusService;
     private final EtlTriggerService etlTriggerService;
+    private final FullAuditService fullAuditService;
 
     private static final List<String> TRACKNME_STALE_CANDIDATES = List.of(
             "SHE1J03", "PYC0H76", "IYL7E09", "GHE9I46", "FJO4527"
@@ -1823,6 +1830,142 @@ public class SetupController {
         }
 
         return report;
+
+    }
+
+    // TAREFA 1 — auditoria completa da frota (apolices, cadastro,
+    // dispositivo/vinculo, ultima comunicacao), 1 Excel com 4 abas. Ver
+    // FullAuditService pra logica de comparacao banco-vs-portal/vinculo/
+    // sinal e a coloracao das linhas (vermelho = problema concreto,
+    // amarelo = precisa revisao).
+    @PostMapping("/full-audit")
+    public ResponseEntity<ByteArrayResource> fullAudit() {
+
+        byte[] bytes = fullAuditService.generate();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"auditoria-completa.xlsx\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .contentLength(bytes.length)
+                .body(new ByteArrayResource(bytes));
+
+    }
+
+    // TAREFA 2 — raio-x rapido de saude de cada componente do sistema.
+    // ETLs reaproveitam o heartbeat que ja existe (EtlStatusService);
+    // WhatsApp Baileys nao tem NENHUM bean no backend guardando esse
+    // estado — a conexao de verdade vive so no processo Node externo
+    // (triggerPoller.js). O unico sinal real disponivel e' "o poller
+    // ainda esta puxando pollWhatsApp() a cada ~15s" (ver
+    // EtlTriggerService.lastWhatsAppPollAt), usado aqui como proxy.
+    @GetMapping("/system-health")
+    public Map<String, Object> systemHealth() {
+
+        Map<ImportType, EtlStatusResponse> etlByType = etlStatusService.findAll().stream()
+                .collect(Collectors.toMap(EtlStatusResponse::type, r -> r, (a, b) -> a));
+
+        List<Map<String, Object>> components = new ArrayList<>();
+        components.add(etlComponent("ETL Posicionamento", etlByType.get(ImportType.MULTIPORTAL_ULTIMA_POSICAO)));
+        components.add(etlComponent("ETL Dispositivos", etlByType.get(ImportType.MULTIPORTAL_DEVICE)));
+        components.add(etlComponent("ETL Vínculos", etlByType.get(ImportType.MULTIPORTAL_LINKAGE)));
+        components.add(etlComponent("Instalações", etlByType.get(ImportType.INSTALACOES)));
+        components.add(etlComponent("Motor Operacional", etlByType.get(ImportType.OPERATIONAL_ENGINE)));
+        components.add(whatsAppComponent());
+        components.add(databaseComponent());
+        components.add(portalComponent());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("timestamp", Instant.now().toString());
+        result.put("components", components);
+        return result;
+
+    }
+
+    private Map<String, Object> etlComponent(String name, EtlStatusResponse status) {
+
+        Map<String, Object> component = new LinkedHashMap<>();
+        component.put("name", name);
+
+        if (status == null) {
+            component.put("status", "SEM DADOS");
+            component.put("lastRun", null);
+            component.put("detail", "Nunca reportou heartbeat");
+            return component;
+        }
+
+        boolean error = status.status() == EtlRunStatus.ERROR;
+        boolean running = status.status() == EtlRunStatus.RUNNING;
+
+        component.put("status", error ? "ERRO" : "OK");
+        component.put("lastRun", status.lastRunAt() != null ? status.lastRunAt().toString() : null);
+        component.put("detail", error
+                ? (status.lastError() != null && !status.lastError().isBlank() ? status.lastError() : "Erro não detalhado")
+                : running
+                        ? "Em execução" + (status.currentStep() != null ? " — " + status.currentStep() : "")
+                        : "Última execução processou "
+                                + (status.lastRecordsProcessed() != null ? status.lastRecordsProcessed() : 0)
+                                + " registro(s)"
+        );
+
+        return component;
+
+    }
+
+    private Map<String, Object> whatsAppComponent() {
+
+        Map<String, Object> component = new LinkedHashMap<>();
+        component.put("name", "WhatsApp Baileys");
+
+        Instant lastPoll = etlTriggerService.getLastWhatsAppPollAt();
+
+        if (lastPoll == null) {
+            component.put("status", "DESCONECTADO");
+            component.put("detail", "Nenhum poll recebido desde o último restart do backend");
+            return component;
+        }
+
+        long secondsAgo = Duration.between(lastPoll, Instant.now()).getSeconds();
+        boolean connected = secondsAgo <= 120;
+
+        component.put("status", connected ? "CONECTADO" : "DESCONECTADO");
+        component.put("detail", "Último poll há " + secondsAgo + "s");
+        return component;
+
+    }
+
+    private Map<String, Object> databaseComponent() {
+
+        Map<String, Object> component = new LinkedHashMap<>();
+        component.put("name", "Banco Railway");
+
+        try {
+            jdbcTemplate.getJdbcTemplate().queryForObject("SELECT 1", Integer.class);
+            component.put("status", "OK");
+            component.put("detail", "SELECT 1 respondeu normalmente");
+        } catch (Exception e) {
+            component.put("status", "ERRO");
+            component.put("detail", e.getMessage());
+        }
+
+        return component;
+
+    }
+
+    private Map<String, Object> portalComponent() {
+
+        Map<String, Object> component = new LinkedHashMap<>();
+        component.put("name", "Portal Usebens");
+
+        try {
+            policyService.checkPortalHealth();
+            component.put("status", "ACESSÍVEL");
+            component.put("detail", "Login no portal obteve token normalmente");
+        } catch (Exception e) {
+            component.put("status", "INACESSÍVEL");
+            component.put("detail", e.getMessage());
+        }
+
+        return component;
 
     }
 

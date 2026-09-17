@@ -38,6 +38,15 @@ public class EtlTriggerService {
     // reivindicar (caso real: BCG6D83 perdida, PWT3869 sobrescreveu).
     private final Queue<String> whatsappQueue = new ConcurrentLinkedQueue<>();
 
+    // O backend nao tem visibilidade nenhuma da conexao Baileys em si —
+    // ela vive inteiramente no processo Node externo (triggerPoller.js),
+    // que so aparece aqui puxando pollWhatsApp() a cada 15s (ver
+    // POLL_INTERVAL_MS la). Carimbar esse instante e' o unico sinal real
+    // que o backend tem de "o poller (e portanto o Baileys) esta vivo" —
+    // usado por GET /setup/system-health pra inferir CONECTADO/
+    // DESCONECTADO sem inventar um estado que o backend nao possui.
+    private volatile Instant lastWhatsAppPollAt;
+
     public void request(ImportType type) {
         request(type, null);
     }
@@ -67,7 +76,12 @@ public class EtlTriggerService {
     // vazia. Chamado repetidamente pelo ETL local ate' esvaziar —
     // diferente de poll() acima, aqui pode haver varias pendentes.
     public String pollWhatsApp() {
+        lastWhatsAppPollAt = Instant.now();
         return whatsappQueue.poll();
+    }
+
+    public Instant getLastWhatsAppPollAt() {
+        return lastWhatsAppPollAt;
     }
 
     public record EtlTriggerPayload(ImportType type, String plate) {}
