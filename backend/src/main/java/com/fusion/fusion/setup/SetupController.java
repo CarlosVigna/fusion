@@ -1660,4 +1660,70 @@ public class SetupController {
 
     }
 
+    // TEMPORARIO — relatorio do que fixExpiredPolicies() e a
+    // reconciliacao de LineCancelService.syncFromPolicies() mudaram
+    // hoje. wasStatus fica fixo em "ACTIVE" porque e' o unico status de
+    // origem possivel: fixExpiredPolicies() so' altera linhas cujo
+    // WHERE exige status='ACTIVE' cru — nenhum outro trecho do codigo
+    // grava SUPERSEDED/EXPIRED, entao qualquer policy nesse filtro veio
+    // de ACTIVE.
+    // lineCancelsResolved e' reconstruido por inferencia, nao lido
+    // direto da tabela: syncFromPolicies() faz DELETE fisico dos
+    // obsoletos (sem tabela de auditoria pra "removido em"), entao nao
+    // da pra listar linhas apagadas direto do banco. Em vez disso,
+    // cruza apolices marcadas SUPERSEDED hoje (so' acontece quando o
+    // veiculo tem outra apolice vigente — exatamente o motivo que faz
+    // syncFromPolicies() apagar o LineCancel) com a AUSENCIA de um
+    // registro line_cancels pra mesma placa — se sumiu e a placa tinha
+    // motivo pra isso, foi essa reconciliacao que resolveu.
+    @GetMapping("/policy-changes-report")
+    public Map<String, Object> policyChangesReport() {
+
+        List<Map<String, Object>> policiesFixedRows = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT plate, policy_number, status, end_date
+                FROM policies
+                WHERE status IN ('SUPERSEDED', 'EXPIRED')
+                  AND updated_at >= CURRENT_DATE
+                ORDER BY plate
+                """);
+
+        List<Map<String, Object>> policiesFixed = policiesFixedRows.stream()
+                .map(row -> {
+                    Map<String, Object> item = new LinkedHashMap<String, Object>();
+                    item.put("plate", row.get("plate"));
+                    item.put("policyNumber", row.get("policy_number"));
+                    item.put("wasStatus", "ACTIVE");
+                    item.put("nowStatus", row.get("status"));
+                    item.put("endDate", row.get("end_date"));
+                    return item;
+                })
+                .toList();
+
+        List<Map<String, Object>> lineCancelsResolvedRows = jdbcTemplate.getJdbcTemplate().queryForList("""
+                SELECT p.plate AS plate
+                FROM policies p
+                WHERE p.status = 'SUPERSEDED'
+                  AND p.updated_at >= CURRENT_DATE
+                  AND NOT EXISTS (
+                      SELECT 1 FROM line_cancels lc WHERE lc.plate = p.plate
+                  )
+                ORDER BY p.plate
+                """);
+
+        List<Map<String, Object>> lineCancelsResolved = lineCancelsResolvedRows.stream()
+                .map(row -> {
+                    Map<String, Object> item = new LinkedHashMap<String, Object>();
+                    item.put("plate", row.get("plate"));
+                    item.put("reason", "Apólice vigente encontrada");
+                    return item;
+                })
+                .toList();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("policiesFixed", policiesFixed);
+        result.put("lineCancelsResolved", lineCancelsResolved);
+        return result;
+
+    }
+
 }
