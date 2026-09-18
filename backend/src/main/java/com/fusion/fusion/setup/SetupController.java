@@ -48,6 +48,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -1840,10 +1841,36 @@ public class SetupController {
     // amarelo = precisa revisao). Nome diferente de fullAudit() (que ja
     // existia, GET /setup/full-audit — reconciliacao Multiportal x
     // Fusion, endpoint totalmente diferente) pra nao colidir.
+    //
+    // Assincrono (mesmo padrao de PolicyController.startVerification()/
+    // getVerificationStatus()) — POST so' cria o jobId e devolve na
+    // hora, generateAsync() roda em thread separada; era sincrono antes
+    // (commit e572333) e estourava timeout de requisicao HTTP pra frota
+    // inteira (1 fetchFromPortal() bloqueante por veiculo).
     @PostMapping("/full-audit-excel")
-    public ResponseEntity<ByteArrayResource> fullAuditExcel() {
+    public Map<String, String> startFullAuditExcel() {
 
-        byte[] bytes = fullAuditService.generate();
+        String jobId = UUID.randomUUID().toString();
+
+        fullAuditService.generateAsync(jobId);
+
+        return Map.of("jobId", jobId);
+
+    }
+
+    @GetMapping("/full-audit-excel/{jobId}/status")
+    public FullAuditJob fullAuditExcelStatus(@PathVariable String jobId) {
+        return fullAuditService.getStatus(jobId);
+    }
+
+    @GetMapping("/full-audit-excel/{jobId}/download")
+    public ResponseEntity<ByteArrayResource> fullAuditExcelDownload(@PathVariable String jobId) {
+
+        byte[] bytes = fullAuditService.getResult(jobId);
+
+        if (bytes == null) {
+            return ResponseEntity.notFound().build();
+        }
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"auditoria-completa.xlsx\"")

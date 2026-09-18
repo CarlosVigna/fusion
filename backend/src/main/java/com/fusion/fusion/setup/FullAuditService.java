@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.FillPatternType;
 import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.xssf.usermodel.*;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
@@ -27,15 +28,19 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 // Auditoria completa da frota — 1 planilha com 4 abas (Apolices,
 // Veiculos, Dispositivos e Vinculos, Posicionamento), cada veiculo
 // ativo/nao-TEST comparado banco vs portal/vinculo/sinal. Usada pelo
-// GET /setup/full-audit, chamada manual e pontual — sincrona de
-// proposito, mesmo padrao ja aceito em POST /setup/fix-expired-
-// policies-portal (tambem faz 1 fetchFromPortal() por veiculo, mesma
-// natureza "ferramenta de admin", nao fluxo de producao em volume).
+// POST /setup/full-audit-excel — assincrona de proposito (mesmo padrao
+// de VerificationJob/PolicyService.startVerificationAsync()), porque
+// 1 fetchFromPortal() bloqueante por veiculo pra frota inteira estoura
+// qualquer timeout de requisicao HTTP sincrona (era exatamente esse o
+// bug: POST direto dava timeout). O job fica em memoria (jobs/results
+// abaixo) — aceitavel perder num restart do backend, mesmo trade-off
+// ja usado em VerificationJob/VehiclePortalSyncJob.
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -62,7 +67,53 @@ public class FullAuditService {
 
     private static final Set<String> YELLOW_RESULTS = Set.of("DIVERGENTE", "CAMPO VAZIO", "ATENÇÃO");
 
-    public byte[] generate() {
+    private final ConcurrentHashMap<String, FullAuditJob> jobs = new ConcurrentHashMap<>();
+
+    // Excel pronto de cada job DONE — separado de FullAuditJob de
+    // proposito, pra GET .../status nunca serializar o arquivo inteiro
+    // em JSON (so' GET .../download le esse mapa).
+    private final ConcurrentHashMap<String, byte[]> results = new ConcurrentHashMap<>();
+
+    public FullAuditJob getStatus(String jobId) {
+        return jobs.getOrDefault(jobId, new FullAuditJob("NOT_FOUND", 0, 0, null));
+    }
+
+    public byte[] getResult(String jobId) {
+        return results.get(jobId);
+    }
+
+    // Precisa ser chamado de FORA da classe (pelo controller, via bean
+    // injetado) pra @Async funcionar de verdade — chamada interna
+    // (this.generateAsync(...)) bypassa o proxy do Spring e roda
+    // sincrono, mesmo bug que se tentaria corrigir. Mesmo padrao de
+    // PolicyController.startVerification() chamando
+    // service.startVerificationAsync(jobId) direto, nunca por dentro
+    // do proprio PolicyService.
+    @Async
+    public void generateAsync(String jobId) {
+
+        try {
+
+            byte[] bytes = generate(jobId);
+
+            results.put(jobId, bytes);
+
+            FullAuditJob current = jobs.get(jobId);
+            int total = current != null ? current.total() : 0;
+
+            jobs.put(jobId, new FullAuditJob("DONE", total, total, null));
+
+        } catch (Exception e) {
+
+            log.error("[FULL-AUDIT] Erro fatal no job {}: {}", jobId, e.getMessage(), e);
+
+            jobs.put(jobId, new FullAuditJob("ERROR", 0, 0, e.getMessage()));
+
+        }
+
+    }
+
+    private byte[] generate(String jobId) {
 
         List<Vehicle> vehicles = vehicleRepository.findAll().stream()
                 .filter(v -> v.getDeletedAt() == null)
@@ -95,8 +146,14 @@ public class FullAuditService {
                         (a, b) -> a
                 ));
 
+        int total = vehicles.size();
+
+        jobs.put(jobId, new FullAuditJob("RUNNING", 0, total, null));
+
         List<List<String>> policyRows = new ArrayList<>();
         List<List<String>> vehicleRows = new ArrayList<>();
+
+        int processed = 0;
 
         for (Vehicle vehicle : vehicles) {
 
@@ -113,6 +170,9 @@ public class FullAuditService {
 
             policyRows.add(buildPolicyRow(vehicle, dbPolicy, portalResult));
             vehicleRows.add(buildVehicleRow(vehicle, portalResult));
+
+            processed++;
+            jobs.put(jobId, new FullAuditJob("RUNNING", processed, total, null));
 
         }
 
