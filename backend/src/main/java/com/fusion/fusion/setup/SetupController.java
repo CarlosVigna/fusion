@@ -1998,4 +1998,32 @@ public class SetupController {
 
     }
 
+    // TEMPORARIO — corrige diretamente no banco a data de cancelamento
+    // de um LineCancel com o valor errado (caso concreto: SIZ3B73).
+    // Update direto via SQL (nao passa por LineCancelService) porque e'
+    // uma correcao pontual de um registro ja existente, nao um fluxo de
+    // negocio — mesmo padrao ja usado nos outros "fix-*" deste
+    // controller (ex: fixPlateNullable(), cleanupServiceOrders()).
+    @PostMapping("/fix-line-cancel-date")
+    public Map<String, Object> fixLineCancelDate(
+            @RequestParam String plate,
+            @RequestParam String date
+    ) {
+
+        LocalDate parsedDate = LocalDate.parse(date);
+        String normalizedPlate = plate.trim().toUpperCase();
+
+        int updated = jdbcTemplate.getJdbcTemplate().update(
+                "UPDATE line_cancels SET cancelled_at = ? WHERE plate = ?",
+                parsedDate, normalizedPlate
+        );
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("plate", normalizedPlate);
+        result.put("date", parsedDate.toString());
+        result.put("updated", updated);
+        return result;
+
+    }
+
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { CheckCircle2, FileSpreadsheet, FileText, Mail, MessageCircle, RefreshCw, X } from "lucide-react";
+import { CheckCircle2, FileSpreadsheet, FileText, Mail, MessageCircle, Pencil, RefreshCw, X } from "lucide-react";
 
 import {
   exportLineCancels,
@@ -75,6 +75,7 @@ export default function LineCancels() {
   const [activeTab, setActiveTab] = useState("AGUARDANDO");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [actionId, setActionId] = useState(null);
+  const [editingDateId, setEditingDateId] = useState(null);
   const [emailModal, setEmailModal] = useState(null);
   const [plateFilter, setPlateFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -198,10 +199,18 @@ export default function LineCancels() {
 
   async function handleSetDate(id, value) {
     if (!value) return;
+
+    const year = Number(value.slice(0, 4));
+    if (!Number.isInteger(year) || year < 2020 || year > 2030) {
+      toast.error("Data inválida — o ano deve estar entre 2020 e 2030");
+      return;
+    }
+
     setActionId(id);
     try {
       await setLineCancelDate(id, value);
       toast.success("Data de cancelamento salva");
+      setEditingDateId(null);
       load();
     } catch (error) {
       console.error(error);
@@ -483,10 +492,11 @@ export default function LineCancels() {
                       {POLICY_STATUS_LABELS[record.policyStatus] || record.policyStatus || "--"}
                     </td>
                     <td className="px-4 py-4 text-zinc-400">
-                      {record.policyStatus === "CANCELLED" && !record.cancelledAt ? (
+                      {record.policyStatus === "CANCELLED" && (!record.cancelledAt || editingDateId === record.id) ? (
                         <input
                           type="date"
                           disabled={actionId === record.id}
+                          defaultValue={record.cancelledAt || ""}
                           onChange={(e) => handleSetDate(record.id, e.target.value)}
                           className="
                             rounded-lg border border-zinc-700 bg-zinc-950
@@ -508,39 +518,59 @@ export default function LineCancels() {
                       {STATUS_LABELS[record.status] || record.status}
                     </td>
                     <td className="px-4 py-4">
-                      {record.status === "VERIFICAR" && (
-                        <button
-                          onClick={() => handleVerify(record.id)}
-                          disabled={actionId === record.id}
-                          className="
-                            flex items-center gap-1.5 rounded-xl border border-zinc-700
-                            bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-zinc-300
-                            transition hover:bg-green-500/15 hover:text-green-400
-                            disabled:opacity-50
-                          "
-                        >
-                          <CheckCircle2 size={13} />
-                          Confirmar verificação
-                        </button>
-                      )}
-                      {record.status === "SOLICITADO" && (
-                        <button
-                          onClick={() => handleDone(record.id)}
-                          disabled={actionId === record.id}
-                          className="
-                            flex items-center gap-1.5 rounded-xl border border-zinc-700
-                            bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-zinc-300
-                            transition hover:bg-green-500/15 hover:text-green-400
-                            disabled:opacity-50
-                          "
-                        >
-                          <CheckCircle2 size={13} />
-                          Marcar como Concluído
-                        </button>
-                      )}
-                      {(record.status === "AGUARDANDO" || record.status === "PRONTO" || record.status === "CONCLUIDO") && (
-                        <span className="text-xs text-zinc-600">--</span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {record.status === "VERIFICAR" && (
+                          <button
+                            onClick={() => handleVerify(record.id)}
+                            disabled={actionId === record.id}
+                            className="
+                              flex items-center gap-1.5 rounded-xl border border-zinc-700
+                              bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-zinc-300
+                              transition hover:bg-green-500/15 hover:text-green-400
+                              disabled:opacity-50
+                            "
+                          >
+                            <CheckCircle2 size={13} />
+                            Confirmar verificação
+                          </button>
+                        )}
+                        {record.status === "SOLICITADO" && (
+                          <button
+                            onClick={() => handleDone(record.id)}
+                            disabled={actionId === record.id}
+                            className="
+                              flex items-center gap-1.5 rounded-xl border border-zinc-700
+                              bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-zinc-300
+                              transition hover:bg-green-500/15 hover:text-green-400
+                              disabled:opacity-50
+                            "
+                          >
+                            <CheckCircle2 size={13} />
+                            Marcar como Concluído
+                          </button>
+                        )}
+                        {record.policyStatus === "CANCELLED" && record.cancelledAt && editingDateId !== record.id && (
+                          <button
+                            onClick={() => setEditingDateId(record.id)}
+                            disabled={actionId === record.id}
+                            title="Editar data de cancelamento"
+                            className="
+                              flex items-center gap-1.5 rounded-xl border border-zinc-700
+                              bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-zinc-300
+                              transition hover:bg-zinc-800 hover:text-white
+                              disabled:opacity-50
+                            "
+                          >
+                            <Pencil size={13} />
+                            Editar data
+                          </button>
+                        )}
+                        {record.status === "AGUARDANDO" || record.status === "PRONTO" || record.status === "CONCLUIDO"
+                          ? !(record.policyStatus === "CANCELLED" && record.cancelledAt && editingDateId !== record.id) && (
+                              <span className="text-xs text-zinc-600">--</span>
+                            )
+                          : null}
+                      </div>
                     </td>
                   </tr>
                 ))
