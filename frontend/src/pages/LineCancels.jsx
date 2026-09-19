@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import { CheckCircle2, FileSpreadsheet, FileText, Mail, MessageCircle, Pencil, RefreshCw, X } from "lucide-react";
+import { Check, CheckCircle2, FileSpreadsheet, FileText, Mail, MessageCircle, Pencil, RefreshCw, X } from "lucide-react";
 
 import {
   exportLineCancels,
@@ -76,6 +76,8 @@ export default function LineCancels() {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [actionId, setActionId] = useState(null);
   const [editingDateId, setEditingDateId] = useState(null);
+  const [dateDrafts, setDateDrafts] = useState({});
+  const savingDateRef = useRef(new Set());
   const [emailModal, setEmailModal] = useState(null);
   const [plateFilter, setPlateFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -197,8 +199,30 @@ export default function LineCancels() {
     }
   }
 
+  // Valor digitado (ainda nao salvo) de cada registro cujo campo de
+  // data esta aberto — o input so atualiza esse rascunho a cada tecla/
+  // clique no seletor nativo; o salvamento de verdade so acontece ao
+  // sair do campo (onBlur) ou no botao de confirmar. Sem isso, o
+  // <input type="date"> nativo dispara onChange a cada digito/clique
+  // nas setas de mes/ano — salvava uma data incompleta no meio da
+  // digitacao (ex: usuario digitando 22/08/2026, saia um POST assim
+  // que o "2" do ano formava uma data valida sozinho).
+  function getDateDraft(record) {
+    return dateDrafts[record.id] ?? (record.cancelledAt || "");
+  }
+
+  function handleDateDraftChange(id, value) {
+    setDateDrafts((prev) => ({ ...prev, [id]: value }));
+  }
+
   async function handleSetDate(id, value) {
     if (!value) return;
+
+    // onBlur e o botao de confirmar podem disparar em sequencia pro
+    // mesmo clique (blur acontece antes do click terminar) — sem essa
+    // trava (ref, atualiza na hora, sem esperar re-render) os dois
+    // chamavam a API quase juntos pro mesmo valor.
+    if (savingDateRef.current.has(id)) return;
 
     const year = Number(value.slice(0, 4));
     if (!Number.isInteger(year) || year < 2020 || year > 2030) {
@@ -206,16 +230,23 @@ export default function LineCancels() {
       return;
     }
 
+    savingDateRef.current.add(id);
     setActionId(id);
     try {
       await setLineCancelDate(id, value);
       toast.success("Data de cancelamento salva");
       setEditingDateId(null);
+      setDateDrafts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       load();
     } catch (error) {
       console.error(error);
       toast.error("Erro ao salvar data de cancelamento");
     } finally {
+      savingDateRef.current.delete(id);
       setActionId(null);
     }
   }
@@ -493,18 +524,37 @@ export default function LineCancels() {
                     </td>
                     <td className="px-4 py-4 text-zinc-400">
                       {record.policyStatus === "CANCELLED" && (!record.cancelledAt || editingDateId === record.id) ? (
-                        <input
-                          type="date"
-                          disabled={actionId === record.id}
-                          defaultValue={record.cancelledAt || ""}
-                          onChange={(e) => handleSetDate(record.id, e.target.value)}
-                          className="
-                            rounded-lg border border-zinc-700 bg-zinc-950
-                            px-2 py-1 text-xs text-white
-                            focus:outline-none focus:ring-1 focus:ring-zinc-500
-                            disabled:opacity-50
-                          "
-                        />
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="date"
+                            disabled={actionId === record.id}
+                            value={getDateDraft(record)}
+                            onChange={(e) => handleDateDraftChange(record.id, e.target.value)}
+                            onBlur={(e) => handleSetDate(record.id, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSetDate(record.id, e.target.value);
+                            }}
+                            className="
+                              rounded-lg border border-zinc-700 bg-zinc-950
+                              px-2 py-1 text-xs text-white
+                              focus:outline-none focus:ring-1 focus:ring-zinc-500
+                              disabled:opacity-50
+                            "
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSetDate(record.id, getDateDraft(record))}
+                            disabled={actionId === record.id || !getDateDraft(record)}
+                            title="Salvar data"
+                            className="
+                              rounded-lg border border-zinc-700 bg-zinc-950 p-1.5
+                              text-zinc-300 transition hover:bg-green-500/15 hover:text-green-400
+                              disabled:opacity-50
+                            "
+                          >
+                            <Check size={13} />
+                          </button>
+                        </div>
                       ) : record.policyStatus === "CANCELLED" ? (
                         formatDate(record.cancelledAt)
                       ) : (
