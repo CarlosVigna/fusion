@@ -515,6 +515,7 @@ public class LineCancelService {
 
         for (LineCancel lc : items) {
 
+            sb.append("Placa: ").append(valueOrDash(lc.getPlate())).append("\n");
             sb.append("ICCID: ").append(valueOrDash(lc.getIccid())).append("\n");
             sb.append("MSISDN: ").append(valueOrDash(lc.getMsisdn())).append("\n");
             sb.append("IMEI: ").append(valueOrDash(lc.getImei())).append("\n\n");
