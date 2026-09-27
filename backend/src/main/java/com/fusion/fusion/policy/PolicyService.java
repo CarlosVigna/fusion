@@ -48,6 +48,13 @@ public class PolicyService {
     @Value("${portal.parceiro.client-secret:}")
     private String portalClientSecret;
 
+    // Veiculos desses grupos ficam fora do controle de apolices por
+    // completo (findAll(), Fases 1/2/3 de startVerificationAsync()) —
+    // TEST e' lixo/placa fora do padrao, KAKO e' frota de terceiro que
+    // nao usa apolice cadastrada aqui.
+    private static final Set<VehicleGroup> EXCLUDED_FROM_POLICY_CONTROL =
+            EnumSet.of(VehicleGroup.TEST, VehicleGroup.KAKO);
+
     public List<PolicyResponse> findAll(String plate, String statusStr) {
 
         // Deduplicado por placa ANTES de filtrar — sem isso, uma placa
@@ -58,7 +65,7 @@ public class PolicyService {
         // reaproveitada em startVerificationAsync().
         List<Policy> allPoliciesRaw = policyRepository.findAllActiveWithVehicle()
                 .stream()
-                .filter(p -> p.getVehicle() == null || p.getVehicle().getVehicleGroup() != VehicleGroup.TEST)
+                .filter(p -> p.getVehicle() == null || !EXCLUDED_FROM_POLICY_CONTROL.contains(p.getVehicle().getVehicleGroup()))
                 .toList();
 
         Map<String, Policy> bestByPlate = allPoliciesRaw
@@ -1119,7 +1126,7 @@ public class PolicyService {
         try {
 
             List<Policy> allPolicies = policyRepository.findAllActiveWithVehicle().stream()
-                    .filter(p -> p.getVehicle() == null || p.getVehicle().getVehicleGroup() != VehicleGroup.TEST)
+                    .filter(p -> p.getVehicle() == null || !EXCLUDED_FROM_POLICY_CONTROL.contains(p.getVehicle().getVehicleGroup()))
                     .toList();
 
             // Deduplica por placa UMA vez, com a mesma prioridade de
@@ -1169,7 +1176,7 @@ public class PolicyService {
 
             List<Vehicle> pendingVehicles = vehicleRepository.findAll().stream()
                     .filter(v -> v.getDeletedAt() == null
-                            && v.getVehicleGroup() != VehicleGroup.TEST
+                            && !EXCLUDED_FROM_POLICY_CONTROL.contains(v.getVehicleGroup())
                             && !allPolicyPlates.contains(v.getPlate().toUpperCase()))
                     .toList();
 
