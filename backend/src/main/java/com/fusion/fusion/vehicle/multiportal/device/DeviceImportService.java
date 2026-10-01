@@ -211,6 +211,19 @@ public class DeviceImportService {
                     }
                 }
 
+                // Linha do chip (MSISDN) nao e' campo sensivel — igual
+                // imei/serialChip1 acima, aplica direto sem passar por
+                // aprovacao pendente. Antes ia por applySensitiveField()
+                // com requiresApproval=true, que silenciosamente mantinha
+                // o valor antigo em qualquer device ja existente com placa
+                // valida (so' criava um PendingChange, nunca aplicava) —
+                // o device nunca refletia a planilha nem entrava em
+                // devicesToSave so' por causa dessa mudanca.
+                String lineNumber = getCellValue(row.getCell(8));
+                if (lineNumber != null && !lineNumber.isBlank()) {
+                    device.setLineNumber(lineNumber);
+                }
+
                 device.setNumber(
                         getCellValue(row.getCell(0))
                 );
@@ -229,15 +242,6 @@ public class DeviceImportService {
                         getCellValue(row.getCell(7)),
                         plate,
                         "operator",
-                        requiresApproval
-                );
-
-                applySensitiveField(
-                        device::getLineNumber,
-                        device::setLineNumber,
-                        getCellValue(row.getCell(8)),
-                        plate,
-                        "lineNumber",
                         requiresApproval
                 );
 
