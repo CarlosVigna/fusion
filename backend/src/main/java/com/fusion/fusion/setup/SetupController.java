@@ -2026,4 +2026,51 @@ public class SetupController {
 
     }
 
+    // TEMPORARIO — diagnostico pontual do caso OGF5D31: lineNumber nao
+    // mudou apos reimportar mesmo com o commit 646cd1c (device.
+    // setLineNumber() direto, sem passar mais por aprovacao pendente) ja
+    // publicado. Mostra TODOS os linkages do veiculo (nao so' o ativo —
+    // se o import criou um Device novo com numberStr diferente em vez de
+    // casar com o existente, o linkage ativo continua apontando pro
+    // device antigo com o line_number velho) e qualquer PendingChange de
+    // lineNumber pra essa placa (rastro de imports anteriores ao fix,
+    // quando a mudanca ficava presa esperando aprovacao manual).
+    @GetMapping("/diagnose-linenumber")
+    public Map<String, Object> diagnoseLineNumber(@RequestParam String plate) {
+
+        String normalizedPlate = plate.trim().toUpperCase();
+
+        Map<String, Object> vehicle = jdbcTemplate.getJdbcTemplate().queryForList(
+                "SELECT id, plate, active, deleted_at FROM vehicles WHERE UPPER(plate) = ?",
+                normalizedPlate
+        ).stream().findFirst().orElse(null);
+
+        List<Map<String, Object>> linkages = jdbcTemplate.getJdbcTemplate().queryForList(
+                "SELECT dl.id AS linkage_id, dl.active AS linkage_active, dl.start_at, dl.end_at, dl.created_at AS linkage_created_at, " +
+                        "d.id AS device_id, d.number_str, d.line_number, d.operator, d.imei, d.serial_chip1, d.active AS device_active, d.created_at AS device_created_at " +
+                        "FROM device_linkages dl " +
+                        "JOIN devices d ON d.id = dl.device_id " +
+                        "JOIN vehicles v ON v.id = dl.vehicle_id " +
+                        "WHERE UPPER(v.plate) = ? " +
+                        "ORDER BY dl.active DESC, dl.created_at DESC",
+                normalizedPlate
+        );
+
+        List<Map<String, Object>> pendingChanges = jdbcTemplate.getJdbcTemplate().queryForList(
+                "SELECT id, field_name, old_value, new_value, status, detected_at, resolved_at, resolved_by " +
+                        "FROM pending_changes " +
+                        "WHERE UPPER(vehicle_plate) = ? AND field_name = 'lineNumber' " +
+                        "ORDER BY detected_at DESC",
+                normalizedPlate
+        );
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("plate", normalizedPlate);
+        result.put("vehicle", vehicle);
+        result.put("linkages", linkages);
+        result.put("pendingLineNumberChanges", pendingChanges);
+        return result;
+
+    }
+
 }
