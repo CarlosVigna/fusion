@@ -192,10 +192,12 @@ public class LineCancelService {
 
     // Varre apolices CANCELLED/CLOSED/EXPIRED de veiculos ativos. Pra
     // combinacao vehicle+policyEndDate ainda nao rastreada, cria um
-    // LineCancel novo; pra uma ja existente cujo imei esteja nulo/vazio
-    // (ex: sincronizada antes da resolucao de fallback existir, ou o
-    // device nao estava linkado na epoca), faz backfill de
-    // imei/iccid/msisdn no registro ja existente em vez de ignorar.
+    // LineCancel novo; pra uma ja existente cujo iccid/msisdn armazenado
+    // divirja do device atual (ex: sincronizada antes da resolucao de
+    // fallback existir, device nao estava linkado na epoca, ou o
+    // vinculo ativo errado foi escolhido e depois corrigido — ver
+    // DeviceLinkage.pickMostRecent()), atualiza imei/iccid/msisdn no
+    // registro ja existente em vez de ignorar pra sempre.
     // Reaproveita o ICCID/MSISDN/IMEI do device vinculado ao veiculo via
     // DeviceLinkage ativa — mesmo padrao ja usado em ReportCustomService/
     // VehicleGridService pra resolver o device "atual" de um veiculo.
@@ -307,7 +309,21 @@ public class LineCancelService {
 
                 LineCancel existing = existingOpt.get();
 
-                if (existing.getImei() == null || existing.getImei().isBlank()) {
+                // Antes so' comparava existing.getImei() == null — um
+                // registro com imei ja preenchido (mesmo vindo do
+                // vinculo/device errado) nunca mais era revisado, mesmo
+                // que o vinculo correto fosse resolvido depois (caso
+                // OGF5D31). Agora compara iccid/msisdn armazenados
+                // contra o device atual (ja resolvido acima via
+                // activeLinkageByVehicleId/pickMostRecent). device !=
+                // null evita sobrescrever um valor bom por null so'
+                // porque esta rodada nao achou vinculo ativo — situacao
+                // transitoria, nao deve apagar dado real.
+                boolean devicesDiverge = device != null
+                        && (!Objects.equals(existing.getIccid(), iccid)
+                                || !Objects.equals(existing.getMsisdn(), msisdn));
+
+                if (devicesDiverge) {
                     existing.setImei(imei);
                     existing.setIccid(iccid);
                     existing.setMsisdn(msisdn);
@@ -381,7 +397,7 @@ public class LineCancelService {
 
         }
 
-        log.info("[LINE-CANCEL] Sync concluido — {} novo(s), {} atualizado(s) com IMEI/ICCID/MSISDN backfillado, {} ignorado(s) por veiculo ja ter apolice vigente, {} obsoleto(s) removido(s) por veiculo ter apolice vigente",
+        log.info("[LINE-CANCEL] Sync concluido — {} novo(s), {} atualizado(s) com IMEI/ICCID/MSISDN divergente do device atual, {} ignorado(s) por veiculo ja ter apolice vigente, {} obsoleto(s) removido(s) por veiculo ter apolice vigente",
                 created, backfilled, skippedHasActivePolicy, resolvedObsolete);
 
         return new LineCancelSyncResult(created, backfilled, skippedHasActivePolicy, resolvedObsolete);
