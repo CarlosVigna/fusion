@@ -112,7 +112,11 @@ public class OperationalStateEngineService {
         // Idem para os linkages ativos e o estoque de tecnicos — eram 1-2
         // reads por veiculo dentro de checkTechnicianStockPositioning()
         // (deviceLinkageRepository.findByVehicle + stockRepository.
-        // findFirstByImei...), agora carregados uma vez so'.
+        // findFirstByImei...), agora carregados uma vez so'. Merge function
+        // pickMostRecent (em vez de "fica com o primeiro") pra nao pegar
+        // um vinculo antigo quando ha mais de 1 active=true pro mesmo
+        // veiculo por engano — ver mesmo comentario em
+        // LineCancelService.syncFromPolicies().
         Map<UUID, DeviceLinkage> activeLinkageByVehicleId =
                 deviceLinkageRepository.findAllActiveWithVehicleAndDevice()
                         .stream()
@@ -120,7 +124,7 @@ public class OperationalStateEngineService {
                         .collect(Collectors.toMap(
                                 l -> l.getVehicle().getId(),
                                 l -> l,
-                                (a, b) -> a
+                                DeviceLinkage::pickMostRecent
                         ));
 
         // IMEI nao e' unico por design (equipamento devolvido pode

@@ -164,10 +164,12 @@ public class PolicyService {
                 .map(String::toUpperCase)
                 .collect(Collectors.toSet());
 
+        // merge + pickMostRecent em vez de putIfAbsent — ver mesmo
+        // comentario em LineCancelService.syncFromPolicies().
         Map<UUID, DeviceLinkage> linkageByVehicleId = new HashMap<>();
         for (DeviceLinkage dl : linkageRepository.findAllActiveWithVehicleAndDevice()) {
             if (dl.getVehicle() != null) {
-                linkageByVehicleId.putIfAbsent(dl.getVehicle().getId(), dl);
+                linkageByVehicleId.merge(dl.getVehicle().getId(), dl, DeviceLinkage::pickMostRecent);
             }
         }
 

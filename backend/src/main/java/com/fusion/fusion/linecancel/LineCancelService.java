@@ -207,9 +207,15 @@ public class LineCancelService {
 
         Map<UUID, DeviceLinkage> activeLinkageByVehicleId = new HashMap<>();
 
+        // merge + pickMostRecent em vez de putIfAbsent — a query abaixo
+        // nao tem ORDER BY, entao "o primeiro da iteracao" nao e' um
+        // criterio de verdade quando ha mais de 1 vinculo active=true
+        // pro mesmo veiculo (nao deveria acontecer, mas ja aconteceu).
         for (DeviceLinkage linkage : linkageRepository.findAllActiveWithVehicleAndDevice()) {
             if (linkage.getVehicle() != null) {
-                activeLinkageByVehicleId.putIfAbsent(linkage.getVehicle().getId(), linkage);
+                activeLinkageByVehicleId.merge(
+                        linkage.getVehicle().getId(), linkage, DeviceLinkage::pickMostRecent
+                );
             }
         }
 

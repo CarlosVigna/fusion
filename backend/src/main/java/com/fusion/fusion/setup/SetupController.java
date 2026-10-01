@@ -1,5 +1,6 @@
 package com.fusion.fusion.setup;
 
+import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.etl.EtlHeartbeatRequest;
 import com.fusion.fusion.etl.EtlRunStatus;
 import com.fusion.fusion.etl.EtlStatusResponse;
@@ -2069,6 +2070,35 @@ public class SetupController {
         result.put("vehicle", vehicle);
         result.put("linkages", linkages);
         result.put("pendingLineNumberChanges", pendingChanges);
+        return result;
+
+    }
+
+    // TEMPORARIO — encerra um vinculo especifico por UUID (caso
+    // concreto: linkage_id=3c83ff76-6ce6-46e3-a39d-906ad66216dc, device
+    // 5816015, veiculo OGF5D31, vinculo antigo coexistindo com o
+    // correto). So' seta active=false — nao mexe no device nem cria
+    // vinculo novo, fica a cargo de quem chamar garantir que o vinculo
+    // certo continua active=true.
+    @PostMapping("/deactivate-linkage")
+    public Map<String, Object> deactivateLinkage(@RequestParam UUID id) {
+
+        DeviceLinkage linkage = deviceLinkageRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Vínculo não encontrado: " + id
+                ));
+
+        boolean wasActive = Boolean.TRUE.equals(linkage.getActive());
+
+        linkage.setActive(false);
+        deviceLinkageRepository.save(linkage);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("linkageId", id);
+        result.put("plate", linkage.getVehicle() != null ? linkage.getVehicle().getPlate() : null);
+        result.put("deviceNumberStr", linkage.getDevice() != null ? linkage.getDevice().getNumberStr() : null);
+        result.put("wasActive", wasActive);
+        result.put("nowActive", linkage.getActive());
         return result;
 
     }

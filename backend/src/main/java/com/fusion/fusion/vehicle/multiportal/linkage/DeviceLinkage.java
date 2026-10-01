@@ -44,4 +44,27 @@ public class DeviceLinkage {
         createdAt = LocalDateTime.now(ZoneOffset.UTC);
     }
 
+    // Escolhe o vinculo mais recente entre dois pro MESMO veiculo —
+    // usado em todo lugar que monta "1 vinculo ativo por veiculo" a
+    // partir de findAllActiveWithVehicleAndDevice() (sem ORDER BY, a
+    // ordem de retorno do Postgres nao e' garantida). Antes, esses
+    // lugares pegavam so' o primeiro da iteracao (putIfAbsent/merge
+    // com (a,b)->a) — se por engano existissem 2 vinculos active=true
+    // pro mesmo veiculo (nao deveria acontecer, mas aconteceu com a
+    // OGF5D31), qual dos dois "ganhava" era essencialmente aleatorio.
+    // startAt e' a referencia principal (data real de inicio do
+    // vinculo); createdAt so' entra quando startAt estiver nulo nos
+    // dois, pra nao deixar o desempate sem criterio nenhum.
+    public static DeviceLinkage pickMostRecent(DeviceLinkage a, DeviceLinkage b) {
+
+        LocalDateTime keyA = a.getStartAt() != null ? a.getStartAt() : a.getCreatedAt();
+        LocalDateTime keyB = b.getStartAt() != null ? b.getStartAt() : b.getCreatedAt();
+
+        if (keyA == null) return b;
+        if (keyB == null) return a;
+
+        return keyA.isAfter(keyB) ? a : b;
+
+    }
+
 }
