@@ -2,6 +2,7 @@ const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = requi
 const { Boom } = require('@hapi/boom');
 const path = require('path');
 const { log } = require('./file-utils');
+const approvalFlow = require('./approvalFlow');
 
 let sock = null;
 const AUTH_DIR = path.join(__dirname, '../whatsapp-auth');
@@ -24,6 +25,29 @@ async function connectWhatsApp() {
         });
 
         sock.ev.on('creds.update', saveCreds);
+
+        // Mensagens recebidas no grupo — roteadas pro fluxo de aprovacao
+        // de pagamento (approvalFlow.js). Ignora qualquer chat que nao
+        // seja o grupo configurado (DM avulsa, outro grupo) e mensagens
+        // do tipo != 'notify' (historico sincronizado na reconexao, nao
+        // mensagem nova de verdade).
+        sock.ev.on('messages.upsert', async ({ messages, type }) => {
+
+            if (type !== 'notify' || !GROUP_ID) return;
+
+            for (const msg of messages) {
+
+                if (msg.key.remoteJid !== GROUP_ID) continue;
+
+                try {
+                    await approvalFlow.handleIncomingMessage(msg, sendToGroup);
+                } catch (e) {
+                    log(`[WHATSAPP] Erro processando mensagem recebida: ${e.message}`);
+                }
+
+            }
+
+        });
 
         sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
 
