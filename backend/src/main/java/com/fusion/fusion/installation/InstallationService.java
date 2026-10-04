@@ -1,8 +1,15 @@
 package com.fusion.fusion.installation;
 
+import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.common.security.CurrentUserService;
+import com.fusion.fusion.ors.OrsService;
+import com.fusion.fusion.policy.EtlPolicyResult;
+import com.fusion.fusion.policy.PolicyService;
+import com.fusion.fusion.technician.Technician;
+import com.fusion.fusion.technician.TechnicianRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,6 +17,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -19,8 +27,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class InstallationService {
@@ -30,6 +40,12 @@ public class InstallationService {
     private final InstallationObservationRepository observationRepository;
 
     private final CurrentUserService currentUserService;
+
+    private final TechnicianRepository technicianRepository;
+
+    private final PolicyService policyService;
+
+    private final OrsService orsService;
 
     public List<InstallationResponse> findAll(String status) {
 
@@ -137,6 +153,157 @@ public class InstallationService {
         repository.save(installation);
 
         return InstallationResponse.from(installation);
+
+    }
+
+    // Monta o resumo de aprovacao de pagamento pro fluxo de WhatsApp
+    // (ver approvalFlow.js no fusion-etl) — NAO muda nenhum status,
+    // so' calcula e devolve formatado. fetchFromPortal() nao traz
+    // endereco do segurado (so policyNumber/datas/nome/cpf/veiculo),
+    // entao o endereco vem de fetchRawPolicyItems() — mesmo numero de
+    // apolice que fetchFromPortal() selecionou, pra nao pegar
+    // cidade/estado de uma apolice diferente do mesmo veiculo.
+    @Transactional(readOnly = true)
+    public WhatsAppApprovalSummary buildWhatsAppApproval(WhatsAppApproveRequest req) {
+
+        if (req.plate() == null || req.plate().isBlank()) {
+            throw new BusinessException("Placa não informada");
+        }
+
+        if (req.technicianCpf() == null || req.technicianCpf().isBlank()) {
+            throw new BusinessException("CPF do técnico não informado");
+        }
+
+        String plate = req.plate().trim().toUpperCase();
+
+        Installation installation = repository
+                .findFirstByPlateIgnoreCaseAndStatusOrderByCreatedAtDesc(plate, InstallationStatus.PENDING)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Nenhuma instalação pendente encontrada para a placa " + plate
+                ));
+
+        Technician technician = technicianRepository.findByCpf(req.technicianCpf())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Técnico não encontrado para o CPF " + req.technicianCpf()
+                ));
+
+        EtlPolicyResult portalResult;
+        List<Map<String, Object>> rawItems;
+        try {
+            portalResult = policyService.fetchFromPortal(plate);
+            rawItems = policyService.fetchRawPolicyItems(plate);
+        } catch (Exception e) {
+            log.warn("[INSTALACOES-WHATSAPP] Falha ao consultar portal pra placa={}: {}", plate, e.getMessage());
+            portalResult = new EtlPolicyResult(false, null);
+            rawItems = List.of();
+        }
+
+        Map<String, Object> rawItem = selectRawItem(portalResult, rawItems);
+
+        String customerName = portalResult.found() && portalResult.data() != null
+                ? portalResult.data().insuredName()
+                : installation.getCustomerName();
+
+        String city  = rawItem != null ? asString(rawItem.get("cidade")) : installation.getCity();
+        String state = rawItem != null ? asString(rawItem.get("estado")) : installation.getState();
+
+        // Endereco (rua/numero) nao vem da consulta de apolices — so'
+        // cidade/estado/cep. Reaproveita o endereco ja salvo na
+        // instalacao (extraido do endpoint de ordens-instalacao no
+        // sync, que tem logradouro/numero de verdade).
+        String address = installation.getAddress();
+
+        Double distanceKm = null;
+        BigDecimal displacementFee = null;
+
+        if (technician.getLatitude() != null && technician.getLongitude() != null
+                && (address != null || city != null)) {
+
+            double[] clientCoords = orsService.geocode(
+                    address != null ? address : "", city, state
+            );
+
+            if (clientCoords != null) {
+                Double roundTripKm = orsService.calculateRoundTripKm(
+                        technician.getLatitude(), technician.getLongitude(),
+                        clientCoords[0], clientCoords[1]
+                );
+                if (roundTripKm != null) {
+                    distanceKm = roundTripKm;
+                    displacementFee = orsService.calculateDisplacement(roundTripKm);
+                }
+            }
+
+        }
+
+        BigDecimal value = req.value() != null ? req.value() : BigDecimal.ZERO;
+        BigDecimal totalValue = value.add(displacementFee != null ? displacementFee : BigDecimal.ZERO);
+
+        String formattedMessage = buildApprovalMessage(
+                installation, customerName, technician, value, distanceKm, displacementFee, totalValue
+        );
+
+        return new WhatsAppApprovalSummary(
+                installation.getId(), plate, customerName,
+                technician.getName(), technician.getCpf(),
+                value, distanceKm, displacementFee, totalValue,
+                formattedMessage
+        );
+
+    }
+
+    // Prefere o item cru com o MESMO numero_apolice que fetchFromPortal()
+    // ja selecionou (mesma prioridade vigente > mais recente) — sem
+    // isso, um veiculo com mais de uma apolice no portal poderia pegar
+    // cidade/estado de uma apolice diferente da que foi exibida.
+    private Map<String, Object> selectRawItem(EtlPolicyResult portalResult, List<Map<String, Object>> rawItems) {
+
+        if (rawItems.isEmpty()) {
+            return null;
+        }
+
+        if (portalResult.found() && portalResult.data() != null && portalResult.data().policyNumber() != null) {
+            String selectedNumber = portalResult.data().policyNumber();
+            for (Map<String, Object> item : rawItems) {
+                if (Objects.equals(String.valueOf(item.get("numero_apolice")), selectedNumber)) {
+                    return item;
+                }
+            }
+        }
+
+        return rawItems.get(0);
+
+    }
+
+    private String asString(Object value) {
+        return value != null ? String.valueOf(value) : null;
+    }
+
+    private String buildApprovalMessage(
+            Installation installation, String customerName, Technician technician,
+            BigDecimal value, Double distanceKm, BigDecimal displacementFee, BigDecimal totalValue
+    ) {
+
+        StringBuilder sb = new StringBuilder("*SOLICITAÇÃO DE APROVAÇÃO DE PAGAMENTO*\n\n");
+
+        sb.append("PLACA: ").append(installation.getPlate()).append("\n");
+        sb.append("CLIENTE: ").append(customerName != null ? customerName : "--").append("\n");
+        sb.append("TÉCNICO: ").append(technician.getName())
+                .append(" (CPF ").append(technician.getCpf()).append(")\n");
+        sb.append("VALOR DO SERVIÇO: R$ ").append(value).append("\n");
+
+        if (distanceKm != null) {
+            sb.append("DISTÂNCIA (ida+volta): ").append(distanceKm).append(" km\n");
+            sb.append("DESLOCAMENTO: R$ ").append(displacementFee).append("\n");
+        } else {
+            sb.append("DISTÂNCIA: não foi possível calcular\n");
+        }
+
+        sb.append("TOTAL: R$ ").append(totalValue).append("\n\n");
+        sb.append("Responda !aprovado ").append(installation.getPlate())
+                .append(" ou !rejeitar ").append(installation.getPlate());
+
+        return sb.toString();
 
     }
 

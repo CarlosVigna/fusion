@@ -90,6 +90,22 @@ public class InstallationController {
         return service.approvePayment(id);
     }
 
+    // Chamado pelo approvalFlow.js (fusion-etl), nao por usuario logado
+    // no navegador — mesma autenticacao por X-ETL-Key de POST /sync
+    // acima, em vez de JWT (o processo Node nao tem sessao de usuario).
+    @PostMapping("/whatsapp-approve")
+    public ResponseEntity<?> whatsappApprove(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @RequestBody WhatsAppApproveRequest request
+    ) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            log.warn("POST /installations/whatsapp-approve rejeitado: X-ETL-Key inválida ou ausente");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Chave de API inválida"));
+        }
+        return ResponseEntity.ok(service.buildWhatsAppApproval(request));
+    }
+
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.delete(id);
