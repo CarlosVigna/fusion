@@ -26,7 +26,7 @@ public class TechnicianService {
     public TechnicianResponse create(TechnicianRequest request) {
         Technician t = Technician.builder()
                 .name(request.name())
-                .cpf(request.cpf())
+                .cpf(normalizeCpf(request.cpf()))
                 .phone(request.phone())
                 .address(request.address())
                 .city(request.city())
@@ -47,7 +47,7 @@ public class TechnicianService {
                 || !eq(t.getCity(), request.city())
                 || !eq(t.getState(), request.state());
         t.setName(request.name());
-        t.setCpf(request.cpf());
+        t.setCpf(normalizeCpf(request.cpf()));
         t.setPhone(request.phone());
         t.setAddress(request.address());
         t.setCity(request.city());
@@ -72,9 +72,22 @@ public class TechnicianService {
     }
 
     public TechnicianResponse findByCpf(String cpf) {
-        Technician t = repository.findByCpf(cpf)
+        String normalized = normalizeCpf(cpf);
+        Technician t = repository.findByCpf(normalized)
                 .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado para o CPF: " + cpf));
         return toResponse(t);
+    }
+
+    // Guarda e busca sempre so' digitos — o CPF pode chegar com mascara
+    // (form do Technicians.jsx manda digits-only, mas uma edicao direta
+    // via API/Postman poderia mandar com pontuacao) ou digitado cru
+    // no comando !aprovar do WhatsApp. Sem normalizar dos dois lados,
+    // "123.456.789-00" salvo e "12345678900" digitado no Whats nunca
+    // bateriam na busca por CPF.
+    private String normalizeCpf(String cpf) {
+        if (cpf == null) return null;
+        String digits = cpf.replaceAll("\\D", "");
+        return digits.isBlank() ? null : digits;
     }
 
     @Transactional

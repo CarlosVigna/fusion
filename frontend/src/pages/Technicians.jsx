@@ -10,7 +10,7 @@ import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
 
 const EMPTY = {
-  name: "", phone: "", zipCode: "", address: "", neighborhood: "",
+  name: "", cpf: "", phone: "", zipCode: "", address: "", neighborhood: "",
   city: "", state: "", defaultServiceValue: "",
 };
 
@@ -21,6 +21,16 @@ const isValidPhone = (p) => {
   return digits.length >= 10 && digits.length <= 11;
 };
 const isValidCep   = (c) => /^\d{5}-?\d{3}$/.test(c);
+const isValidCpf   = (c) => c.replace(/\D/g, "").length === 11;
+
+// CPF: 000.000.000-00
+const formatCpf = (value) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+};
 
 // Celular: (XX) XXXXX-XXXX — 9 dígitos. Fixo: (XX) XXXX-XXXX — 8 dígitos.
 const formatPhone = (value) => {
@@ -73,7 +83,7 @@ export default function Technicians() {
   function openCreate() { setForm(EMPTY); setPhoneChanged(false); setModal({ mode: "create" }); }
   function openEdit(t) {
     setForm({
-      name: t.name ?? "", phone: t.phone ?? "", zipCode: t.zipCode ?? "",
+      name: t.name ?? "", cpf: t.cpf ? formatCpf(t.cpf) : "", phone: t.phone ?? "", zipCode: t.zipCode ?? "",
       address: t.address ?? "", neighborhood: t.neighborhood ?? "",
       city: t.city ?? "", state: t.state ?? "",
       defaultServiceValue: t.defaultServiceValue ?? "",
@@ -104,6 +114,10 @@ export default function Technicians() {
 
   async function handleSave() {
     if (!form.name?.trim()) { toast.error("Nome é obrigatório"); return; }
+    if (form.cpf?.trim() && !isValidCpf(form.cpf.trim())) {
+      toast.error("CPF inválido — deve ter 11 dígitos");
+      return;
+    }
     if (phoneChanged && form.phone?.trim() && !isValidPhone(form.phone.trim())) {
       toast.error("Telefone inválido — use o formato (00) 00000-0000");
       return;
@@ -114,7 +128,11 @@ export default function Technicians() {
     }
     setSaving(true);
     try {
-      const payload = { ...form, defaultServiceValue: form.defaultServiceValue || null };
+      const payload = {
+        ...form,
+        cpf: form.cpf?.trim() ? form.cpf.replace(/\D/g, "") : null,
+        defaultServiceValue: form.defaultServiceValue || null,
+      };
 
       const addressParts = [form.address, form.city, form.state].filter(Boolean);
       if (addressParts.length > 0) {
@@ -212,6 +230,12 @@ export default function Technicians() {
               <div style={{ gridColumn: "span 2" }}>
                 <label className="block text-xs text-zinc-400 mb-1">Nome *</label>
                 <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))}
+                  className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-zinc-400 mb-1">CPF</label>
+                <input value={form.cpf} onChange={e => setForm(f => ({...f, cpf: formatCpf(e.target.value)}))} maxLength={14}
+                  placeholder="000.000.000-00"
                   className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2 text-sm text-white focus:border-zinc-600 focus:outline-none" />
               </div>
               <div>

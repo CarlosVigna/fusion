@@ -94,15 +94,17 @@ export default function Installations() {
   }
 
   async function loadHistory() {
-    const [scheduled, sent, cancelled] = await Promise.all([
+    const [scheduled, sent, cancelled, approvedForPayment] = await Promise.all([
       getInstallations("SCHEDULED"),
       getInstallations("SENT"),
       getInstallations("CANCELLED"),
+      getInstallations("APPROVED_FOR_PAYMENT"),
     ]);
     return [
       ...(Array.isArray(scheduled) ? scheduled : []),
       ...(Array.isArray(sent) ? sent : []),
       ...(Array.isArray(cancelled) ? cancelled : []),
+      ...(Array.isArray(approvedForPayment) ? approvedForPayment : []),
     ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 
@@ -599,6 +601,7 @@ export default function Installations() {
               <option value="SCHEDULED">Agendado</option>
               <option value="SENT">Enviado</option>
               <option value="CANCELLED">Cancelado</option>
+              <option value="APPROVED_FOR_PAYMENT">Aprovado p/ Pagamento</option>
             </select>
           </div>
 
@@ -666,6 +669,7 @@ function HistoryStatusBadge({ status }) {
     SENT:      { label: "Enviado",   cls: "bg-green-500/15 text-green-400" },
     SCHEDULED: { label: "Agendado",  cls: "bg-blue-500/15 text-blue-400" },
     CANCELLED: { label: "Cancelado", cls: "bg-zinc-700/40 text-zinc-400" },
+    APPROVED_FOR_PAYMENT: { label: "Aprovado p/ Pagamento", cls: "bg-green-500/15 text-green-400" },
   };
   const { label, cls } = map[status] || { label: status, cls: "bg-zinc-700/40 text-zinc-400" };
   return (
