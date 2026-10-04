@@ -112,6 +112,8 @@ const GROUPS = [
         icon: ClipboardList,
         items: [
             { label: "Dashboard",  icon: ClipboardCheck,  path: "/service-orders/dashboard" },
+            { label: "Instalações",               icon: ClipboardList, path: "/installations", badgeKey: "installations" },
+            { label: "Relatórios de Instalações", icon: FileText,      path: "/installations/reports" },
             { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
             { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
             { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
