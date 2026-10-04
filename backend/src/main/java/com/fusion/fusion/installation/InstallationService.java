@@ -128,6 +128,19 @@ public class InstallationService {
     }
 
     @Transactional
+    public InstallationResponse approvePayment(Long id) {
+
+        Installation installation = findOrThrow(id);
+
+        installation.setStatus(InstallationStatus.APPROVED_FOR_PAYMENT);
+
+        repository.save(installation);
+
+        return InstallationResponse.from(installation);
+
+    }
+
+    @Transactional
     public InstallationResponse cancel(Long id) {
 
         Installation installation = findOrThrow(id);

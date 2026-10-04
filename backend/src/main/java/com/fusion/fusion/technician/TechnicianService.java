@@ -26,6 +26,7 @@ public class TechnicianService {
     public TechnicianResponse create(TechnicianRequest request) {
         Technician t = Technician.builder()
                 .name(request.name())
+                .cpf(request.cpf())
                 .phone(request.phone())
                 .address(request.address())
                 .city(request.city())
@@ -46,6 +47,7 @@ public class TechnicianService {
                 || !eq(t.getCity(), request.city())
                 || !eq(t.getState(), request.state());
         t.setName(request.name());
+        t.setCpf(request.cpf());
         t.setPhone(request.phone());
         t.setAddress(request.address());
         t.setCity(request.city());
@@ -67,6 +69,12 @@ public class TechnicianService {
     public Technician find(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + id));
+    }
+
+    public TechnicianResponse findByCpf(String cpf) {
+        Technician t = repository.findByCpf(cpf)
+                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado para o CPF: " + cpf));
+        return toResponse(t);
     }
 
     @Transactional
@@ -102,7 +110,7 @@ public class TechnicianService {
 
     public TechnicianResponse toResponse(Technician t) {
         return new TechnicianResponse(
-                t.getId(), t.getName(), t.getPhone(), t.getAddress(),
+                t.getId(), t.getName(), t.getCpf(), t.getPhone(), t.getAddress(),
                 t.getCity(), t.getState(), t.getZipCode(), t.getNeighborhood(),
                 t.getLatitude(), t.getLongitude(),
                 t.getDefaultServiceValue(), t.getActive(), t.getCreatedAt()

@@ -19,6 +19,11 @@ public class TechnicianController {
         return service.listAll();
     }
 
+    @GetMapping("/by-cpf")
+    public TechnicianResponse findByCpf(@RequestParam String cpf) {
+        return service.findByCpf(cpf);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public TechnicianResponse create(@RequestBody TechnicianRequest request) {

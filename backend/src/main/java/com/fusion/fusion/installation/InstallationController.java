@@ -85,6 +85,11 @@ public class InstallationController {
         return service.cancel(id);
     }
 
+    @PostMapping("/{id}/approve-payment")
+    public InstallationResponse approvePayment(@PathVariable Long id) {
+        return service.approvePayment(id);
+    }
+
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.delete(id);

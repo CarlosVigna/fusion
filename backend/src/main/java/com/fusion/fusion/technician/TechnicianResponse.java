@@ -7,6 +7,7 @@ import java.util.UUID;
 public record TechnicianResponse(
         UUID id,
         String name,
+        String cpf,
         String phone,
         String address,
         String city,
