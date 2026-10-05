@@ -5,18 +5,28 @@
 // backend Java — pior caso e' reiniciar a solicitacao com !aprovar de
 // novo).
 //
+// Migrado pra trabalhar com Ordens de Servico (ServiceOrder) em vez
+// do fluxo antigo de Installation — tecnico, distanceKm e
+// displacementValue agora vem direto da OS (ja calculados antes, no
+// fluxo normal de agendamento em updateScheduling()), entao !aprovar
+// so' precisa da placa — nao pede mais cpf/valor como antes.
+//
 // Comandos:
-//   !aprovar {placa} {cpf} {valor}   — so' de WHATSAPP_DEILA_NUMBER.
-//     Busca o resumo formatado em POST /installations/whatsapp-approve
-//     e posta no grupo, abrindo uma pendingApproval pra essa placa.
-//   !aprovado {placa}                — so' de WHATSAPP_GERENTE_NUMBER.
-//     Chama POST /installations/{id}/approve-payment e fecha a pendencia.
-//   !rejeitar {placa}                — so' de WHATSAPP_GERENTE_NUMBER.
-//     So' avisa no grupo e fecha a pendencia (nao muda status no backend
-//     — nao existe endpoint de "reject"; REVISAR se precisar persistir
-//     rejeicao).
-//   !cancelar {placa}                — so' de WHATSAPP_DEILA_NUMBER.
-//     Desiste da solicitacao antes do gerente responder.
+//   !aprovar {placa}      — so' de WHATSAPP_DEILA_NUMBER.
+//     Busca a OS aberta em GET /service-orders/by-plate, monta a
+//     mensagem com os dados ja calculados na OS e posta no grupo,
+//     abrindo uma pendingApproval pra essa placa.
+//   !aprovado {placa}     — so' de WHATSAPP_GERENTE_NUMBER.
+//     Chama PUT /service-orders/{id}/financial-approval-whatsapp com
+//     financialApprovalStatus=APROVADO e fecha a pendencia.
+//   !rejeitar {placa}     — so' de WHATSAPP_GERENTE_NUMBER.
+//     Mesma chamada com financialApprovalStatus=REPROVADO — ao
+//     contrario do fluxo antigo (Installation nao tinha essa opcao),
+//     agora reprovar de fato reverte a OS pro estado ABERTO no
+//     backend (ver ServiceOrderService.updateFinancialApproval()).
+//   !cancelar {placa}     — so' de WHATSAPP_DEILA_NUMBER.
+//     Desiste da solicitacao antes do gerente responder — so' estado
+//     local, nao chama o backend.
 //
 // Suporta multiplas aprovacoes simultaneas porque cada uma vive numa
 // chave diferente do Map (a placa) — nao ha estado global unico.
@@ -32,7 +42,7 @@ const WHATSAPP_GERENTE_NUMBER = normalizeNumber(process.env.WHATSAPP_GERENTE_NUM
 
 const REMINDER_AFTER_MS = 2 * 60 * 60 * 1000; // 2h
 
-// Map<placa, { installationId, requestedBy, reminderTimer }>
+// Map<placa, { serviceOrderId, requestedBy, reminderTimer }>
 const pendingApprovals = new Map();
 
 function normalizeNumber(raw) {
@@ -51,6 +61,34 @@ function extractText(msg) {
         msg.message?.extendedTextMessage?.text ||
         ''
     );
+}
+
+function fmtMoney(value) {
+    return value != null ? Number(value).toFixed(2) : '0.00';
+}
+
+function buildApprovalMessage(so) {
+    const lines = [
+        '*SOLICITAÇÃO DE APROVAÇÃO DE PAGAMENTO*',
+        '',
+        `PLACA: ${so.plate || '--'}`,
+        `CLIENTE: ${so.customerName || '--'}`,
+        `TÉCNICO: ${so.technician ? so.technician.name : '--'}`,
+        `VALOR DO SERVIÇO: R$ ${fmtMoney(so.serviceValue)}`,
+    ];
+
+    if (so.distanceKm != null) {
+        lines.push(`DISTÂNCIA (ida+volta): ${so.distanceKm} km`);
+        lines.push(`DESLOCAMENTO: R$ ${fmtMoney(so.displacementValue)}`);
+    } else {
+        lines.push('DISTÂNCIA: não calculada ainda nessa OS');
+    }
+
+    lines.push(`TOTAL: R$ ${fmtMoney(so.totalValue)}`);
+    lines.push('');
+    lines.push(`Responda !aprovado ${so.plate} ou !rejeitar ${so.plate}`);
+
+    return lines.join('\n');
 }
 
 async function handleIncomingMessage(msg, sendToGroup) {
@@ -79,9 +117,9 @@ async function handleIncomingMessage(msg, sendToGroup) {
         if (command === '!aprovar') {
             await handleAprovar(parts, sender, sendToGroup);
         } else if (command === '!aprovado') {
-            await handleAprovado(parts, sender, sendToGroup);
+            await handleDecisao(parts, sender, sendToGroup, 'APROVADO');
         } else if (command === '!rejeitar') {
-            await handleRejeitar(parts, sender, sendToGroup);
+            await handleDecisao(parts, sender, sendToGroup, 'REPROVADO');
         } else if (command === '!cancelar') {
             await handleCancelar(parts, sender, sendToGroup);
         }
@@ -100,10 +138,10 @@ async function handleAprovar(parts, sender, sendToGroup) {
 
     if (sender !== WHATSAPP_DEILA_NUMBER) return;
 
-    const [, plateRaw, cpf, valueStr] = parts;
+    const plateRaw = parts[1];
 
-    if (!plateRaw || !cpf || !valueStr) {
-        await sendToGroup('Uso: !aprovar {placa} {cpf} {valor}');
+    if (!plateRaw) {
+        await sendToGroup('Uso: !aprovar {placa}');
         return;
     }
 
@@ -114,15 +152,15 @@ async function handleAprovar(parts, sender, sendToGroup) {
         return;
     }
 
-    const value = Number(valueStr.replace(',', '.'));
-
-    const response = await axios.post(
-        `${BACKEND_URL}/installations/whatsapp-approve`,
-        { plate, technicianCpf: cpf, value },
-        { headers: { 'X-ETL-Key': ETL_API_KEY } }
+    const response = await axios.get(
+        `${BACKEND_URL}/service-orders/by-plate`,
+        {
+            params: { plate },
+            headers: { 'X-ETL-Key': ETL_API_KEY },
+        }
     );
 
-    const summary = response.data;
+    const so = response.data;
 
     const reminderTimer = setTimeout(
         () => sendReminder(plate, sendToGroup),
@@ -130,14 +168,14 @@ async function handleAprovar(parts, sender, sendToGroup) {
     );
 
     pendingApprovals.set(plate, {
-        installationId: summary.installationId,
+        serviceOrderId: so.id,
         requestedBy: sender,
         reminderTimer,
     });
 
-    await sendToGroup(summary.formattedMessage);
+    await sendToGroup(buildApprovalMessage(so));
 
-    log(`[APPROVAL-FLOW] Aprovação de pagamento iniciada para ${plate} por ${sender}`);
+    log(`[APPROVAL-FLOW] Aprovação de pagamento iniciada para ${plate} por ${sender} (OS ${so.id})`);
 
 }
 
@@ -152,7 +190,7 @@ async function sendReminder(plate, sendToGroup) {
 
 }
 
-async function handleAprovado(parts, sender, sendToGroup) {
+async function handleDecisao(parts, sender, sendToGroup, financialApprovalStatus) {
 
     if (sender !== WHATSAPP_GERENTE_NUMBER) return;
 
@@ -164,39 +202,20 @@ async function handleAprovado(parts, sender, sendToGroup) {
         return;
     }
 
-    await axios.post(
-        `${BACKEND_URL}/installations/${pending.installationId}/approve-payment`,
-        null,
+    await axios.put(
+        `${BACKEND_URL}/service-orders/${pending.serviceOrderId}/financial-approval-whatsapp`,
+        { financialApprovalStatus },
         { headers: { 'X-ETL-Key': ETL_API_KEY } }
     );
 
     clearTimeout(pending.reminderTimer);
     pendingApprovals.delete(plate);
 
-    await sendToGroup(`✅ Pagamento aprovado para ${plate}.`);
+    const emoji = financialApprovalStatus === 'APROVADO' ? '✅' : '❌';
+    const label = financialApprovalStatus === 'APROVADO' ? 'aprovado' : 'rejeitado';
+    await sendToGroup(`${emoji} Pagamento de ${plate} ${label}.`);
 
-    log(`[APPROVAL-FLOW] ${plate} aprovado por ${sender}`);
-
-}
-
-async function handleRejeitar(parts, sender, sendToGroup) {
-
-    if (sender !== WHATSAPP_GERENTE_NUMBER) return;
-
-    const plate = (parts[1] || '').toUpperCase();
-    const pending = pendingApprovals.get(plate);
-
-    if (!pending) {
-        await sendToGroup(`Nenhuma aprovação pendente para ${plate}.`);
-        return;
-    }
-
-    clearTimeout(pending.reminderTimer);
-    pendingApprovals.delete(plate);
-
-    await sendToGroup(`❌ Pagamento de ${plate} rejeitado.`);
-
-    log(`[APPROVAL-FLOW] ${plate} rejeitado por ${sender}`);
+    log(`[APPROVAL-FLOW] ${plate} ${label} por ${sender} (OS ${pending.serviceOrderId})`);
 
 }
 
