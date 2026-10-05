@@ -3,6 +3,7 @@ package com.fusion.fusion.serviceorder;
 import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +25,9 @@ public class ServiceOrderController {
 
     private final ServiceOrderService service;
 
+    @Value("${fusion.etl.api-key:}")
+    private String etlApiKey;
+
     @GetMapping
     public List<ServiceOrderResponse> listAll(
             @RequestParam(defaultValue = "false") boolean includeCompleted) {
@@ -33,6 +37,45 @@ public class ServiceOrderController {
     @GetMapping("/completed")
     public List<ServiceOrderResponse> listCompleted() {
         return service.listCompleted();
+    }
+
+    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl), nao por
+    // usuario logado no navegador — autenticado por X-ETL-Key (mesmo
+    // padrao de POST /installations/sync e do extinto POST
+    // /installations/whatsapp-approve), nao por JWT/role. Ver permitAll
+    // em SecurityConfig.
+    @GetMapping("/by-plate")
+    public ResponseEntity<?> findByPlate(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @RequestParam String plate
+    ) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            log.warn("GET /service-orders/by-plate rejeitado: X-ETL-Key inválida ou ausente");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Chave de API inválida"));
+        }
+        return ResponseEntity.ok(service.findOpenByPlate(plate));
+    }
+
+    // Variante de PUT /{id}/financial-approval exclusiva pro bot —
+    // o endpoint original fica como esta' (hasAnyRole ADMIN/OPERATOR/
+    // FIELD/TECHNICIAN via JWT, usado pelo dashboard), autenticar ele
+    // por X-ETL-Key tambem exigiria reimplementar a checagem de role
+    // manualmente dentro do metodo pra nao abrir a acao financeira pra
+    // qualquer requisicao anonima. Endpoint separado evita esse risco
+    // e reaproveita a mesma logica de negocio (service.updateFinancialApproval).
+    @PutMapping("/{id}/financial-approval-whatsapp")
+    public ResponseEntity<?> updateFinancialApprovalFromWhatsApp(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @PathVariable UUID id,
+            @RequestBody FinancialApprovalRequest request
+    ) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            log.warn("PUT /service-orders/{}/financial-approval-whatsapp rejeitado: X-ETL-Key inválida ou ausente", id);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Chave de API inválida"));
+        }
+        return ResponseEntity.ok(service.updateFinancialApproval(id, request));
     }
 
     @PostMapping

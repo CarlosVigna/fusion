@@ -61,6 +61,27 @@ public class ServiceOrderService {
                 .toList();
     }
 
+    // Usado por GET /service-orders/by-plate — bot do WhatsApp
+    // (approvalFlow.js) busca a OS aberta pra montar a mensagem de
+    // aprovacao de pagamento/deslocamento, reaproveitando distanceKm/
+    // displacementValue ja calculados em updateScheduling() em vez de
+    // geocodificar de novo.
+    public ServiceOrderResponse findOpenByPlate(String plate) {
+
+        String normalized = PlateNormalizer.normalize(plate);
+
+        ServiceOrder so = repository
+                .findFirstByPlateIgnoreCaseAndSchedulingStatusNotAndDeletedAtIsNullOrderByRequestedAtDesc(
+                        normalized, SchedulingStatus.CONCLUIDO
+                )
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Nenhuma OS aberta encontrada para a placa " + normalized
+                ));
+
+        return toResponse(so);
+
+    }
+
     public List<ServiceOrderResponse> listCompleted() {
         return repository.findAll().stream()
                 .filter(o -> o.getDeletedAt() == null)

@@ -5,11 +5,20 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID> {
 
     List<ServiceOrder> findBySchedulingStatusOrderByRequestedAtDesc(SchedulingStatus status);
+
+    // Usado pelo bot do WhatsApp (approvalFlow.js) pra achar a OS aberta
+    // de uma placa — "aberta" aqui significa qualquer status != CONCLUIDO
+    // (ABERTO/AGUARDANDO_APROVACAO/AGENDADO), igual ja' e' tratado em
+    // isLate()/dashboard(). Se houver mais de uma, pega a mais recente
+    // (requestedAt desc).
+    Optional<ServiceOrder> findFirstByPlateIgnoreCaseAndSchedulingStatusNotAndDeletedAtIsNullOrderByRequestedAtDesc(
+            String plate, SchedulingStatus status);
 
     List<ServiceOrder> findBySchedulingStatusNotOrderByRequestedAtDesc(SchedulingStatus status);
 

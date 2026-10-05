@@ -114,6 +114,20 @@ public class SecurityConfig {
                                 "/etl/status"
                         ).permitAll()
 
+                        // Regra explicita antes da geral /service-orders/**
+                        // abaixo — bot do WhatsApp (approvalFlow.js) chama
+                        // esses dois sem JWT, autenticado por X-ETL-Key
+                        // dentro do proprio metodo (igual /installations/sync).
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/service-orders/by-plate"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/service-orders/*/financial-approval-whatsapp"
+                        ).permitAll()
+
                         .requestMatchers(
                                 "/service-orders/**"
                         ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
