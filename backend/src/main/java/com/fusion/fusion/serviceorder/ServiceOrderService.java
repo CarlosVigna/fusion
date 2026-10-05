@@ -48,7 +48,6 @@ public class ServiceOrderService {
     // diretamente; o placa não entra aqui porque, assim como no frontend,
     // placa fora do padrão não bloqueia a OS (só é sinalizada visualmente).
     private static final Pattern CHASSIS_PATTERN = Pattern.compile("[A-HJ-NPR-Z0-9]{17}");
-    private static final Pattern PHONE_PATTERN   = Pattern.compile("\\(\\d{2}\\)\\s\\d{4,5}-\\d{4}");
     private static final Pattern NAME_PATTERN    = Pattern.compile("[A-Za-zÀ-ÿ\\s]+");
     private static final Pattern CEP_PATTERN     = Pattern.compile("\\d{5}-?\\d{3}");
 
@@ -680,11 +679,6 @@ public class ServiceOrderService {
         if (request.chassis() != null && !request.chassis().isBlank()
                 && !CHASSIS_PATTERN.matcher(request.chassis().trim().toUpperCase()).matches()) {
             throw new BusinessException("Chassi inválido — deve ter 17 caracteres (sem I, O, Q)");
-        }
-
-        if (request.customerPhone() != null && !request.customerPhone().isBlank()
-                && !PHONE_PATTERN.matcher(request.customerPhone().trim()).matches()) {
-            throw new BusinessException("Telefone inválido — use o formato (00) 00000-0000");
         }
 
         if (request.customerName() != null && !request.customerName().isBlank()
