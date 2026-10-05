@@ -49,10 +49,25 @@ async function connectWhatsApp() {
 
         });
 
-        sock.ev.on('connection.update', ({ connection, lastDisconnect }) => {
+        sock.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
 
             if (connection === 'open') {
+
                 log('[WHATSAPP] Conectado.');
+
+                // TEMPORARIO — lista os grupos que o bot participa, pra
+                // descobrir o GROUP_ID certo sem precisar expor porta HTTP
+                // nesse processo (start.js e' de proposito outbound-only,
+                // atras do NAT, sem tunel/IP publico). Remover depois de
+                // confirmar o GROUP_ID.
+                try {
+                    const groups = await sock.groupFetchAllParticipating();
+                    const list = Object.values(groups).map(g => `${g.id} — ${g.subject}`);
+                    log(`[WHATSAPP] Grupos participando (${list.length}):\n${list.join('\n')}`);
+                } catch (e) {
+                    log(`[WHATSAPP] Falha ao listar grupos: ${e.message}`);
+                }
+
             }
 
             if (connection === 'close') {
