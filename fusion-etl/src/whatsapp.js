@@ -6,12 +6,21 @@ const approvalFlow = require('./approvalFlow');
 
 let sock = null;
 const AUTH_DIR = path.join(__dirname, '../whatsapp-auth');
-const GROUP_ID = process.env.WHATSAPP_GROUP_ID; // ex: '120363xxxxxxxx@g.us'
+const GROUP_ID = process.env.WHATSAPP_GROUP_ID; // ex: '120363xxxxxxxx@g.us' — alertas de instalacao (producao)
+
+// Grupo separado so' pro fluxo de aprovacao de pagamento (approvalFlow.js)
+// — de teste, pra nao misturar comando de aprovacao com o grupo de
+// alertas de instalacao em producao.
+const APPROVAL_GROUP_ID = process.env.WHATSAPP_GROUP_ID_2;
 
 async function connectWhatsApp() {
 
     if (!GROUP_ID) {
         log('[WHATSAPP] WHATSAPP_GROUP_ID não configurado ainda.');
+    }
+
+    if (!APPROVAL_GROUP_ID) {
+        log('[WHATSAPP] WHATSAPP_GROUP_ID_2 não configurado ainda — fluxo de aprovação de pagamento desativado.');
     }
 
     try {
@@ -26,21 +35,23 @@ async function connectWhatsApp() {
 
         sock.ev.on('creds.update', saveCreds);
 
-        // Mensagens recebidas no grupo — roteadas pro fluxo de aprovacao
-        // de pagamento (approvalFlow.js). Ignora qualquer chat que nao
-        // seja o grupo configurado (DM avulsa, outro grupo) e mensagens
+        // Mensagens recebidas no grupo de TESTE de aprovacao — roteadas
+        // pro fluxo de aprovacao de pagamento (approvalFlow.js). Ignora
+        // qualquer chat que nao seja o APPROVAL_GROUP_ID (inclusive o
+        // GROUP_ID de producao dos alertas de instalacao, de proposito —
+        // comando de aprovacao so' e' lido no grupo de teste) e mensagens
         // do tipo != 'notify' (historico sincronizado na reconexao, nao
         // mensagem nova de verdade).
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
 
-            if (type !== 'notify' || !GROUP_ID) return;
+            if (type !== 'notify' || !APPROVAL_GROUP_ID) return;
 
             for (const msg of messages) {
 
-                if (msg.key.remoteJid !== GROUP_ID) continue;
+                if (msg.key.remoteJid !== APPROVAL_GROUP_ID) continue;
 
                 try {
-                    await approvalFlow.handleIncomingMessage(msg, sendToGroup);
+                    await approvalFlow.handleIncomingMessage(msg, sendToApprovalGroup);
                 } catch (e) {
                     log(`[WHATSAPP] Erro processando mensagem recebida: ${e.message}`);
                 }
@@ -114,4 +125,14 @@ async function sendToGroup(message) {
     }
 }
 
-module.exports = { connectWhatsApp, sendToGroup };
+async function sendToApprovalGroup(message) {
+    if (!sock || !APPROVAL_GROUP_ID) return;
+    try {
+        await sock.sendMessage(APPROVAL_GROUP_ID, { text: message });
+        console.log('[WHATSAPP] Mensagem enviada ao grupo de aprovação (teste)');
+    } catch(e) {
+        console.log('[WHATSAPP] Erro ao enviar (aprovação):', e.message);
+    }
+}
+
+module.exports = { connectWhatsApp, sendToGroup, sendToApprovalGroup };
