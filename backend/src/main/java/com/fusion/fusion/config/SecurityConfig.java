@@ -95,7 +95,6 @@ public class SecurityConfig {
                                 "/etl/poll",
                                 "/etl/poll-whatsapp",
                                 "/installations/sync",
-                                "/installations/whatsapp-approve",
                                 "/sinistro/upload"
                         ).permitAll()
 

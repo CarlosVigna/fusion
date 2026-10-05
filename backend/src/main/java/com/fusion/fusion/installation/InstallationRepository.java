@@ -24,6 +24,4 @@ public interface InstallationRepository
 
     Optional<Installation> findByExternalId(String externalId);
 
-    Optional<Installation> findFirstByPlateIgnoreCaseAndStatusOrderByCreatedAtDesc(String plate, InstallationStatus status);
-
 }
