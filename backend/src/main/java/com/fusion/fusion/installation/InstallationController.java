@@ -32,6 +32,13 @@ public class InstallationController {
         return service.findAll(status);
     }
 
+    // Criacao manual — usuario logado no navegador (JWT), diferente de
+    // POST /sync abaixo (lote, X-ETL-Key, exclusivo do ETL local).
+    @PostMapping
+    public InstallationResponse create(@RequestBody InstallationRequest request) {
+        return service.create(request);
+    }
+
     @GetMapping("/pending-count")
     public Map<String, Long> pendingCount() {
         Map<String, Long> result = new LinkedHashMap<>();

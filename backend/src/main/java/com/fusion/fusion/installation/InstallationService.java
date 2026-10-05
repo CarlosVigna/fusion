@@ -6,6 +6,7 @@ import com.fusion.fusion.common.security.CurrentUserService;
 import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.policy.EtlPolicyResult;
 import com.fusion.fusion.policy.PolicyService;
+import com.fusion.fusion.serviceorder.ServiceOrderService;
 import com.fusion.fusion.technician.Technician;
 import com.fusion.fusion.technician.TechnicianRepository;
 import lombok.RequiredArgsConstructor;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -46,6 +48,61 @@ public class InstallationService {
     private final PolicyService policyService;
 
     private final OrsService orsService;
+
+    private final ServiceOrderService serviceOrderService;
+
+    // Criacao manual via POST /installations (usuario logado, JWT) —
+    // diferente do sync() em lote abaixo, que e' exclusivo do ETL local
+    // via X-ETL-Key e espera externalId vindo do portal. externalId
+    // fica null aqui de proposito (instalacao nao vem do portal); a
+    // ServiceOrder criada em seguida ja lida bem com isso (ver
+    // comentario em ServiceOrderService.createFromInstallation()).
+    @Transactional
+    public InstallationResponse create(InstallationRequest request) {
+
+        if (request.plate() == null || request.plate().isBlank()) {
+            throw new BusinessException("Placa é obrigatória");
+        }
+
+        if (request.customerName() == null || request.customerName().isBlank()) {
+            throw new BusinessException("Nome do segurado é obrigatório");
+        }
+
+        Installation installation = Installation.builder()
+                .customerName(request.customerName())
+                .address(request.address())
+                .neighborhood(request.neighborhood())
+                .city(request.city())
+                .state(request.state())
+                .zipCode(request.zipCode())
+                .phone(request.phone())
+                .plate(request.plate())
+                .model(request.model())
+                .serviceType(request.serviceType())
+                .build();
+
+        repository.save(installation);
+
+        serviceOrderService.createFromInstallation(
+                installation.getExternalId(),
+                installation.getPlate(),
+                installation.getCustomerName(),
+                installation.getPhone(),
+                installation.getCity(),
+                installation.getAddress(),
+                installation.getNeighborhood(),
+                installation.getState(),
+                installation.getZipCode(),
+                installation.getPortalCreatedAt(),
+                request.technicianId()
+        );
+
+        log.info("[INSTALACOES] Instalação criada manualmente: plate={} customerName={}",
+                installation.getPlate(), installation.getCustomerName());
+
+        return InstallationResponse.from(installation);
+
+    }
 
     public List<InstallationResponse> findAll(String status) {
 

@@ -12,6 +12,7 @@ import {
   Clock,
   Download,
   MessageSquarePlus,
+  Plus,
   RefreshCw,
   Square,
   X,
@@ -27,6 +28,8 @@ import {
   getInstallationReport,
   markInstallationSent,
 } from "../services/installationService";
+
+import InstallationModal from "../components/installations/InstallationModal";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
@@ -58,6 +61,8 @@ function slaLabel(inst) {
 
 export default function Installations() {
   const [tab, setTab] = useState("active");
+
+  const [showNewModal, setShowNewModal] = useState(false);
 
   const [dashboard, setDashboard] = useState(null);
   const [pending, setPending] = useState([]);
@@ -322,6 +327,13 @@ export default function Installations() {
         </div>
 
         <div className="flex gap-2">
+          <button
+            onClick={() => setShowNewModal(true)}
+            className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
+          >
+            <Plus size={14} />
+            Nova Instalação
+          </button>
           <button
             onClick={load}
             className="flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
@@ -646,6 +658,13 @@ export default function Installations() {
             </div>
           </div>
         </div>
+      )}
+
+      {showNewModal && (
+        <InstallationModal
+          onClose={() => setShowNewModal(false)}
+          onSaved={load}
+        />
       )}
 
     </div>

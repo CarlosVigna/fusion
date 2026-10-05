@@ -193,7 +193,8 @@ public class InstallationSyncService {
                         installation.getNeighborhood(),
                         installation.getState(),
                         installation.getZipCode(),
-                        installation.getPortalCreatedAt()
+                        installation.getPortalCreatedAt(),
+                        null
                 );
 
                 sendNtfyNotification(installation);
@@ -238,7 +239,8 @@ public class InstallationSyncService {
                         inst.getNeighborhood(),
                         inst.getState(),
                         inst.getZipCode(),
-                        inst.getPortalCreatedAt()
+                        inst.getPortalCreatedAt(),
+                        null
                 );
                 if (os != null) {
                     backfilled++;

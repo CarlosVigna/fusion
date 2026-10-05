@@ -5,6 +5,10 @@ export async function getInstallations(status) {
   return apiClient.get(`/installations${params}`);
 }
 
+export async function createInstallation(data) {
+  return apiClient.post("/installations", data);
+}
+
 export async function getInstallationsPendingCount() {
   return apiClient.get("/installations/pending-count");
 }

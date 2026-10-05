@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
@@ -7,6 +7,8 @@ import { X } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 import { createInstallation } from "../../services/installationService";
+
+import { getTechnicians } from "../../services/technicianService";
 
 export default function InstallationModal({ onClose, onSaved }) {
 
@@ -24,9 +26,18 @@ export default function InstallationModal({ onClose, onSaved }) {
     plate: "",
     model: "",
     serviceType: "INSTALAÇÃO NOVA",
+    technicianId: "",
   });
 
   const [saving, setSaving] = useState(false);
+
+  const [technicians, setTechnicians] = useState([]);
+
+  useEffect(() => {
+    getTechnicians()
+      .then((data) => setTechnicians(Array.isArray(data) ? data : []))
+      .catch((error) => console.error(error));
+  }, []);
 
   function setField(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -47,6 +58,7 @@ export default function InstallationModal({ onClose, onSaved }) {
         ...form,
         externalId: form.externalId || null,
         plate: form.plate.toUpperCase() || null,
+        technicianId: form.technicianId || null,
       });
 
       toast.success("Instalação registrada");
@@ -190,6 +202,19 @@ export default function InstallationModal({ onClose, onSaved }) {
               onChange={(e) => setField("model", e.target.value)}
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
             />
+          </Field>
+
+          <Field label="Técnico">
+            <select
+              value={form.technicianId}
+              onChange={(e) => setField("technicianId", e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+            >
+              <option value="">Sem técnico definido</option>
+              {technicians.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
           </Field>
 
         </div>

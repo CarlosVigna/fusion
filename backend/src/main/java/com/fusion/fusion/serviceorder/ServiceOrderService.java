@@ -114,11 +114,17 @@ public class ServiceOrderService {
     public ServiceOrderResponse createFromInstallation(
             String externalInstallationId, String plate, String customerName,
             String customerPhone, String city, String address,
-            String neighborhood, String state, String zipCode, LocalDateTime requestedAt) {
+            String neighborhood, String state, String zipCode, LocalDateTime requestedAt,
+            UUID technicianId) {
 
+        // externalInstallationId == null (instalacao criada manualmente,
+        // sem vinculo com o portal) nunca bate nesse exists — "x = NULL"
+        // e' sempre falso em SQL, nao "x IS NULL" — entao o guard so'
+        // protege o caso real (varios syncs batendo no mesmo externalId
+        // vindo do portal), nunca bloqueia criacao manual em lote.
         if (repository.existsByExternalInstallationId(externalInstallationId)) return null;
 
-        ServiceOrder so = ServiceOrder.builder()
+        ServiceOrder.ServiceOrderBuilder builder = ServiceOrder.builder()
                 .externalInstallationId(externalInstallationId)
                 .requestedBy("PORTAL")
                 .requestedAt(requestedAt != null ? requestedAt : LocalDateTime.now(ZoneOffset.UTC))
@@ -132,8 +138,13 @@ public class ServiceOrderService {
                 .zipCode(zipCode)
                 .customerName(customerName)
                 .customerPhone(customerPhone)
-                .createdBy("PORTAL")
-                .build();
+                .createdBy("PORTAL");
+
+        if (technicianId != null) {
+            builder.technician(technicianService.find(technicianId));
+        }
+
+        ServiceOrder so = builder.build();
 
         ServiceOrderResponse saved = toResponse(repository.save(so));
         log.info("[OS] Criada automaticamente do portal: externalId={} plate={}", externalInstallationId, plate);
