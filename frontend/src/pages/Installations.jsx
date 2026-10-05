@@ -13,6 +13,7 @@ import {
   Plus,
   RefreshCw,
   Square,
+  UserCog,
 } from "lucide-react";
 
 import {
@@ -21,6 +22,8 @@ import {
 } from "../services/serviceOrderService";
 
 import InstallationModal from "../components/installations/InstallationModal";
+
+import SchedulingModal from "../components/installations/SchedulingModal";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
@@ -73,6 +76,7 @@ export default function Installations() {
   const [tab, setTab] = useState("active");
 
   const [showNewModal, setShowNewModal] = useState(false);
+  const [schedulingId, setSchedulingId] = useState(null);
 
   const [all, setAll] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -440,6 +444,13 @@ export default function Installations() {
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                               <button
+                                onClick={() => setSchedulingId(so.id)}
+                                title="Vincular técnico / agendar"
+                                className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
+                              >
+                                <UserCog size={14} />
+                              </button>
+                              <button
                                 onClick={() => toggleExpand(so.id)}
                                 title="Ver / editar observações"
                                 className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
@@ -486,7 +497,9 @@ export default function Installations() {
                                   {so.requestedAt && (
                                     <p className="text-zinc-500">Solicitada em: {formatLocalDateTime(so.requestedAt)}</p>
                                   )}
-                                  <p className="text-zinc-500">Aprovação financeira: {so.financialApprovalStatus}</p>
+                                  {(so.displacementValue ?? 0) > 0 && (
+                                    <p className="text-zinc-500">Aprovação financeira: {so.financialApprovalStatus}</p>
+                                  )}
                                 </div>
 
                                 {/* Observations — campo unico de texto em
@@ -593,6 +606,14 @@ export default function Installations() {
       {showNewModal && (
         <InstallationModal
           onClose={() => setShowNewModal(false)}
+          onSaved={load}
+        />
+      )}
+
+      {schedulingId && (
+        <SchedulingModal
+          serviceOrderId={schedulingId}
+          onClose={() => setSchedulingId(null)}
           onSaved={load}
         />
       )}
