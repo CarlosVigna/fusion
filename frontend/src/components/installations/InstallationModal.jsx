@@ -4,28 +4,21 @@ import toast from "react-hot-toast";
 
 import { X } from "lucide-react";
 
-import { useAuthStore } from "../../store/authStore";
-
-import { createInstallation } from "../../services/installationService";
+import { createServiceOrder } from "../../services/serviceOrderService";
 
 import { getTechnicians } from "../../services/technicianService";
 
 export default function InstallationModal({ onClose, onSaved }) {
 
-  const user = useAuthStore((state) => state.user);
-
   const [form, setForm] = useState({
-    externalId: "",
     customerName: "",
+    customerPhone: "",
     address: "",
     neighborhood: "",
     city: "",
     state: "",
     zipCode: "",
-    phone: "",
     plate: "",
-    model: "",
-    serviceType: "INSTALAÇÃO NOVA",
     technicianId: "",
   });
 
@@ -46,7 +39,7 @@ export default function InstallationModal({ onClose, onSaved }) {
   async function handleSave() {
 
     if (!form.customerName.trim()) {
-      toast.error("Nome do cliente é obrigatório");
+      toast.error("Nome do segurado é obrigatório");
       return;
     }
 
@@ -54,11 +47,14 @@ export default function InstallationModal({ onClose, onSaved }) {
 
     try {
 
-      await createInstallation({
+      // serviceType fixo em INSTALACAO — esse modal e' especificamente
+      // "Nova Instalação", nao um criador generico de OS (que ja existe
+      // em ServiceOrders.jsx).
+      await createServiceOrder({
         ...form,
-        externalId: form.externalId || null,
         plate: form.plate.toUpperCase() || null,
         technicianId: form.technicianId || null,
+        serviceType: "INSTALACAO",
       });
 
       toast.success("Instalação registrada");
@@ -103,25 +99,7 @@ export default function InstallationModal({ onClose, onSaved }) {
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
 
-          <Field label="Tipo de serviço">
-            <input
-              type="text"
-              value={form.serviceType}
-              onChange={(e) => setField("serviceType", e.target.value)}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
-            />
-          </Field>
-
-          <Field label="ID externo (portal parceiro)">
-            <input
-              type="text"
-              value={form.externalId}
-              onChange={(e) => setField("externalId", e.target.value)}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
-            />
-          </Field>
-
-          <Field label="Nome do cliente *">
+          <Field label="Nome do segurado *">
             <input
               type="text"
               value={form.customerName}
@@ -133,8 +111,8 @@ export default function InstallationModal({ onClose, onSaved }) {
           <Field label="Telefone">
             <input
               type="text"
-              value={form.phone}
-              onChange={(e) => setField("phone", e.target.value)}
+              value={form.customerPhone}
+              onChange={(e) => setField("customerPhone", e.target.value)}
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
             />
           </Field>
@@ -192,15 +170,6 @@ export default function InstallationModal({ onClose, onSaved }) {
               value={form.plate}
               onChange={(e) => setField("plate", e.target.value.toUpperCase())}
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-mono outline-none"
-            />
-          </Field>
-
-          <Field label="Modelo do veículo">
-            <input
-              type="text"
-              value={form.model}
-              onChange={(e) => setField("model", e.target.value)}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
             />
           </Field>
 

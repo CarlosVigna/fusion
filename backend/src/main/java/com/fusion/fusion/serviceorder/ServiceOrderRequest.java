@@ -1,6 +1,7 @@
 package com.fusion.fusion.serviceorder;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 public record ServiceOrderRequest(
         String requestedBy,
@@ -16,5 +17,9 @@ public record ServiceOrderRequest(
         String zipCode,
         String customerName,
         String customerPhone,
-        String observations
+        String observations,
+        // So' usado em create() — update() continua sem atribuir
+        // tecnico (isso e' feito via PUT /{id}/scheduling, que ja' tem
+        // sua propria logica de calculo de deslocamento).
+        UUID technicianId
 ) {}

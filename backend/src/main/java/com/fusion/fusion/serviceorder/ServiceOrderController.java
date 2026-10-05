@@ -30,8 +30,9 @@ public class ServiceOrderController {
 
     @GetMapping
     public List<ServiceOrderResponse> listAll(
-            @RequestParam(defaultValue = "false") boolean includeCompleted) {
-        return service.listAll(includeCompleted);
+            @RequestParam(defaultValue = "false") boolean includeCompleted,
+            @RequestParam(required = false) ServiceType serviceType) {
+        return service.listAll(includeCompleted, serviceType);
     }
 
     @GetMapping("/completed")

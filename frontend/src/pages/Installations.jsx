@@ -3,60 +3,70 @@ import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import {
-  AlertTriangle,
   Check,
   CheckSquare,
   ChevronDown,
   ChevronRight,
   ClipboardCopy,
-  Clock,
   Download,
   MessageSquarePlus,
   Plus,
   RefreshCw,
   Square,
-  X,
 } from "lucide-react";
 
 import {
-  addInstallationObservation,
-  cancelInstallation,
-  dismissInstallationAlert,
-  getInstallationObservations,
-  getInstallations,
-  getInstallationsDashboard,
-  getInstallationReport,
-  markInstallationSent,
-} from "../services/installationService";
+  getServiceOrders,
+  updateServiceOrder,
+} from "../services/serviceOrderService";
 
 import InstallationModal from "../components/installations/InstallationModal";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
-function buildMessage(inst) {
+// Tela migrada pra trabalhar com ServiceOrder (serviceType=INSTALACAO)
+// em vez da entidade Installation — ver investigacao/decisoes da
+// migracao (SchedulingStatus != CONCLUIDO = "Aguardando",
+// == CONCLUIDO = "Histórico"; sem campo de modelo do veiculo; sem
+// conceito de "enviado"/"cancelado"/"dispensar alerta", que
+// ServiceOrder nao tem equivalente).
+function buildMessage(so) {
   return (
     `*INSTALAÇÃO NOVA*\n\n` +
-    `*NOME:* ${inst.customerName?.toUpperCase()}\n` +
-    `*ENDEREÇO:* ${inst.address?.toUpperCase()} | *BAIRRO:* ${inst.neighborhood?.toUpperCase()} - ${inst.city?.toUpperCase()}/${inst.state?.toUpperCase()}\n` +
-    `*CEP:* ${inst.zipCode}\n` +
-    `*TELEFONE:* ${inst.phone}\n` +
-    `*PLACA:* ${inst.plate?.toUpperCase()}\n` +
-    `*MODELO:* ${inst.model?.toUpperCase()}`
+    `*NOME:* ${so.customerName?.toUpperCase()}\n` +
+    `*ENDEREÇO:* ${so.address?.toUpperCase()} | *BAIRRO:* ${so.neighborhood?.toUpperCase()} - ${so.city?.toUpperCase()}/${so.state?.toUpperCase()}\n` +
+    `*CEP:* ${so.zipCode}\n` +
+    `*TELEFONE:* ${so.customerPhone}\n` +
+    `*PLACA:* ${so.plate?.toUpperCase()}`
   );
 }
 
-function slaColors(slaStatus, dismissed) {
-  if (dismissed) return { row: "opacity-50", badge: "bg-zinc-700/40 text-zinc-400", dot: "bg-zinc-500" };
+// ServiceOrder nao tem um slaStatus pronto como Installation tinha —
+// so' slaDays (dias desde requestedAt). Mesmos limiares de antes.
+function slaStatusOf(so) {
+  if (so.slaDays == null) return null;
+  if (so.slaDays <= 1) return "SLA_OK";
+  if (so.slaDays === 2) return "SLA_WARNING";
+  return "SLA_CRITICAL";
+}
+
+function slaColors(slaStatus) {
   if (slaStatus === "SLA_CRITICAL") return { row: "bg-red-500/5 border-l-2 border-red-500/40", badge: "bg-red-500/15 text-red-400", dot: "bg-red-500" };
   if (slaStatus === "SLA_WARNING")  return { row: "bg-yellow-500/5 border-l-2 border-yellow-500/40", badge: "bg-yellow-500/15 text-yellow-400", dot: "bg-yellow-500" };
   return { row: "", badge: "bg-green-500/15 text-green-400", dot: "bg-green-500" };
 }
 
-function slaLabel(inst) {
-  if (inst.slaDays == null) return "—";
-  if (inst.slaDays === 0) return "Hoje";
-  if (inst.slaDays === 1) return "1 dia";
-  return `${inst.slaDays} dias`;
+function slaLabel(so) {
+  if (so.slaDays == null) return "—";
+  if (so.slaDays === 0) return "Hoje";
+  if (so.slaDays === 1) return "1 dia";
+  return `${so.slaDays} dias`;
+}
+
+function isToday(dateStr) {
+  if (!dateStr) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return String(dateStr).slice(0, 10) === today;
 }
 
 export default function Installations() {
@@ -64,62 +74,27 @@ export default function Installations() {
 
   const [showNewModal, setShowNewModal] = useState(false);
 
-  const [dashboard, setDashboard] = useState(null);
-  const [pending, setPending] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [all, setAll] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [expandedId, setExpandedId] = useState(null);
-  const [observations, setObservations] = useState({});
-  const [loadingObs, setLoadingObs] = useState({});
-  const [addingObs, setAddingObs] = useState({});
-  const [obsText, setObsText] = useState({});
+  const [obsDraft, setObsDraft] = useState({});
+  const [savingObs, setSavingObs] = useState({});
 
   const [selected, setSelected] = useState(new Set());
   const [copiedId, setCopiedId] = useState(null);
   const [slaFilter, setSlaFilter] = useState("ALL");
 
   const [historySearch, setHistorySearch] = useState("");
-  const [historyStatus, setHistoryStatus] = useState("");
+  const [historyApproval, setHistoryApproval] = useState("");
 
   const prevPendingIdsRef = useRef(null);
-
-  async function loadDashboard() {
-    try {
-      const data = await getInstallationsDashboard();
-      setDashboard(data);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function loadPending() {
-    const data = await getInstallations("PENDING");
-    return Array.isArray(data) ? data : [];
-  }
-
-  async function loadHistory() {
-    const [scheduled, sent, cancelled, approvedForPayment] = await Promise.all([
-      getInstallations("SCHEDULED"),
-      getInstallations("SENT"),
-      getInstallations("CANCELLED"),
-      getInstallations("APPROVED_FOR_PAYMENT"),
-    ]);
-    return [
-      ...(Array.isArray(scheduled) ? scheduled : []),
-      ...(Array.isArray(sent) ? sent : []),
-      ...(Array.isArray(cancelled) ? cancelled : []),
-      ...(Array.isArray(approvedForPayment) ? approvedForPayment : []),
-    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-  }
 
   async function load() {
     setLoading(true);
     try {
-      const [p, h] = await Promise.all([loadPending(), loadHistory()]);
-      setPending(p);
-      setHistory(h);
-      await loadDashboard();
+      const data = await getServiceOrders({ includeCompleted: true, serviceType: "INSTALACAO" });
+      setAll(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
       toast.error("Erro ao carregar instalações");
@@ -128,22 +103,26 @@ export default function Installations() {
     }
   }
 
+  const pending = all.filter((so) => so.schedulingStatus !== "CONCLUIDO");
+  const history = all.filter((so) => so.schedulingStatus === "CONCLUIDO");
+
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
-        const p = await loadPending();
+        const data = await getServiceOrders({ includeCompleted: true, serviceType: "INSTALACAO" });
+        const list = Array.isArray(data) ? data : [];
+        const newPending = list.filter((so) => so.schedulingStatus !== "CONCLUIDO");
         if (prevPendingIdsRef.current !== null) {
           const prevIds = prevPendingIdsRef.current;
-          const newItems = p.filter((i) => !prevIds.has(i.id));
+          const newItems = newPending.filter((i) => !prevIds.has(i.id));
           if (newItems.length > 0) {
             toast(`${newItems.length} nova(s) instalação(ões)`, { icon: "📋" });
           }
         }
-        prevPendingIdsRef.current = new Set(p.map((i) => i.id));
-        setPending(p);
-        loadDashboard();
+        prevPendingIdsRef.current = new Set(newPending.map((i) => i.id));
+        setAll(list);
       } catch (err) {
         console.error(err);
       }
@@ -151,60 +130,43 @@ export default function Installations() {
     return () => clearInterval(interval);
   }, []);
 
-  async function toggleExpand(id) {
-    if (expandedId === id) {
-      setExpandedId(null);
-      return;
-    }
-    setExpandedId(id);
-    if (!observations[id]) {
-      setLoadingObs((prev) => ({ ...prev, [id]: true }));
-      try {
-        const data = await getInstallationObservations(id);
-        setObservations((prev) => ({ ...prev, [id]: Array.isArray(data) ? data : [] }));
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoadingObs((prev) => ({ ...prev, [id]: false }));
-      }
-    }
+  function toggleExpand(id) {
+    setExpandedId((prev) => (prev === id ? null : id));
   }
 
-  async function handleAddObservation(id) {
-    const text = (obsText[id] || "").trim();
-    if (!text) return;
-    setAddingObs((prev) => ({ ...prev, [id]: true }));
+  async function handleSaveObservations(so) {
+    const text = (obsDraft[so.id] ?? so.observations ?? "").trim();
+    setSavingObs((prev) => ({ ...prev, [so.id]: true }));
     try {
-      const obs = await addInstallationObservation(id, text);
-      setObservations((prev) => ({ ...prev, [id]: [obs, ...(prev[id] || [])] }));
-      setObsText((prev) => ({ ...prev, [id]: "" }));
-      setPending((prev) =>
-        prev.map((i) => i.id === id ? { ...i, lastObservation: text } : i)
-      );
+      await updateServiceOrder(so.id, {
+        requestedBy: so.requestedBy,
+        plate: so.plate,
+        chassis: so.chassis,
+        equipment: so.equipment,
+        serviceType: so.serviceType,
+        city: so.city,
+        address: so.address,
+        neighborhood: so.neighborhood,
+        state: so.state,
+        zipCode: so.zipCode,
+        customerName: so.customerName,
+        customerPhone: so.customerPhone,
+        observations: text,
+      });
+      setAll((prev) => prev.map((i) => (i.id === so.id ? { ...i, observations: text } : i)));
       toast.success("Observação salva");
     } catch (err) {
       console.error(err);
       toast.error("Erro ao salvar observação");
     } finally {
-      setAddingObs((prev) => ({ ...prev, [id]: false }));
+      setSavingObs((prev) => ({ ...prev, [so.id]: false }));
     }
   }
 
-  async function handleDismiss(id) {
+  async function handleCopy(so) {
     try {
-      const updated = await dismissInstallationAlert(id);
-      setPending((prev) => prev.map((i) => i.id === id ? { ...i, alertDismissedAt: updated.alertDismissedAt } : i));
-      toast.success("Alerta dispensado para hoje");
-    } catch (err) {
-      console.error(err);
-      toast.error("Erro ao dispensar alerta");
-    }
-  }
-
-  async function handleCopy(inst) {
-    try {
-      await navigator.clipboard.writeText(buildMessage(inst));
-      setCopiedId(inst.id);
+      await navigator.clipboard.writeText(buildMessage(so));
+      setCopiedId(so.id);
       setTimeout(() => setCopiedId(null), 2000);
       toast.success("Mensagem copiada!");
     } catch {
@@ -244,7 +206,7 @@ export default function Installations() {
 
   function filteredPending() {
     if (slaFilter === "ALL") return pending;
-    return pending.filter((i) => i.slaStatus === slaFilter);
+    return pending.filter((i) => slaStatusOf(i) === slaFilter);
   }
 
   function filteredHistory() {
@@ -253,30 +215,22 @@ export default function Installations() {
         (i.customerName?.toLowerCase().includes(historySearch.toLowerCase())) ||
         (i.plate?.toLowerCase().includes(historySearch.toLowerCase())) ||
         (i.city?.toLowerCase().includes(historySearch.toLowerCase()));
-      const matchStatus = !historyStatus || i.status === historyStatus;
-      return matchSearch && matchStatus;
+      const matchApproval = !historyApproval || i.financialApprovalStatus === historyApproval;
+      return matchSearch && matchApproval;
     });
   }
 
-  function isDismissedToday(inst) {
-    if (!inst.alertDismissedAt) return false;
-    const today = new Date().toISOString().slice(0, 10);
-    return String(inst.alertDismissedAt).slice(0, 10) === today;
-  }
-
-  async function handleExportReport() {
+  function handleExportReport() {
     try {
-      toast("Gerando relatório...", { icon: "📊" });
-      const data = await getInstallationReport({});
-      if (!Array.isArray(data) || data.length === 0) {
+      if (all.length === 0) {
         toast("Nenhum dado encontrado", { icon: "ℹ️" });
         return;
       }
-      const headers = ["ID", "Segurado", "Placa", "Modelo", "Endereço", "Bairro", "Cidade", "UF", "CEP", "Telefone", "Proposta", "Serviço", "Status", "SLA Dias", "Criado em", "Fechado em"];
-      const rows = data.map((i) => [
-        i.id, i.customerName, i.plate, i.model, i.address, i.neighborhood,
-        i.city, i.state, i.zipCode, i.phone, i.numeroProposta,
-        i.serviceType, i.status, i.slaDays ?? "", i.portalCreatedAt ?? "", i.closedAt ?? "",
+      const headers = ["ID", "Segurado", "Placa", "Endereço", "Bairro", "Cidade", "UF", "CEP", "Telefone", "Status", "Aprovação Financeira", "SLA Dias", "Solicitado em", "Fechado em"];
+      const rows = all.map((i) => [
+        i.id, i.customerName, i.plate, i.address, i.neighborhood,
+        i.city, i.state, i.zipCode, i.customerPhone,
+        i.schedulingStatus, i.financialApprovalStatus, i.slaDays ?? "", i.requestedAt ?? "", i.closedAt ?? "",
       ]);
       const csv = [headers, ...rows]
         .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
@@ -296,6 +250,11 @@ export default function Installations() {
 
   const displayed = filteredPending();
   const allSelected = displayed.length > 0 && selected.size === displayed.length;
+
+  const ok = pending.filter((so) => slaStatusOf(so) === "SLA_OK").length;
+  const warning = pending.filter((so) => slaStatusOf(so) === "SLA_WARNING").length;
+  const critical = pending.filter((so) => slaStatusOf(so) === "SLA_CRITICAL").length;
+  const closedToday = history.filter((so) => isToday(so.closedAt)).length;
 
   return (
     <div className="space-y-6">
@@ -351,12 +310,14 @@ export default function Installations() {
         </div>
       </div>
 
-      {/* Dashboard summary cards */}
-      {tab === "active" && dashboard && (
+      {/* Dashboard summary cards — calculados no browser a partir da
+          lista ja carregada (GET /service-orders/dashboard agrega
+          TODOS os tipos de OS, nao so' instalacao). */}
+      {tab === "active" && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryCard
             label="OK (0-1d)"
-            value={dashboard.stats?.ok ?? 0}
+            value={ok}
             color="text-green-400"
             bg="bg-green-500/10 border-green-500/20"
             onClick={() => setSlaFilter(slaFilter === "SLA_OK" ? "ALL" : "SLA_OK")}
@@ -364,7 +325,7 @@ export default function Installations() {
           />
           <SummaryCard
             label="Atenção (2d)"
-            value={dashboard.stats?.warning ?? 0}
+            value={warning}
             color="text-yellow-400"
             bg="bg-yellow-500/10 border-yellow-500/20"
             onClick={() => setSlaFilter(slaFilter === "SLA_WARNING" ? "ALL" : "SLA_WARNING")}
@@ -372,7 +333,7 @@ export default function Installations() {
           />
           <SummaryCard
             label="Crítico (3+d)"
-            value={dashboard.stats?.critical ?? 0}
+            value={critical}
             color="text-red-400"
             bg="bg-red-500/10 border-red-500/20"
             onClick={() => setSlaFilter(slaFilter === "SLA_CRITICAL" ? "ALL" : "SLA_CRITICAL")}
@@ -380,7 +341,7 @@ export default function Installations() {
           />
           <SummaryCard
             label="Fechadas hoje"
-            value={dashboard.stats?.closedToday ?? 0}
+            value={closedToday}
             color="text-zinc-300"
             bg="bg-zinc-800/60 border-zinc-700/50"
             onClick={() => { setTab("history"); }}
@@ -416,7 +377,7 @@ export default function Installations() {
             <p className="py-10 text-center text-zinc-500">Carregando...</p>
           ) : displayed.length === 0 ? (
             <p className="py-10 text-center text-zinc-500">
-              {slaFilter !== "ALL" ? "Nenhuma instalação neste filtro" : "Nenhuma instalação aguardando agendamento"}
+              {slaFilter !== "ALL" ? "Nenhuma instalação neste filtro" : "Nenhuma instalação aguardando"}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -433,77 +394,67 @@ export default function Installations() {
                     <th className="px-4 py-3">Placa</th>
                     <th className="px-4 py-3">Telefone</th>
                     <th className="px-4 py-3">Cidade/UF</th>
-                    <th className="px-4 py-3">Última obs.</th>
+                    <th className="px-4 py-3">Técnico</th>
                     <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {displayed.map((inst) => {
-                    const dismissed = isDismissedToday(inst);
-                    const { row, badge, dot } = slaColors(inst.slaStatus, dismissed);
-                    const isExpanded = expandedId === inst.id;
+                  {displayed.map((so) => {
+                    const { row, badge, dot } = slaColors(slaStatusOf(so));
+                    const isExpanded = expandedId === so.id;
 
                     return (
                       <>
                         <tr
-                          key={inst.id}
+                          key={so.id}
                           className={`border-t border-zinc-800 transition hover:bg-zinc-800/40 cursor-pointer ${row}`}
                         >
                           <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => toggleSelect(inst.id)}>
-                              {selected.has(inst.id)
+                            <button onClick={() => toggleSelect(so.id)}>
+                              {selected.has(so.id)
                                 ? <CheckSquare size={15} className="text-white" />
                                 : <Square size={15} className="text-zinc-600" />}
                             </button>
                           </td>
-                          <td className="px-4 py-3" onClick={() => toggleExpand(inst.id)}>
+                          <td className="px-4 py-3" onClick={() => toggleExpand(so.id)}>
                             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${badge}`}>
                               <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-                              {slaLabel(inst)}
+                              {slaLabel(so)}
                             </span>
                           </td>
-                          <td className="px-4 py-3 font-medium" onClick={() => toggleExpand(inst.id)}>
-                            {inst.customerName || "—"}
+                          <td className="px-4 py-3 font-medium" onClick={() => toggleExpand(so.id)}>
+                            {so.customerName || "—"}
                           </td>
-                          <td className="px-4 py-3 font-mono text-sm text-zinc-300" onClick={() => toggleExpand(inst.id)}>
-                            {inst.plate || "—"}
+                          <td className="px-4 py-3 font-mono text-sm text-zinc-300" onClick={() => toggleExpand(so.id)}>
+                            {so.plate || "—"}
                           </td>
-                          <td className="px-4 py-3 text-zinc-400" onClick={() => toggleExpand(inst.id)}>
-                            {inst.phone || "—"}
+                          <td className="px-4 py-3 text-zinc-400" onClick={() => toggleExpand(so.id)}>
+                            {so.customerPhone || "—"}
                           </td>
-                          <td className="px-4 py-3 text-zinc-400 text-sm" onClick={() => toggleExpand(inst.id)}>
-                            {inst.city ? `${inst.city}/${inst.state}` : "—"}
+                          <td className="px-4 py-3 text-zinc-400 text-sm" onClick={() => toggleExpand(so.id)}>
+                            {so.city ? `${so.city}/${so.state}` : "—"}
                           </td>
-                          <td className="px-4 py-3 text-zinc-500 text-xs max-w-xs truncate" onClick={() => toggleExpand(inst.id)}>
-                            {inst.lastObservation || "—"}
+                          <td className="px-4 py-3 text-zinc-400 text-sm" onClick={() => toggleExpand(so.id)}>
+                            {so.technician?.name || "—"}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                               <button
-                                onClick={() => { toggleExpand(inst.id); }}
-                                title="Ver / adicionar observação"
+                                onClick={() => toggleExpand(so.id)}
+                                title="Ver / editar observações"
                                 className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
                               >
                                 <MessageSquarePlus size={14} />
                               </button>
                               <button
-                                onClick={() => handleCopy(inst)}
+                                onClick={() => handleCopy(so)}
                                 title="Copiar mensagem"
                                 className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
                               >
-                                {copiedId === inst.id ? <Check size={14} className="text-green-400" /> : <ClipboardCopy size={14} />}
+                                {copiedId === so.id ? <Check size={14} className="text-green-400" /> : <ClipboardCopy size={14} />}
                               </button>
-                              {inst.slaStatus === "SLA_CRITICAL" && !dismissed && (
-                                <button
-                                  onClick={() => handleDismiss(inst.id)}
-                                  title="Dispensar alerta hoje"
-                                  className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-yellow-400"
-                                >
-                                  <Clock size={14} />
-                                </button>
-                              )}
                               <button
-                                onClick={() => toggleExpand(inst.id)}
+                                onClick={() => toggleExpand(so.id)}
                                 className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
                               >
                                 {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -513,70 +464,50 @@ export default function Installations() {
                         </tr>
 
                         {isExpanded && (
-                          <tr key={`${inst.id}-expand`} className="border-t border-zinc-800/50">
+                          <tr key={`${so.id}-expand`} className="border-t border-zinc-800/50">
                             <td colSpan={8} className="bg-zinc-950 px-6 py-4">
                               <div className="grid gap-4 sm:grid-cols-2">
 
                                 {/* Details */}
                                 <div className="space-y-2 text-sm">
                                   <p className="font-semibold text-zinc-300">Detalhes</p>
-                                  {inst.address && (
+                                  {so.address && (
                                     <p className="text-zinc-400">
-                                      {inst.address}
-                                      {inst.neighborhood ? ` | ${inst.neighborhood}` : ""}
+                                      {so.address}
+                                      {so.neighborhood ? ` | ${so.neighborhood}` : ""}
                                     </p>
                                   )}
-                                  {inst.zipCode && <p className="text-zinc-500">CEP: {inst.zipCode}</p>}
-                                  {inst.model && <p className="text-zinc-400">Modelo: {inst.model}</p>}
-                                  {inst.numeroProposta && (
-                                    <p className="text-zinc-400">Proposta: <span className="font-mono">{inst.numeroProposta}</span></p>
+                                  {so.zipCode && <p className="text-zinc-500">CEP: {so.zipCode}</p>}
+                                  {so.technician?.name && <p className="text-zinc-400">Técnico: {so.technician.name}</p>}
+                                  {so.distanceKm != null && (
+                                    <p className="text-zinc-400">Distância: {so.distanceKm} km — Deslocamento: R$ {so.displacementValue ?? 0}</p>
                                   )}
-                                  {inst.serviceType && <p className="text-zinc-400">Tipo: {inst.serviceType}</p>}
-                                  {inst.portalCreatedAt && (
-                                    <p className="text-zinc-500">Criada no portal: {formatLocalDateTime(inst.portalCreatedAt)}</p>
+                                  {so.serviceValue != null && <p className="text-zinc-400">Valor do serviço: R$ {so.serviceValue}</p>}
+                                  {so.requestedAt && (
+                                    <p className="text-zinc-500">Solicitada em: {formatLocalDateTime(so.requestedAt)}</p>
                                   )}
+                                  <p className="text-zinc-500">Aprovação financeira: {so.financialApprovalStatus}</p>
                                 </div>
 
-                                {/* Observations */}
+                                {/* Observations — campo unico de texto em
+                                    ServiceOrder, nao e' uma lista com
+                                    autor/data como era em Installation. */}
                                 <div className="space-y-3">
                                   <p className="text-sm font-semibold text-zinc-300">Observações</p>
-
-                                  {/* Add observation */}
-                                  <div className="flex gap-2">
-                                    <input
-                                      type="text"
-                                      value={obsText[inst.id] || ""}
-                                      onChange={(e) => setObsText((prev) => ({ ...prev, [inst.id]: e.target.value }))}
-                                      onKeyDown={(e) => e.key === "Enter" && handleAddObservation(inst.id)}
-                                      placeholder="Nova observação..."
-                                      className="flex-1 rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-500"
-                                    />
-                                    <button
-                                      onClick={() => handleAddObservation(inst.id)}
-                                      disabled={addingObs[inst.id] || !(obsText[inst.id] || "").trim()}
-                                      className="rounded-xl bg-white px-4 py-2 text-xs font-semibold text-black transition hover:opacity-90 disabled:opacity-40"
-                                    >
-                                      {addingObs[inst.id] ? "..." : "Salvar"}
-                                    </button>
-                                  </div>
-
-                                  {/* Obs list */}
-                                  {loadingObs[inst.id] ? (
-                                    <p className="text-xs text-zinc-600">Carregando...</p>
-                                  ) : (observations[inst.id] || []).length === 0 ? (
-                                    <p className="text-xs text-zinc-600">Sem observações</p>
-                                  ) : (
-                                    <div className="max-h-40 overflow-y-auto space-y-2">
-                                      {(observations[inst.id] || []).map((obs) => (
-                                        <div key={obs.id} className="rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-2">
-                                          <p className="text-sm text-zinc-200">{obs.text}</p>
-                                          <p className="mt-1 text-xs text-zinc-600">
-                                            {obs.createdBy} · {formatLocalDateTime(obs.createdAt)}
-                                          </p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
+                                  <textarea
+                                    rows={4}
+                                    value={obsDraft[so.id] ?? so.observations ?? ""}
+                                    onChange={(e) => setObsDraft((prev) => ({ ...prev, [so.id]: e.target.value }))}
+                                    placeholder="Observações desta OS..."
+                                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-500"
+                                  />
+                                  <button
+                                    onClick={() => handleSaveObservations(so)}
+                                    disabled={savingObs[so.id]}
+                                    className="rounded-xl bg-white px-4 py-2 text-xs font-semibold text-black transition hover:opacity-90 disabled:opacity-40"
+                                  >
+                                    {savingObs[so.id] ? "..." : "Salvar"}
+                                  </button>
                                 </div>
 
                               </div>
@@ -605,15 +536,14 @@ export default function Installations() {
               className="flex-1 min-w-48 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-500"
             />
             <select
-              value={historyStatus}
-              onChange={(e) => setHistoryStatus(e.target.value)}
+              value={historyApproval}
+              onChange={(e) => setHistoryApproval(e.target.value)}
               className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-300 outline-none"
             >
-              <option value="">Todos os status</option>
-              <option value="SCHEDULED">Agendado</option>
-              <option value="SENT">Enviado</option>
-              <option value="CANCELLED">Cancelado</option>
-              <option value="APPROVED_FOR_PAYMENT">Aprovado p/ Pagamento</option>
+              <option value="">Todas as aprovações</option>
+              <option value="PENDENTE">Pendente</option>
+              <option value="APROVADO">Aprovado</option>
+              <option value="REPROVADO">Reprovado</option>
             </select>
           </div>
 
@@ -625,8 +555,8 @@ export default function Installations() {
                     <th className="px-4 py-3">Cliente</th>
                     <th className="px-4 py-3">Placa</th>
                     <th className="px-4 py-3">Cidade/UF</th>
-                    <th className="px-4 py-3">Tipo</th>
-                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Técnico</th>
+                    <th className="px-4 py-3">Aprovação</th>
                     <th className="px-4 py-3">Duração SLA</th>
                     <th className="px-4 py-3">Fechado em</th>
                   </tr>
@@ -637,18 +567,18 @@ export default function Installations() {
                   ) : filteredHistory().length === 0 ? (
                     <tr><td colSpan={7} className="py-10 text-center text-zinc-500">Nenhum registro</td></tr>
                   ) : (
-                    filteredHistory().map((inst) => (
-                      <tr key={inst.id} className="border-t border-zinc-800 transition hover:bg-zinc-800/40">
-                        <td className="px-4 py-3 font-medium">{inst.customerName || "—"}</td>
-                        <td className="px-4 py-3 font-mono text-sm text-zinc-300">{inst.plate || "—"}</td>
-                        <td className="px-4 py-3 text-zinc-400 text-sm">{inst.city ? `${inst.city}/${inst.state}` : "—"}</td>
-                        <td className="px-4 py-3 text-zinc-400 text-sm">{inst.serviceType || "—"}</td>
-                        <td className="px-4 py-3"><HistoryStatusBadge status={inst.status} /></td>
+                    filteredHistory().map((so) => (
+                      <tr key={so.id} className="border-t border-zinc-800 transition hover:bg-zinc-800/40">
+                        <td className="px-4 py-3 font-medium">{so.customerName || "—"}</td>
+                        <td className="px-4 py-3 font-mono text-sm text-zinc-300">{so.plate || "—"}</td>
+                        <td className="px-4 py-3 text-zinc-400 text-sm">{so.city ? `${so.city}/${so.state}` : "—"}</td>
+                        <td className="px-4 py-3 text-zinc-400 text-sm">{so.technician?.name || "—"}</td>
+                        <td className="px-4 py-3"><ApprovalStatusBadge status={so.financialApprovalStatus} /></td>
                         <td className="px-4 py-3 text-zinc-400 text-sm">
-                          {inst.slaDays != null ? `${inst.slaDays}d` : "—"}
+                          {so.slaDays != null ? `${so.slaDays}d` : "—"}
                         </td>
                         <td className="px-4 py-3 text-zinc-400 text-sm">
-                          {inst.closedAt ? formatLocalDateTime(inst.closedAt) : "—"}
+                          {so.closedAt ? formatLocalDateTime(so.closedAt) : "—"}
                         </td>
                       </tr>
                     ))
@@ -683,14 +613,13 @@ function SummaryCard({ label, value, color, bg, onClick, active }) {
   );
 }
 
-function HistoryStatusBadge({ status }) {
+function ApprovalStatusBadge({ status }) {
   const map = {
-    SENT:      { label: "Enviado",   cls: "bg-green-500/15 text-green-400" },
-    SCHEDULED: { label: "Agendado",  cls: "bg-blue-500/15 text-blue-400" },
-    CANCELLED: { label: "Cancelado", cls: "bg-zinc-700/40 text-zinc-400" },
-    APPROVED_FOR_PAYMENT: { label: "Aprovado p/ Pagamento", cls: "bg-green-500/15 text-green-400" },
+    APROVADO:  { label: "Aprovado",  cls: "bg-green-500/15 text-green-400" },
+    REPROVADO: { label: "Reprovado", cls: "bg-red-500/15 text-red-400" },
+    PENDENTE:  { label: "Pendente",  cls: "bg-yellow-500/15 text-yellow-400" },
   };
-  const { label, cls } = map[status] || { label: status, cls: "bg-zinc-700/40 text-zinc-400" };
+  const { label, cls } = map[status] || { label: status || "—", cls: "bg-zinc-700/40 text-zinc-400" };
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>{label}</span>
   );

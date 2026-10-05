@@ -1,7 +1,10 @@
 import { apiClient } from "./api/apiClient";
 
-export async function getServiceOrders() {
-  return apiClient.get("/service-orders?includeCompleted=false");
+export async function getServiceOrders({ includeCompleted = false, serviceType } = {}) {
+  const params = new URLSearchParams();
+  params.append("includeCompleted", includeCompleted);
+  if (serviceType) params.append("serviceType", serviceType);
+  return apiClient.get(`/service-orders?${params.toString()}`);
 }
 
 export async function getCompletedServiceOrders() {

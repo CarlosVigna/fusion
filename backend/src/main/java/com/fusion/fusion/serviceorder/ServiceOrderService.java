@@ -53,9 +53,18 @@ public class ServiceOrderService {
     private static final Pattern CEP_PATTERN     = Pattern.compile("\\d{5}-?\\d{3}");
 
     public List<ServiceOrderResponse> listAll(boolean includeCompleted) {
+        return listAll(includeCompleted, null);
+    }
+
+    // serviceType == null mantem o comportamento de sempre (todos os
+    // tipos) — usado por GET /service-orders?serviceType=INSTALACAO
+    // pra Installations.jsx filtrar so' as OS de instalacao sem
+    // precisar buscar tudo e filtrar no browser.
+    public List<ServiceOrderResponse> listAll(boolean includeCompleted, ServiceType serviceType) {
         return repository.findAll().stream()
                 .filter(o -> o.getDeletedAt() == null)
                 .filter(o -> includeCompleted || o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO)
+                .filter(o -> serviceType == null || o.getServiceType() == serviceType)
                 .sorted(Comparator.comparing(ServiceOrder::getRequestedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(this::toResponse)
                 .toList();
@@ -103,7 +112,7 @@ public class ServiceOrderService {
         if (isManual) {
             validateFields(request);
         }
-        ServiceOrder so = ServiceOrder.builder()
+        ServiceOrder.ServiceOrderBuilder builder = ServiceOrder.builder()
                 .requestedBy(request.requestedBy() != null ? request.requestedBy() : createdBy)
                 .requestedAt(request.requestedAt() != null ? request.requestedAt() : LocalDateTime.now(ZoneOffset.UTC))
                 .plate(request.plate())
@@ -118,8 +127,13 @@ public class ServiceOrderService {
                 .customerName(request.customerName())
                 .customerPhone(request.customerPhone())
                 .observations(request.observations())
-                .createdBy(createdBy)
-                .build();
+                .createdBy(createdBy);
+
+        if (request.technicianId() != null) {
+            builder.technician(technicianService.find(request.technicianId()));
+        }
+
+        ServiceOrder so = builder.build();
         ServiceOrderResponse saved = toResponse(repository.save(so));
         audit(so, "CRIADA", null, null, so.getPlate());
         return saved;
