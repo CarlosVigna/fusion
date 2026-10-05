@@ -117,6 +117,7 @@ const GROUPS = [
         items: [
             { label: "Instalações",               icon: ClipboardList, path: "/installations", badgeKey: "installations" },
             { label: "Relatórios de Instalações", icon: FileText,      path: "/installations/reports" },
+            { label: "Técnicos",                  icon: UserCog,       path: "/technicians" },
         ],
     },
     {
@@ -126,7 +127,6 @@ const GROUPS = [
         items: [
             { label: "Dashboard",  icon: ClipboardCheck,  path: "/service-orders/dashboard" },
             { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
-            { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
             { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
             { label: "Estoque",       icon: Package,     path: "/stock", end: true, badgeKey: "stockPending" },
             { label: "Confirmações",  icon: CheckSquare, path: "/stock/confirmations" },
