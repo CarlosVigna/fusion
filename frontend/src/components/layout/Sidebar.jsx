@@ -107,13 +107,24 @@ const GROUPS = [
         ],
     },
     {
+        // Grupo proprio, sem a restricao isFieldOrTech do "serviceorders"
+        // abaixo (que some da navegacao pra ADMIN/OPERATOR por pedido
+        // explicito anterior) — Instalacoes ficava invisivel pra quem
+        // mais precisa dela no dia a dia.
+        key: "installations",
+        label: "Instalações",
+        icon: ClipboardList,
+        items: [
+            { label: "Instalações",               icon: ClipboardList, path: "/installations", badgeKey: "installations" },
+            { label: "Relatórios de Instalações", icon: FileText,      path: "/installations/reports" },
+        ],
+    },
+    {
         key: "serviceorders",
         label: "Ordens de Serviço",
         icon: ClipboardList,
         items: [
             { label: "Dashboard",  icon: ClipboardCheck,  path: "/service-orders/dashboard" },
-            { label: "Instalações",               icon: ClipboardList, path: "/installations", badgeKey: "installations" },
-            { label: "Relatórios de Instalações", icon: FileText,      path: "/installations/reports" },
             { label: "Ordens",     icon: ClipboardList,   path: "/service-orders", end: true },
             { label: "Técnicos",   icon: UserCog,         path: "/technicians" },
             { label: "Relatórios", icon: FileSpreadsheet, path: "/service-orders/reports" },
