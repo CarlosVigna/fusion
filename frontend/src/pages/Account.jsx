@@ -21,37 +21,12 @@ const THEMES = [
   {
     key: "dark",
     label: "Escuro",
-    swatch: ["#09090b", "#18181b", "#ffffff"],
+    swatch: ["#17181A", "#202124", "#E8EAED"],
   },
   {
     key: "light",
     label: "Claro",
-    swatch: ["#fafafa", "#ffffff", "#18181b"],
-  },
-  {
-    key: "blue",
-    label: "Azul",
-    swatch: ["#080b16", "#0f1426", "#ffffff"],
-  },
-  {
-    key: "emerald",
-    label: "Esmeralda",
-    swatch: ["#071914", "#0e2923", "#5da68b"],
-  },
-  {
-    key: "violet",
-    label: "Violeta",
-    swatch: ["#0d0b14", "#181522", "#9189b1"],
-  },
-  {
-    key: "midnight",
-    label: "Midnight",
-    swatch: ["#05070a", "#0d1117", "#f8fafc"],
-  },
-  {
-    key: "red",
-    label: "Vermelho",
-    swatch: ["#110b0c", "#231415", "#d66e6e"],
+    swatch: ["#F8F9FA", "#FFFFFF", "#202124"],
   },
 ];
 

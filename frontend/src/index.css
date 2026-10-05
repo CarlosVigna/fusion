@@ -3,156 +3,56 @@
 @tailwind utilities;
 
 /*
- * Temas: as cores neutras (zinc/white/black) usadas em todo o app sao
- * resolvidas via essas variaveis (ver tailwind.config.js), trocadas
- * por tema atraves do atributo data-theme na tag <html>. Cores de
- * status/alerta/badge (green/red/yellow/blue/orange/purple) NAO usam
- * essas variaveis — continuam fixas em qualquer tema, de proposito.
+ * Tema: paleta corporativa estilo Gmail/Google Material, em dois
+ * modos (dark/light) resolvidos via essas variaveis (ver
+ * tailwind.config.js), trocados pelo atributo data-theme na tag
+ * <html>. Cores de status/alerta/badge (green/red/yellow/blue/
+ * orange/purple) NAO usam essas variaveis — continuam fixas em
+ * qualquer tema, de proposito.
+ *
+ * O light usa rampa invertida com hierarquia aprimorada (mesmo
+ * padrao que o tema anterior): zinc-950 = fundo da pagina (#F8F9FA),
+ * zinc-900 = card (#FFFFFF — branco puro para contraste nitido),
+ * zinc-800 = borda (#E8EAED).
  */
 
 :root,
 [data-theme="dark"] {
-  --zinc-50: 250 250 250;
-  --zinc-100: 244 244 245;
-  --zinc-200: 228 228 231;
-  --zinc-300: 212 212 216;
-  --zinc-400: 161 161 170;
-  --zinc-500: 113 113 122;
-  --zinc-600: 82 82 91;
-  --zinc-700: 63 63 70;
-  --zinc-800: 39 39 42;
-  --zinc-900: 24 24 27;
-  --zinc-950: 9 9 11;
+  --zinc-50: 248 249 250;
+  --zinc-100: 241 243 244;
+  --zinc-200: 232 234 237;
+  --zinc-300: 218 220 224;
+  --zinc-400: 189 193 198;
+  --zinc-500: 154 160 166;
+  --zinc-600: 128 134 139;
+  --zinc-700: 95 99 104;
+  --zinc-800: 60 64 67;
+  --zinc-900: 32 33 36;
+  --zinc-950: 23 24 26;
 
-  --canvas-fg: 255 255 255;
-  --canvas-bg: 9 9 11;
+  --canvas-fg: 232 234 237;
+  --canvas-bg: 23 24 26;
 
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  /* Rampa invertida com hierarquia aprimorada:
-     zinc-950 = fundo da página (#fafafa),
-     zinc-900 = card (#ffffff — branco puro para contraste nítido),
-     zinc-800 = borda (#e4e4e7). */
-  --zinc-50: 9 9 11;
-  --zinc-100: 24 24 27;
-  --zinc-200: 39 39 42;
-  --zinc-300: 63 63 70;
-  --zinc-400: 82 82 91;
-  --zinc-500: 113 113 122;
-  --zinc-600: 161 161 170;
-  --zinc-700: 212 212 216;
-  --zinc-800: 228 228 231;
+  --zinc-50: 23 24 26;
+  --zinc-100: 32 33 36;
+  --zinc-200: 60 64 67;
+  --zinc-300: 95 99 104;
+  --zinc-400: 128 134 139;
+  --zinc-500: 154 160 166;
+  --zinc-600: 189 193 198;
+  --zinc-700: 218 220 224;
+  --zinc-800: 232 234 237;
   --zinc-900: 255 255 255;
-  --zinc-950: 250 250 250;
+  --zinc-950: 248 249 250;
 
-  --canvas-fg: 24 24 27;
-  --canvas-bg: 255 255 255;
+  --canvas-fg: 32 33 36;
+  --canvas-bg: 248 249 250;
 
   color-scheme: light;
-}
-
-[data-theme="blue"] {
-  --zinc-50: 245 247 250;
-  --zinc-100: 232 236 244;
-  --zinc-200: 213 220 233;
-  --zinc-300: 184 194 214;
-  --zinc-400: 140 153 184;
-  --zinc-500: 90 104 138;
-  --zinc-600: 55 68 102;
-  --zinc-700: 38 48 79;
-  --zinc-800: 26 33 58;
-  --zinc-900: 15 20 38;
-  --zinc-950: 8 11 22;
-
-  --canvas-fg: 255 255 255;
-  --canvas-bg: 8 11 22;
-
-  color-scheme: dark;
-}
-
-[data-theme="emerald"] {
-  --zinc-50: 241 248 245;
-  --zinc-100: 220 238 231;
-  --zinc-200: 191 222 209;
-  --zinc-300: 145 197 176;
-  --zinc-400: 93 166 139;
-  --zinc-500: 57 135 109;
-  --zinc-600: 40 107 86;
-  --zinc-700: 29 80 66;
-  --zinc-800: 22 59 50;
-  --zinc-900: 14 41 35;
-  --zinc-950: 7 25 20;
-
-  --canvas-fg: 255 255 255;
-  --canvas-bg: 7 25 20;
-
-  color-scheme: dark;
-}
-
-[data-theme="violet"] {
-  --zinc-50: 246 245 250;
-  --zinc-100: 233 231 242;
-  --zinc-200: 213 210 227;
-  --zinc-300: 181 176 206;
-  --zinc-400: 145 137 177;
-  --zinc-500: 112 103 148;
-  --zinc-600: 81 73 111;
-  --zinc-700: 57 51 79;
-  --zinc-800: 39 35 57;
-  --zinc-900: 24 21 34;
-  --zinc-950: 13 11 20;
-
-  --canvas-fg: 255 255 255;
-  --canvas-bg: 13 11 20;
-
-  color-scheme: dark;
-}
-
-[data-theme="midnight"] {
-  /* Escala baseada em Tailwind slate — fundo quase preto azulado,
-     muted em azul-acinzentado, texto em branco frio. */
-  --zinc-50: 248 250 252;
-  --zinc-100: 241 245 249;
-  --zinc-200: 226 232 240;
-  --zinc-300: 203 213 225;
-  --zinc-400: 148 163 184;
-  --zinc-500: 100 116 139;
-  --zinc-600: 27 36 48;
-  --zinc-700: 17 25 40;
-  --zinc-800: 13 17 23;
-  --zinc-900: 8 11 16;
-  --zinc-950: 5 7 10;
-
-  --canvas-fg: 248 250 252;
-  --canvas-bg: 5 7 10;
-
-  color-scheme: dark;
-}
-
-[data-theme="red"] {
-  /* Preto/cinza-escuro com identidade vermelha (charcoal + vinho) —
-     fundo e cards quase pretos, muted em vermelho-acinzentado, texto
-     em branco puro. Cores de status/alerta/badge continuam fixas
-     (ver comentario no topo do arquivo), so' o fundo/cards/bordas/
-     texto neutro mudam. */
-  --zinc-50: 253 245 245;
-  --zinc-100: 250 232 232;
-  --zinc-200: 245 205 205;
-  --zinc-300: 235 165 165;
-  --zinc-400: 214 110 110;
-  --zinc-500: 185 70 70;
-  --zinc-600: 150 45 45;
-  --zinc-700: 105 35 38;
-  --zinc-800: 58 28 30;
-  --zinc-900: 35 20 21;
-  --zinc-950: 17 11 12;
-
-  --canvas-fg: 255 255 255;
-  --canvas-bg: 17 11 12;
-
-  color-scheme: dark;
 }
 
 html {
