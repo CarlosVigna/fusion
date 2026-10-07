@@ -25,6 +25,8 @@ public interface InstallationRepository
 
     Optional<Installation> findByExternalId(String externalId);
 
+    Optional<Installation> findByPlateIgnoreCase(String plate);
+
     List<Installation> findByPortalStatus(String portalStatus);
 
     List<Installation> findByPortalStatusIn(Collection<String> portalStatuses);

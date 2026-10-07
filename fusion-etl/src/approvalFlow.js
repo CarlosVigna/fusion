@@ -30,6 +30,27 @@
 //
 // Suporta multiplas aprovacoes simultaneas porque cada uma vive numa
 // chave diferente do Map (a placa) — nao ha estado global unico.
+//
+// Fase 2 — fluxo paralelo pra aprovacao de pagamento de Installation
+// (!aprovar-inst), independente do fluxo de ServiceOrder acima (Map
+// separado, pendingInstApprovals, mesmo que a placa coincida):
+//   !aprovar-inst {placa} {valor} {cpf_tecnico}  — so' de
+//     WHATSAPP_DEILA_NUMBER. Busca a instalacao via GET /installations/
+//     by-plate e o tecnico via GET /technicians/by-cpf, confere que o
+//     tecnico tem lat/lon cadastrada e abre a pendencia com o valor
+//     declarado (digitado no comando, nao calculado).
+//   !aprovado-inst / !rejeitar-inst {placa} — so' de
+//     WHATSAPP_GERENTE_NUMBER. Chama PUT /installations/{id}/
+//     financial-approval com o valor declarado.
+//   !cancelar-inst {placa} — so' de WHATSAPP_DEILA_NUMBER, estado local.
+//
+// IMPORTANTE: esse fluxo NAO calcula km/deslocamento. O check de lat/lon
+// do tecnico so' valida que o cadastro esta completo — nada aqui chama
+// OrsService (Java) pra calcular distancia, porque (a) este processo e'
+// Node e nao tem acesso a ele, e (b) Installation nao tem lat/lon do
+// endereco do cliente pra alimentar esse calculo. calculatedKm/
+// calculatedDisplacement ficam null nessa chamada; se precisar desses
+// valores de verdade, o calculo tem que ser feito no backend antes.
 
 const axios = require('axios');
 const { log } = require('./file-utils');
@@ -44,6 +65,9 @@ const REMINDER_AFTER_MS = 2 * 60 * 60 * 1000; // 2h
 
 // Map<placa, { serviceOrderId, requestedBy, reminderTimer }>
 const pendingApprovals = new Map();
+
+// Map<placa, { installationId, technicianId, declaredValue, requestedBy, reminderTimer }>
+const pendingInstApprovals = new Map();
 
 function normalizeNumber(raw) {
     if (!raw) return null;
@@ -91,6 +115,22 @@ function buildApprovalMessage(so) {
     return lines.join('\n');
 }
 
+function buildInstApprovalMessage(installation, technician, declaredValue) {
+    const lines = [
+        '*SOLICITAÇÃO DE APROVAÇÃO — INSTALAÇÃO*',
+        '',
+        `PLACA: ${installation.plate || '--'}`,
+        `SEGURADO: ${installation.customerName || '--'}`,
+        `TÉCNICO: ${technician.name || '--'}`,
+        `CPF TÉCNICO: ${technician.cpf || '--'}`,
+        `VALOR DECLARADO: R$ ${fmtMoney(declaredValue)}`,
+        '',
+        `Responda !aprovado-inst ${installation.plate} ou !rejeitar-inst ${installation.plate}`,
+    ];
+
+    return lines.join('\n');
+}
+
 async function handleIncomingMessage(msg, sendToGroup) {
 
     if (msg.key.fromMe) return;
@@ -103,7 +143,10 @@ async function handleIncomingMessage(msg, sendToGroup) {
     const command = parts[0].toLowerCase();
     const sender = senderNumber(msg);
 
-    if (!['!aprovar', '!aprovado', '!rejeitar', '!cancelar'].includes(command)) {
+    if (![
+        '!aprovar', '!aprovado', '!rejeitar', '!cancelar',
+        '!aprovar-inst', '!aprovado-inst', '!rejeitar-inst', '!cancelar-inst',
+    ].includes(command)) {
         return;
     }
 
@@ -122,6 +165,14 @@ async function handleIncomingMessage(msg, sendToGroup) {
             await handleDecisao(parts, sender, sendToGroup, 'REPROVADO');
         } else if (command === '!cancelar') {
             await handleCancelar(parts, sender, sendToGroup);
+        } else if (command === '!aprovar-inst') {
+            await handleAprovarInst(parts, sender, sendToGroup);
+        } else if (command === '!aprovado-inst') {
+            await handleDecisaoInst(parts, sender, sendToGroup, 'APROVADO');
+        } else if (command === '!rejeitar-inst') {
+            await handleDecisaoInst(parts, sender, sendToGroup, 'REPROVADO');
+        } else if (command === '!cancelar-inst') {
+            await handleCancelarInst(parts, sender, sendToGroup);
         }
 
     } catch (e) {
@@ -237,6 +288,137 @@ async function handleCancelar(parts, sender, sendToGroup) {
     await sendToGroup(`Solicitação de aprovação de ${plate} cancelada.`);
 
     log(`[APPROVAL-FLOW] ${plate} cancelado por ${sender}`);
+
+}
+
+async function handleAprovarInst(parts, sender, sendToGroup) {
+
+    if (sender !== WHATSAPP_DEILA_NUMBER) return;
+
+    const plateRaw = parts[1];
+    const valorRaw = parts[2];
+    const cpfRaw = parts[3];
+
+    if (!plateRaw || !valorRaw || !cpfRaw) {
+        await sendToGroup('Uso: !aprovar-inst {placa} {valor} {cpf_tecnico}');
+        return;
+    }
+
+    const plate = plateRaw.toUpperCase();
+    const declaredValue = Number(valorRaw.replace(',', '.'));
+
+    if (Number.isNaN(declaredValue)) {
+        await sendToGroup('Valor inválido. Uso: !aprovar-inst {placa} {valor} {cpf_tecnico}');
+        return;
+    }
+
+    if (pendingInstApprovals.has(plate)) {
+        await sendToGroup(`Já existe uma aprovação de instalação pendente para ${plate}. Use !cancelar-inst ${plate} antes de abrir outra.`);
+        return;
+    }
+
+    const installationResponse = await axios.get(
+        `${BACKEND_URL}/installations/by-plate`,
+        {
+            params: { plate },
+            headers: { 'X-ETL-Key': ETL_API_KEY },
+        }
+    );
+
+    const installation = installationResponse.data;
+
+    const technicianResponse = await axios.get(
+        `${BACKEND_URL}/technicians/by-cpf`,
+        {
+            params: { cpf: cpfRaw },
+            headers: { 'X-ETL-Key': ETL_API_KEY },
+        }
+    );
+
+    const technician = technicianResponse.data;
+
+    if (technician.latitude == null || technician.longitude == null) {
+        await sendToGroup(`⚠️ Técnico ${technician.name || cpfRaw} não tem coordenadas cadastradas. Cadastre o endereço do técnico antes de aprovar.`);
+        return;
+    }
+
+    const reminderTimer = setTimeout(
+        () => sendReminderInst(plate, sendToGroup),
+        REMINDER_AFTER_MS
+    );
+
+    pendingInstApprovals.set(plate, {
+        installationId: installation.id,
+        technicianId: technician.id,
+        declaredValue,
+        requestedBy: sender,
+        reminderTimer,
+    });
+
+    await sendToGroup(buildInstApprovalMessage(installation, technician, declaredValue));
+
+    log(`[APPROVAL-FLOW] Aprovação de instalação iniciada para ${plate} por ${sender} (installation ${installation.id})`);
+
+}
+
+async function sendReminderInst(plate, sendToGroup) {
+
+    if (!pendingInstApprovals.has(plate)) return;
+
+    await sendToGroup(
+        `⏰ LEMBRETE: aprovação de instalação de ${plate} está pendente há mais de 2h. ` +
+        `Responda !aprovado-inst ${plate} ou !rejeitar-inst ${plate}.`
+    );
+
+}
+
+async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalStatus) {
+
+    if (sender !== WHATSAPP_GERENTE_NUMBER) return;
+
+    const plate = (parts[1] || '').toUpperCase();
+    const pending = pendingInstApprovals.get(plate);
+
+    if (!pending) {
+        await sendToGroup(`Nenhuma aprovação de instalação pendente para ${plate}.`);
+        return;
+    }
+
+    await axios.put(
+        `${BACKEND_URL}/installations/${pending.installationId}/financial-approval`,
+        { financialApprovalStatus, declaredValue: pending.declaredValue },
+        { headers: { 'X-ETL-Key': ETL_API_KEY } }
+    );
+
+    clearTimeout(pending.reminderTimer);
+    pendingInstApprovals.delete(plate);
+
+    const emoji = financialApprovalStatus === 'APROVADO' ? '✅' : '❌';
+    const label = financialApprovalStatus === 'APROVADO' ? 'aprovado' : 'rejeitado';
+    await sendToGroup(`${emoji} Pagamento de instalação de ${plate} ${label}.`);
+
+    log(`[APPROVAL-FLOW] Instalação ${plate} ${label} por ${sender} (installation ${pending.installationId})`);
+
+}
+
+async function handleCancelarInst(parts, sender, sendToGroup) {
+
+    if (sender !== WHATSAPP_DEILA_NUMBER) return;
+
+    const plate = (parts[1] || '').toUpperCase();
+    const pending = pendingInstApprovals.get(plate);
+
+    if (!pending) {
+        await sendToGroup(`Nenhuma aprovação de instalação pendente para ${plate}.`);
+        return;
+    }
+
+    clearTimeout(pending.reminderTimer);
+    pendingInstApprovals.delete(plate);
+
+    await sendToGroup(`Solicitação de aprovação de instalação de ${plate} cancelada.`);
+
+    log(`[APPROVAL-FLOW] Instalação ${plate} cancelada por ${sender}`);
 
 }
 

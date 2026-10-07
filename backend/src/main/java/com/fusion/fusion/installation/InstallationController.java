@@ -57,6 +57,41 @@ public class InstallationController {
         return service.getPortalStatusGroups();
     }
 
+    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no
+    // comando !aprovar-inst — autenticado por X-ETL-Key, mesmo padrao de
+    // GET /service-orders/by-plate. Ver permitAll em SecurityConfig.
+    @GetMapping("/by-plate")
+    public ResponseEntity<?> findByPlate(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @RequestParam String plate
+    ) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            log.warn("GET /installations/by-plate rejeitado: X-ETL-Key inválida ou ausente");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Chave de API inválida"));
+        }
+        return ResponseEntity.ok(service.findByPlate(plate));
+    }
+
+    // Idem findByPlate — chamado em !aprovado-inst/!rejeitar-inst. Nao ha
+    // endpoint JWT equivalente hoje (Installation ainda nao tem tela de
+    // aprovacao financeira pro usuario logado), entao esse caminho fica
+    // so' ETL por enquanto — se um dia existir uma tela assim, seguir o
+    // padrao de ServiceOrderController (endpoint separado "-whatsapp").
+    @PutMapping("/{id}/financial-approval")
+    public ResponseEntity<?> updateFinancialApproval(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @PathVariable Long id,
+            @RequestBody InstallationFinancialApprovalRequest request
+    ) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            log.warn("PUT /installations/{}/financial-approval rejeitado: X-ETL-Key inválida ou ausente", id);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Chave de API inválida"));
+        }
+        return ResponseEntity.ok(service.updateFinancialApproval(id, request));
+    }
+
     @PostMapping("/{id}/observations")
     public InstallationObservationResponse addObservation(
             @PathVariable Long id,

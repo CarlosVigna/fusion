@@ -93,6 +93,44 @@ public class InstallationService {
 
     }
 
+    // Usado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no comando
+    // !aprovar-inst — autenticado por X-ETL-Key no controller, nao por
+    // JWT (ver InstallationController).
+    public InstallationResponse findByPlate(String plate) {
+        Installation installation = repository.findByPlateIgnoreCase(plate)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Instalação não encontrada para a placa: " + plate
+                ));
+        return InstallationResponse.from(installation);
+    }
+
+    // Idem findByPlate — chamado pelo bot em !aprovado-inst/!rejeitar-inst.
+    // declaredValue vem do valor digitado em !aprovar-inst (nao recalculado
+    // aqui); calculatedKm/calculatedDisplacement ficam null nesse fluxo,
+    // porque o bot (Node) nao tem como chamar o OrsService (Java) e
+    // Installation nao tem lat/lon do cliente pra calcular distancia —
+    // ver nota no approvalFlow.js.
+    @Transactional
+    public InstallationResponse updateFinancialApproval(Long id, InstallationFinancialApprovalRequest request) {
+
+        Installation installation = findOrThrow(id);
+
+        installation.setFinancialApprovalStatus(request.financialApprovalStatus());
+        installation.setDeclaredDisplacementValue(request.declaredValue());
+        if (request.calculatedKm() != null) {
+            installation.setCalculatedKm(request.calculatedKm());
+        }
+        if (request.calculatedDisplacement() != null) {
+            installation.setCalculatedDisplacementValue(request.calculatedDisplacement());
+        }
+        installation.setFinancialApprovedAt(LocalDateTime.now(ZoneOffset.UTC));
+
+        repository.save(installation);
+
+        return InstallationResponse.from(installation);
+
+    }
+
     public Map<String, Object> getPortalStatusGroups() {
 
         Map<String, List<Installation>> porStatus = repository
@@ -349,14 +387,13 @@ public class InstallationService {
 
     }
 
-    public List<InstallationResponse> report(String search, String status, LocalDate startDate, LocalDate endDate) {
+    // "status" aqui e' um dos 8 valores de portalStatus (ver
+    // InstallationSyncService.ALL_STATUSES), nao mais o InstallationStatus
+    // local antigo (PENDING/SCHEDULED/SENT/CANCELLED/APPROVED_FOR_PAYMENT) —
+    // a tela de relatorios passou a filtrar pelos status do portal.
+    public List<InstallationResponse> report(String search, String portalStatus, LocalDate startDate, LocalDate endDate) {
 
-        InstallationStatus statusEnum = null;
-        if (status != null && !status.isBlank()) {
-            statusEnum = InstallationStatus.valueOf(status.toUpperCase());
-        }
-
-        Specification<Installation> spec = buildReportSpec(search, statusEnum, startDate, endDate);
+        Specification<Installation> spec = buildReportSpec(search, portalStatus, startDate, endDate);
 
         return repository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"))
                 .stream()
@@ -366,7 +403,7 @@ public class InstallationService {
     }
 
     private Specification<Installation> buildReportSpec(
-            String search, InstallationStatus status, LocalDate startDate, LocalDate endDate
+            String search, String portalStatus, LocalDate startDate, LocalDate endDate
     ) {
         return (root, query, cb) -> {
 
@@ -381,8 +418,8 @@ public class InstallationService {
                 ));
             }
 
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
+            if (portalStatus != null && !portalStatus.isBlank()) {
+                predicates.add(cb.equal(root.get("portalStatus"), portalStatus));
             }
 
             if (startDate != null) {

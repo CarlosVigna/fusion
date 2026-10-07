@@ -53,6 +53,16 @@ public record InstallationResponse(
 
         LocalDate alertDismissedAt,
 
+        String financialApprovalStatus,
+
+        Double declaredDisplacementValue,
+
+        Double calculatedKm,
+
+        Double calculatedDisplacementValue,
+
+        LocalDateTime financialApprovedAt,
+
         LocalDateTime closedAt
 
 ) {
@@ -95,6 +105,11 @@ public record InstallationResponse(
                 slaStatus,
                 i.getLastObservation(),
                 i.getAlertDismissedAt(),
+                i.getFinancialApprovalStatus(),
+                i.getDeclaredDisplacementValue(),
+                i.getCalculatedKm(),
+                i.getCalculatedDisplacementValue(),
+                i.getFinancialApprovedAt(),
                 i.getClosedAt()
         );
 

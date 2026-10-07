@@ -76,6 +76,16 @@ public class Installation {
 
     private LocalDate agendamentoAlertedAt;
 
+    private String financialApprovalStatus;
+
+    private Double declaredDisplacementValue;
+
+    private Double calculatedKm;
+
+    private Double calculatedDisplacementValue;
+
+    private LocalDateTime financialApprovedAt;
+
     private LocalDateTime closedAt;
 
     private LocalDateTime createdAt;
