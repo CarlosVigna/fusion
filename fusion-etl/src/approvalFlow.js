@@ -162,6 +162,10 @@ async function handleIncomingMessage(msg, sendToGroup) {
 
     if (msg.key.fromMe) return;
 
+    const textDebug = extractText(msg).trim();
+    const senderDebug = senderNumber(msg);
+    log(`[APPROVAL-FLOW DEBUG] msg recebida — sender: ${senderDebug}, text: "${textDebug}"`);
+
     const text = extractText(msg).trim();
 
     if (!text.startsWith('!')) return;
