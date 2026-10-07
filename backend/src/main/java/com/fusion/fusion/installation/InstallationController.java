@@ -67,6 +67,15 @@ public class InstallationController {
         return service.getDiagnosticStatusCount();
     }
 
+    // Diagnostico TEMPORARIO — sem autenticacao de proposito (permitAll em
+    // SecurityConfig), pra testar calculateDisplacement() direto no
+    // navegador/PowerShell sem precisar de JWT nem X-ETL-Key. Remover
+    // depois de confirmar o calculo.
+    @GetMapping("/diagnostic/test-displacement")
+    public Map<String, Object> testDisplacement() {
+        return service.testDisplacement();
+    }
+
     // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) em
     // !aprovar-inst, pra calcular deslocamento sob demanda — Installation
     // nao tem lat/lon do cliente pre-calculados (ver InstallationService.
