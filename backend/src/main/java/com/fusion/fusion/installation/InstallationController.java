@@ -53,74 +53,6 @@ public class InstallationController {
         return service.getDashboard();
     }
 
-    @GetMapping("/portal-status")
-    public Map<String, Object> portalStatus() {
-        return service.getPortalStatusGroups();
-    }
-
-    // Diagnostico temporario (Fase 2b) — contagem real por portalStatus
-    // no banco, pra comparar com o portal e confirmar a varredura de
-    // orfaos. Sem X-ETL-Key: pensado pra ser aberto no navegador por
-    // usuario logado (cai em anyRequest().authenticated() default).
-    @GetMapping("/diagnostic/status-count")
-    public Map<String, Long> diagnosticStatusCount() {
-        return service.getDiagnosticStatusCount();
-    }
-
-    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) em
-    // !aprovar-inst, pra calcular deslocamento sob demanda — Installation
-    // nao tem lat/lon do cliente pre-calculados (ver InstallationService.
-    // calculateDisplacement). Autenticado por X-ETL-Key, mesmo padrao dos
-    // outros endpoints do ETL.
-    @GetMapping("/{id}/calculate-displacement")
-    public ResponseEntity<?> calculateDisplacement(
-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
-            @PathVariable Long id,
-            @RequestParam UUID technicianId
-    ) {
-        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
-            log.warn("GET /installations/{}/calculate-displacement rejeitado: X-ETL-Key inválida ou ausente", id);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Chave de API inválida"));
-        }
-        return ResponseEntity.ok(service.calculateDisplacement(id, technicianId));
-    }
-
-    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no
-    // comando !aprovar-inst — autenticado por X-ETL-Key, mesmo padrao de
-    // GET /service-orders/by-plate. Ver permitAll em SecurityConfig.
-    @GetMapping("/by-plate")
-    public ResponseEntity<?> findByPlate(
-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
-            @RequestParam String plate
-    ) {
-        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
-            log.warn("GET /installations/by-plate rejeitado: X-ETL-Key inválida ou ausente");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Chave de API inválida"));
-        }
-        return ResponseEntity.ok(service.findByPlate(plate));
-    }
-
-    // Idem findByPlate — chamado em !aprovado-inst/!rejeitar-inst. Nao ha
-    // endpoint JWT equivalente hoje (Installation ainda nao tem tela de
-    // aprovacao financeira pro usuario logado), entao esse caminho fica
-    // so' ETL por enquanto — se um dia existir uma tela assim, seguir o
-    // padrao de ServiceOrderController (endpoint separado "-whatsapp").
-    @PutMapping("/{id}/financial-approval")
-    public ResponseEntity<?> updateFinancialApproval(
-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
-            @PathVariable Long id,
-            @RequestBody InstallationFinancialApprovalRequest request
-    ) {
-        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
-            log.warn("PUT /installations/{}/financial-approval rejeitado: X-ETL-Key inválida ou ausente", id);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", "Chave de API inválida"));
-        }
-        return ResponseEntity.ok(service.updateFinancialApproval(id, request));
-    }
-
     @PostMapping("/{id}/observations")
     public InstallationObservationResponse addObservation(
             @PathVariable Long id,
@@ -170,6 +102,58 @@ public class InstallationController {
     public void delete(@PathVariable Long id) {
         service.delete(id);
     }
+
+    // ─── Fase 2: endpoints para ETL (X-ETL-Key) ─────────────────────────────
+
+    @GetMapping("/by-plate")
+    public ResponseEntity<Installation> getByPlate(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @RequestParam String plate) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return service.findByPlate(plate)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/financial-approval")
+    public ResponseEntity<?> financialApproval(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @PathVariable Long id,
+            @RequestBody InstallationFinancialApprovalRequest req) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        try {
+            return ResponseEntity.ok(service.updateFinancialApproval(id, req));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/calculate-displacement")
+    public ResponseEntity<Map<String, Object>> calculateDisplacement(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @PathVariable Long id,
+            @RequestParam UUID technicianId) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        try {
+            return ResponseEntity.ok(service.calculateDisplacement(id, technicianId));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/diagnostic/status-count")
+    public ResponseEntity<Map<String, Long>> diagnosticStatusCount() {
+        Map<String, Long> counts = service.countByPortalStatus();
+        return ResponseEntity.ok(counts);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     @PostMapping("/sync-portal")
     public InstallationSyncResult syncPortal() {

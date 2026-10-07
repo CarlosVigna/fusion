@@ -17,13 +17,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeParseException;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -37,34 +32,6 @@ public class InstallationSyncService {
     private final EtlTriggerService etlTriggerService;
     private final RestTemplate restTemplate;
     private final ServiceOrderService serviceOrderService;
-
-    public static final List<String> ALL_STATUSES = List.of(
-            "AGUARDANDO_AGENDAMENTO",
-            "AGENDADO_AGUARDANDO_ATIVACAO",
-            "AGUARDANDO_INSTALACAO",
-            "INSTALACAO_ENVIADA",
-            "INSTALACAO_EM_ANALISE",
-            "INSTALACAO_CONCLUIDA_SUCESSO",
-            "INSTALACAO_CONCLUIDA_FALHA",
-            "PENDENTE_INSTALACAO"
-    );
-
-    private static final String STATUS_AGUARDANDO = "AGUARDANDO_AGENDAMENTO";
-    private static final String STATUS_AGENDADO_ATIVACAO = "AGENDADO_AGUARDANDO_ATIVACAO";
-    private static final String STATUS_CONCLUIDA_SUCESSO = "INSTALACAO_CONCLUIDA_SUCESSO";
-    private static final String STATUS_CONCLUIDA_FALHA = "INSTALACAO_CONCLUIDA_FALHA";
-
-    // Nao e' um dos 8 status reais do portal — e' um marcador nosso pra
-    // registro cujo externalId parou de aparecer em qualquer busca (ver
-    // varreduraDeOrfaos()). Publico porque InstallationService precisa
-    // dele pra incluir essa "aba" no agrupamento de getPortalStatusGroups().
-    public static final String STATUS_REMOVIDO_DO_PORTAL = "REMOVIDO_DO_PORTAL";
-
-    private static final LocalDate DATA_ATUALIZACAO_MINIMA = LocalDate.of(2026, 9, 1);
-    private static final ZoneId TZ_BRASIL = ZoneId.of("America/Sao_Paulo");
-    private static final long DIAS_ALERTA_AGENDAMENTO_PARADO = 3;
-
-    private record PortalItem(Map<String, Object> data, String portalStatus) {}
 
     @Value("${portal.parceiro.url:https://onmeseguros.com.br}")
     private String portalUrl;
@@ -145,13 +112,7 @@ public class InstallationSyncService {
 
             String token = getPortalToken();
 
-            List<PortalItem> coletados = new ArrayList<>();
-            for (String status : ALL_STATUSES) {
-                for (Map<String, Object> data : fetchAllPages(token, status)) {
-                    coletados.add(new PortalItem(data, status));
-                }
-            }
-            List<PortalItem> allItems = deduplicarPorExternalId(coletados);
+            List<Map<String, Object>> allItems = fetchAllPages(token);
 
             int found = allItems.size();
             int inserted = 0;
@@ -159,17 +120,14 @@ public class InstallationSyncService {
             int closed = 0;
             int reopened = 0;
 
-            // externalIds presentes no portal neste ciclo, em qualquer dos status buscados
-            // (inclui os descartados pelo filtro de data, para nao fechar por engano)
+            // externalIds presentes no portal neste ciclo (todos AGUARDANDO_AGENDAMENTO)
             Set<String> externalIdsNoPortal = allItems.stream()
-                    .map(o -> extractString(o.data(), "externalId"))
+                    .map(o -> extractString(o, "externalId"))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
 
-            for (PortalItem portalItem : allItems) {
+            for (Map<String, Object> item : allItems) {
 
-                Map<String, Object> item = portalItem.data();
-                String portalStatus = portalItem.portalStatus();
                 String externalId = extractString(item, "externalId");
 
                 if (externalId == null) {
@@ -178,50 +136,21 @@ public class InstallationSyncService {
                     continue;
                 }
 
-                LocalDateTime dataAtualizacao = extractDateTime(item, "dataAtualizacao");
-                LocalDateTime referencia = dataAtualizacao != null
-                        ? dataAtualizacao
-                        : extractDateTime(item, "dataCriacao", "data_criacao");
-                if (referencia != null && referencia.toLocalDate().isBefore(DATA_ATUALIZACAO_MINIMA)) {
-                    skipped++;
-                    continue;
-                }
-
                 Optional<Installation> existingOpt = installationRepository.findByExternalId(externalId);
                 if (existingOpt.isPresent()) {
                     Installation inst = existingOpt.get();
-                    String statusAnterior = inst.getPortalStatus();
-
-                    aplicarCamposPortal(inst, item, portalStatus, dataAtualizacao);
-
-                    boolean transicionou = false;
-                    if (STATUS_AGUARDANDO.equals(portalStatus)) {
-                        if (inst.getStatus() != InstallationStatus.PENDING) {
-                            inst.setStatus(InstallationStatus.PENDING);
-                            inst.setClosedAt(null);
-                            log.info("[INSTALACOES] {} reaberta no portal (era {})",
-                                    inst.getPlate(), inst.getStatus());
-                            reopened++;
-                            transicionou = true;
-                        }
-                    } else if (inst.getStatus() == InstallationStatus.PENDING) {
-                        inst.setStatus(InstallationStatus.SCHEDULED);
-                        if (inst.getClosedAt() == null) {
-                            inst.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
-                        }
-                        closed++;
-                        transicionou = true;
+                    if (inst.getStatus() != InstallationStatus.PENDING) {
+                        // Voltou para AGUARDANDO_AGENDAMENTO no portal — reabrir
+                        inst.setStatus(InstallationStatus.PENDING);
+                        inst.setPortalStatus("AGUARDANDO_AGENDAMENTO");
+                        inst.setClosedAt(null);
+                        installationRepository.save(inst);
+                        log.info("[INSTALACOES] {} reaberta no portal (era {})",
+                                inst.getPlate(), inst.getStatus());
+                        reopened++;
+                    } else {
+                        skipped++;
                     }
-
-                    installationRepository.save(inst);
-
-                    if (!transicionou) skipped++;
-
-                    if (STATUS_CONCLUIDA_SUCESSO.equals(portalStatus)
-                            && !portalStatus.equals(statusAnterior)) {
-                        notificarConclusao(inst);
-                    }
-
                     continue;
                 }
 
@@ -245,14 +174,8 @@ public class InstallationSyncService {
                         .numeroProposta(extractNestedLong(item, "proposta", "numeroProposta"))
                         .portalCreatedAt(extractDateTime(item, "dataCriacao", "data_criacao"))
                         .serviceType(extractString(item, "tipoServico", "tipo_servico"))
+                        .portalStatus(extractString(item, "statusAtual", "status"))
                         .build();
-
-                aplicarCamposPortal(installation, item, portalStatus, dataAtualizacao);
-
-                if (!STATUS_AGUARDANDO.equals(portalStatus)) {
-                    installation.setStatus(InstallationStatus.SCHEDULED);
-                    installation.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
-                }
 
                 log.info("[INSTALACOES] Tentando inserir: externalId={}, plate={}, customerName={}",
                         installation.getExternalId(), installation.getPlate(), installation.getCustomerName());
@@ -260,32 +183,28 @@ public class InstallationSyncService {
                 installationRepository.save(installation);
                 inserted++;
 
-                // Notificacao de instalacao nova e OS so' para quem esta de fato
-                // aguardando agendamento — os outros status entram so' pra espelho.
-                if (STATUS_AGUARDANDO.equals(portalStatus)) {
-                    serviceOrderService.createFromInstallation(
-                            installation.getExternalId(),
-                            installation.getPlate(),
-                            installation.getCustomerName(),
-                            installation.getPhone(),
-                            installation.getCity(),
-                            installation.getAddress(),
-                            installation.getNeighborhood(),
-                            installation.getState(),
-                            installation.getZipCode(),
-                            installation.getPortalCreatedAt(),
-                            null
-                    );
+                serviceOrderService.createFromInstallation(
+                        installation.getExternalId(),
+                        installation.getPlate(),
+                        installation.getCustomerName(),
+                        installation.getPhone(),
+                        installation.getCity(),
+                        installation.getAddress(),
+                        installation.getNeighborhood(),
+                        installation.getState(),
+                        installation.getZipCode(),
+                        installation.getPortalCreatedAt(),
+                        null
+                );
 
-                    sendNtfyNotification(installation);
+                sendNtfyNotification(installation);
 
-                    queueWhatsAppMessage(installation);
-                }
+                queueWhatsAppMessage(installation);
 
             }
 
             // Instalações que estavam PENDING no banco mas não apareceram mais
-            // em nenhum dos status buscados = saíram de AGUARDANDO_AGENDAMENTO
+            // na lista do portal = saíram de AGUARDANDO_AGENDAMENTO
             List<Installation> pendingNoBank =
                     installationRepository.findByStatusOrderByCreatedAtDesc(InstallationStatus.PENDING);
 
@@ -331,18 +250,6 @@ public class InstallationSyncService {
             }
             if (backfilled > 0) log.info("[INSTALACOES] Backfill: {} OS criadas para instalações PENDING sem OS", backfilled);
 
-            try {
-                varreduraDeOrfaos(externalIdsNoPortal);
-            } catch (Exception e) {
-                log.warn("[INSTALACOES] Falha na varredura de órfãos: {}", e.getMessage());
-            }
-
-            try {
-                alertarAgendamentosParados();
-            } catch (Exception e) {
-                log.warn("[INSTALACOES] Falha no alerta de agendamento parado: {}", e.getMessage());
-            }
-
             long durationMs = System.currentTimeMillis() - startMs;
             LocalDateTime nextRun = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(15);
 
@@ -377,7 +284,7 @@ public class InstallationSyncService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> fetchAllPages(String token, String status) {
+    private List<Map<String, Object>> fetchAllPages(String token) {
 
         List<Map<String, Object>> all = new ArrayList<>();
         int page = 0;
@@ -388,7 +295,7 @@ public class InstallationSyncService {
                     + "/ordens-instalacao"
                     + "?page=" + page
                     + "&size=50"
-                    + "&status=" + status;
+                    + "&status=AGUARDANDO_AGENDAMENTO";
 
             log.info("[INSTALACOES] GET {}", url);
 
@@ -491,93 +398,6 @@ public class InstallationSyncService {
 
     }
 
-    private void aplicarCamposPortal(Installation inst, Map<String, Object> item,
-                                     String portalStatus, LocalDateTime dataAtualizacao) {
-        inst.setPortalStatus(portalStatus);
-        inst.setDataAtualizacao(dataAtualizacao);
-        inst.setPrazoConclusao(extractString(item, "prazoConclusao"));
-        String parceiro = extractNestedString(item, "parceiro", "nome");
-        if (parceiro == null) parceiro = extractString(item, "parceiro");
-        inst.setParceiro(parceiro);
-        inst.setSlaCor(extractString(item, "slaCor"));
-        inst.setSlaLabel(extractString(item, "slaLabel"));
-        String tecnico = extractNestedString(item, "dadosAgendamento", "tecnico");
-        if (tecnico != null) inst.setPortalTecnico(tecnico);
-    }
-
-    private void notificarConclusao(Installation inst) {
-        String message = "✅ *INSTALAÇÃO CONCLUÍDA*\n" +
-                "*Segurado:* " + Objects.toString(inst.getCustomerName(), "—") + "\n" +
-                "*Placa:* " + Objects.toString(inst.getPlate(), "—") + "\n" +
-                "*Proposta:* " + Objects.toString(inst.getNumeroProposta(), "—");
-        enviarWhatsApp(message);
-    }
-
-    // Passo 2c (diagnostico 13 vs 6 em AGUARDANDO_AGENDAMENTO) — varredura
-    // mais abrangente que o fechamento de PENDING acima (linhas ~280-298):
-    // aquele so' olha quem esta' com status LOCAL PENDING; esse aqui
-    // escaneia a tabela inteira e fecha qualquer registro, em qualquer
-    // portalStatus (exceto os ja terminais/ja marcados), cujo externalId
-    // nao apareceu em NENHUMA das 8 buscas deste ciclo — inclusive os que
-    // ja tinham ficado presos com um portalStatus antigo antes da Fase 1,
-    // ou que escaparam do fechamento antigo por qualquer inconsistencia
-    // entre o status local e o portalStatus.
-    //
-    // Usa o mesmo externalIdsNoPortal construido antes do loop principal
-    // (inclui os descartados pelo filtro de data de 2026-09-01) em vez de
-    // um Set novo preenchido so' com os "processados" dentro do loop —
-    // um registro antigo (dataAtualizacao < corte) que ainda esta' de
-    // verdade no portal nao pode ser marcado como removido so' por ser
-    // antigo; sao preocupacoes diferentes.
-    private void varreduraDeOrfaos(Set<String> seenExternalIds) {
-
-        List<Installation> orfaos = installationRepository.findByPortalStatusNotInAndExternalIdNotIn(
-                List.of(STATUS_REMOVIDO_DO_PORTAL, STATUS_CONCLUIDA_SUCESSO, STATUS_CONCLUIDA_FALHA),
-                seenExternalIds
-        );
-
-        for (Installation inst : orfaos) {
-            String statusAnterior = inst.getPortalStatus();
-            inst.setPortalStatus(STATUS_REMOVIDO_DO_PORTAL);
-            installationRepository.save(inst);
-            log.info("[INSTALACOES] {} removida do portal (portalStatus anterior: {})",
-                    inst.getPlate(), statusAnterior);
-        }
-
-        if (!orfaos.isEmpty()) {
-            log.info("[INSTALACOES] Varredura de órfãos: {} registro(s) marcado(s) como {}",
-                    orfaos.size(), STATUS_REMOVIDO_DO_PORTAL);
-        }
-
-    }
-
-    private void alertarAgendamentosParados() {
-        LocalDate hoje = LocalDate.now(TZ_BRASIL);
-        for (Installation inst : installationRepository.findByPortalStatus(STATUS_AGENDADO_ATIVACAO)) {
-            if (inst.getDataAtualizacao() == null) continue;
-            long dias = ChronoUnit.DAYS.between(inst.getDataAtualizacao().toLocalDate(), hoje);
-            if (dias <= DIAS_ALERTA_AGENDAMENTO_PARADO) continue;
-            if (hoje.equals(inst.getAgendamentoAlertedAt())) continue;
-
-            String message = "⚠️ *AGENDAMENTO PARADO*\n" +
-                    "*Segurado:* " + Objects.toString(inst.getCustomerName(), "—") + "\n" +
-                    "*Placa:* " + Objects.toString(inst.getPlate(), "—") + "\n" +
-                    "*Agendado há:* " + dias + " dias sem atualização";
-            enviarWhatsApp(message);
-
-            inst.setAgendamentoAlertedAt(hoje);
-            installationRepository.save(inst);
-        }
-    }
-
-    private void enviarWhatsApp(String message) {
-        try {
-            etlTriggerService.requestWhatsApp(message);
-        } catch (Exception e) {
-            log.warn("[WHATSAPP] Falha ao enfileirar mensagem: {}", e.getMessage());
-        }
-    }
-
     private String extractString(Map<String, Object> map, String... keys) {
         for (String key : keys) {
             Object val = map.get(key);
@@ -632,47 +452,12 @@ public class InstallationSyncService {
         for (String key : keys) {
             Object val = map.get(key);
             if (val instanceof String s && !s.isBlank()) {
-                LocalDateTime parsed = parseDataPortal(s);
-                if (parsed != null) return parsed;
+                try {
+                    return LocalDateTime.parse(s.replace(" ", "T"));
+                } catch (Exception ignored) {}
             }
         }
         return null;
-    }
-
-    // Aceita ISO sem offset (tratado como ja' em UTC), com 'Z' ou com offset
-    // (convertido pra UTC, que e' o padrao das colunas do banco).
-    private LocalDateTime parseDataPortal(String valor) {
-        String iso = valor.trim().replace(" ", "T");
-        try {
-            return OffsetDateTime.parse(iso)
-                    .withOffsetSameInstant(ZoneOffset.UTC)
-                    .toLocalDateTime();
-        } catch (DateTimeParseException ignored) {}
-        try {
-            return LocalDateTime.parse(iso);
-        } catch (DateTimeParseException ignored) {}
-        return null;
-    }
-
-    // Se o mesmo externalId veio em mais de uma busca no ciclo, fica com o status
-    // mais avancado (posicao mais alta em ALL_STATUSES) — nao depende da ordem de
-    // processamento.
-    private List<PortalItem> deduplicarPorExternalId(List<PortalItem> itens) {
-        Map<String, PortalItem> porId = new LinkedHashMap<>();
-        List<PortalItem> semId = new ArrayList<>();
-        for (PortalItem p : itens) {
-            String id = extractString(p.data(), "externalId");
-            if (id == null) {
-                semId.add(p);
-                continue;
-            }
-            porId.merge(id, p, (atual, novo) ->
-                    ALL_STATUSES.indexOf(novo.portalStatus()) > ALL_STATUSES.indexOf(atual.portalStatus())
-                            ? novo : atual);
-        }
-        List<PortalItem> resultado = new ArrayList<>(porId.values());
-        resultado.addAll(semId);
-        return resultado;
     }
 
     // Enviar notificação via Ntfy

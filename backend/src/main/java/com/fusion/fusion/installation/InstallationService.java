@@ -23,13 +23,11 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -44,9 +42,9 @@ public class InstallationService {
 
     private final ServiceOrderService serviceOrderService;
 
-    private final TechnicianRepository technicianRepository;
-
     private final OrsService orsService;
+
+    private final TechnicianRepository technicianRepository;
 
     // Criacao manual via POST /installations (usuario logado, JWT) —
     // diferente do sync() em lote abaixo, que e' exclusivo do ETL local
@@ -98,138 +96,6 @@ public class InstallationService {
                 installation.getPlate(), installation.getCustomerName());
 
         return InstallationResponse.from(installation);
-
-    }
-
-    // Usado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no comando
-    // !aprovar-inst — autenticado por X-ETL-Key no controller, nao por
-    // JWT (ver InstallationController).
-    public InstallationResponse findByPlate(String plate) {
-        Installation installation = repository.findByPlateIgnoreCase(plate)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Instalação não encontrada para a placa: " + plate
-                ));
-        return InstallationResponse.from(installation);
-    }
-
-    // Idem findByPlate — chamado pelo bot em !aprovado-inst/!rejeitar-inst,
-    // com os valores vindos de GET /{id}/calculate-displacement (ver
-    // abaixo), ja chamado antes pelo approvalFlow.js em !aprovar-inst.
-    @Transactional
-    public InstallationResponse updateFinancialApproval(Long id, InstallationFinancialApprovalRequest request) {
-
-        Installation installation = findOrThrow(id);
-
-        installation.setFinancialApprovalStatus(request.financialApprovalStatus());
-        installation.setDeclaredDisplacementValue(request.declaredValue());
-        if (request.calculatedKm() != null) {
-            installation.setCalculatedKm(request.calculatedKm());
-        }
-        if (request.calculatedDisplacement() != null) {
-            installation.setCalculatedDisplacementValue(request.calculatedDisplacement());
-        }
-        installation.setFinancialApprovedAt(LocalDateTime.now(ZoneOffset.UTC));
-
-        repository.save(installation);
-
-        return InstallationResponse.from(installation);
-
-    }
-
-    // Diagnostico temporario (GET /installations/diagnostic/status-count)
-    // — contagem real por portalStatus, pra comparar com o que o portal
-    // mostra e confirmar se a varredura de orfaos (InstallationSyncService.
-    // varreduraDeOrfaos) esta' limpando os registros que pararam de
-    // aparecer em qualquer dos 8 status buscados.
-    public Map<String, Long> getDiagnosticStatusCount() {
-        Map<String, Long> result = new LinkedHashMap<>();
-        for (Object[] row : repository.countGroupedByPortalStatus()) {
-            String status = (String) row[0];
-            Long count = (Long) row[1];
-            result.put(status == null ? "(sem portalStatus)" : status, count);
-        }
-        return result;
-    }
-
-    // Calculo de deslocamento sob demanda pro fluxo !aprovar-inst — volta
-    // pro backend porque a geocodificacao agora usa Nominatim (ver
-    // OrsService.geocode), que funciona chamado de la', diferente do
-    // geocode.maps.co. Installation NAO tem lat/lon do cliente guardados
-    // (so' endereco em texto — address/city/state), diferente de
-    // Technician (que ja' cacheia lat/lon). Por isso geocodifica o
-    // endereco do cliente a cada chamada, sem cache.
-    public Map<String, Object> calculateDisplacement(Long installationId, UUID technicianId) {
-
-        Installation installation = findOrThrow(installationId);
-
-        Technician technician = technicianRepository.findById(technicianId)
-                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + technicianId));
-
-        if (technician.getLatitude() == null || technician.getLongitude() == null) {
-            throw new BusinessException("Técnico " + technician.getName() + " não tem coordenadas cadastradas");
-        }
-
-        if (installation.getAddress() == null || installation.getCity() == null) {
-            throw new BusinessException("Instalação não tem endereço cadastrado para geocodificar");
-        }
-
-        double[] clientCoords = orsService.geocode(
-                installation.getAddress(), installation.getCity(), installation.getState()
-        );
-
-        if (clientCoords == null) {
-            throw new BusinessException("Não foi possível geocodificar o endereço do cliente");
-        }
-
-        Double km = orsService.calculateRoundTripKm(
-                technician.getLatitude(), technician.getLongitude(),
-                clientCoords[0], clientCoords[1]
-        );
-
-        if (km == null) {
-            throw new BusinessException("Não foi possível calcular a distância (OSRM falhou)");
-        }
-
-        BigDecimal displacement = orsService.calculateDisplacement(km);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("km", km);
-        result.put("displacement", displacement);
-        result.put("technicianName", technician.getName());
-        result.put("technicianAddress", technician.getAddress());
-
-        return result;
-
-    }
-
-    // Inclui a "aba" REMOVIDO_DO_PORTAL (marcador nosso, nao vem do
-    // portal — ver InstallationSyncService.varreduraDeOrfaos) junto com
-    // os 8 status oficiais, senao a tela nunca mostraria esses registros.
-    public Map<String, Object> getPortalStatusGroups() {
-
-        List<String> statusesExibidos = new ArrayList<>(InstallationSyncService.ALL_STATUSES);
-        statusesExibidos.add(InstallationSyncService.STATUS_REMOVIDO_DO_PORTAL);
-
-        Map<String, List<Installation>> porStatus = repository
-                .findByPortalStatusIn(statusesExibidos)
-                .stream()
-                .collect(Collectors.groupingBy(Installation::getPortalStatus));
-
-        Map<String, Object> result = new LinkedHashMap<>();
-
-        for (String status : statusesExibidos) {
-            List<InstallationPortalItemResponse> items = porStatus.getOrDefault(status, List.of())
-                    .stream()
-                    .sorted(Comparator.comparing(
-                            Installation::getDataAtualizacao,
-                            Comparator.nullsLast(Comparator.reverseOrder())
-                    ))
-                    .map(InstallationPortalItemResponse::from)
-                    .toList();
-            result.put(status, Map.of("total", items.size(), "items", items));
-        }
-
-        return result;
 
     }
 
@@ -464,13 +330,14 @@ public class InstallationService {
 
     }
 
-    // "status" aqui e' um dos 8 valores de portalStatus (ver
-    // InstallationSyncService.ALL_STATUSES), nao mais o InstallationStatus
-    // local antigo (PENDING/SCHEDULED/SENT/CANCELLED/APPROVED_FOR_PAYMENT) —
-    // a tela de relatorios passou a filtrar pelos status do portal.
-    public List<InstallationResponse> report(String search, String portalStatus, LocalDate startDate, LocalDate endDate) {
+    public List<InstallationResponse> report(String search, String status, LocalDate startDate, LocalDate endDate) {
 
-        Specification<Installation> spec = buildReportSpec(search, portalStatus, startDate, endDate);
+        InstallationStatus statusEnum = null;
+        if (status != null && !status.isBlank()) {
+            statusEnum = InstallationStatus.valueOf(status.toUpperCase());
+        }
+
+        Specification<Installation> spec = buildReportSpec(search, statusEnum, startDate, endDate);
 
         return repository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"))
                 .stream()
@@ -480,7 +347,7 @@ public class InstallationService {
     }
 
     private Specification<Installation> buildReportSpec(
-            String search, String portalStatus, LocalDate startDate, LocalDate endDate
+            String search, InstallationStatus status, LocalDate startDate, LocalDate endDate
     ) {
         return (root, query, cb) -> {
 
@@ -495,8 +362,8 @@ public class InstallationService {
                 ));
             }
 
-            if (portalStatus != null && !portalStatus.isBlank()) {
-                predicates.add(cb.equal(root.get("portalStatus"), portalStatus));
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
             }
 
             if (startDate != null) {
@@ -515,6 +382,88 @@ public class InstallationService {
 
         };
     }
+
+    public Map<String, Long> countByPortalStatus() {
+        Map<String, Long> result = new LinkedHashMap<>();
+        repository.findAll().forEach(i -> {
+            String status = i.getPortalStatus() != null ? i.getPortalStatus() : "null";
+            result.merge(status, 1L, Long::sum);
+        });
+        return result;
+    }
+
+    // ─── Fase 2: endpoints chamados pelo ETL ────────────────────────────────
+
+    public Optional<Installation> findByPlate(String plate) {
+        return repository.findByPlateIgnoreCase(plate);
+    }
+
+    @Transactional
+    public Installation updateFinancialApproval(Long id, InstallationFinancialApprovalRequest req) {
+        Installation inst = findOrThrow(id);
+        inst.setFinancialApprovalStatus(req.getFinancialApprovalStatus());
+        inst.setDeclaredDisplacementValue(req.getDeclaredValue());
+        inst.setCalculatedKm(req.getCalculatedKm());
+        inst.setCalculatedDisplacementValue(req.getCalculatedDisplacement());
+        inst.setFinancialApprovedAt(LocalDateTime.now(ZoneOffset.UTC));
+        return repository.save(inst);
+    }
+
+    public Map<String, Object> calculateDisplacement(Long installationId, UUID technicianId) {
+        Installation inst = findOrThrow(installationId);
+
+        Technician tech = technicianRepository.findById(technicianId)
+                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + technicianId));
+
+        if (tech.getLatitude() == null || tech.getLongitude() == null) {
+            throw new BusinessException("Técnico não tem coordenadas cadastradas");
+        }
+
+        String address = inst.getAddress() != null ? inst.getAddress() : "";
+        String city    = inst.getCity()    != null ? inst.getCity()    : "";
+        String state   = inst.getState()   != null ? inst.getState()   : "";
+
+        double[] clientCoords = orsService.geocode(address, city, state);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        if (clientCoords == null) {
+            log.warn("[DISPLACEMENT] Não foi possível geocodificar: plate={} address={} city={} state={}",
+                    inst.getPlate(), address, city, state);
+            result.put("km", null);
+            result.put("displacement", null);
+            result.put("technicianName", tech.getName());
+            result.put("warning", "Não foi possível geocodificar o endereço do cliente");
+            return result;
+        }
+
+        Double km = orsService.calculateRoundTripKm(
+                tech.getLatitude(), tech.getLongitude(),
+                clientCoords[0], clientCoords[1]
+        );
+
+        if (km == null) {
+            log.warn("[DISPLACEMENT] OSRM não retornou rota: plate={}", inst.getPlate());
+            result.put("km", null);
+            result.put("displacement", null);
+            result.put("technicianName", tech.getName());
+            result.put("warning", "Não foi possível calcular a rota (OSRM indisponível)");
+            return result;
+        }
+
+        BigDecimal displacement = orsService.calculateDisplacement(km);
+
+        result.put("km", km);
+        result.put("displacement", displacement);
+        result.put("technicianName", tech.getName());
+        result.put("technicianCity", tech.getCity());
+
+        log.info("[DISPLACEMENT] plate={} km={} displacement={}", inst.getPlate(), km, displacement);
+
+        return result;
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
 
     private Installation findOrThrow(Long id) {
 

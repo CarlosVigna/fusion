@@ -1,0 +1,2632 @@
+diff --git a/backend/src/main/java/com/fusion/fusion/config/SecurityConfig.java b/backend/src/main/java/com/fusion/fusion/config/SecurityConfig.java
+index aeb1af7..d07efb1 100644
+--- a/backend/src/main/java/com/fusion/fusion/config/SecurityConfig.java
++++ b/backend/src/main/java/com/fusion/fusion/config/SecurityConfig.java
+@@ -98,31 +98,6 @@ public class SecurityConfig {
+                                 "/sinistro/upload"
+                         ).permitAll()
+ 
+-                        // Regra explicita antes da geral /technicians/** abaixo —
+-                        // bot do WhatsApp (approvalFlow.js) chama esses dois sem
+-                        // JWT, autenticados por X-ETL-Key dentro do proprio
+-                        // metodo (igual /installations/sync e /service-orders/
+-                        // by-plate). Usado pelo comando !aprovar-inst.
+-                        .requestMatchers(
+-                                HttpMethod.GET,
+-                                "/installations/by-plate"
+-                        ).permitAll()
+-
+-                        .requestMatchers(
+-                                HttpMethod.PUT,
+-                                "/installations/*/financial-approval"
+-                        ).permitAll()
+-
+-                        .requestMatchers(
+-                                HttpMethod.GET,
+-                                "/installations/*/calculate-displacement"
+-                        ).permitAll()
+-
+-                        .requestMatchers(
+-                                HttpMethod.GET,
+-                                "/technicians/by-cpf"
+-                        ).permitAll()
+-
+                         // /etl/heartbeat com metodo explicito — igual ao
+                         // padrao ja usado em /etl/status (linha abaixo),
+                         // que sempre funcionou. Sem o HttpMethod aqui, o
+@@ -152,6 +127,32 @@ public class SecurityConfig {
+                                 "/service-orders/*/financial-approval-whatsapp"
+                         ).permitAll()
+ 
++                        // Fase 2 — ETL chama esses endpoints com X-ETL-Key (sem JWT)
++                        .requestMatchers(
++                                HttpMethod.GET,
++                                "/installations/by-plate"
++                        ).permitAll()
++
++                        .requestMatchers(
++                                HttpMethod.PUT,
++                                "/installations/*/financial-approval"
++                        ).permitAll()
++
++                        .requestMatchers(
++                                HttpMethod.GET,
++                                "/installations/*/calculate-displacement"
++                        ).permitAll()
++
++                        .requestMatchers(
++                                HttpMethod.GET,
++                                "/installations/diagnostic/**"
++                        ).permitAll()
++
++                        .requestMatchers(
++                                HttpMethod.GET,
++                                "/technicians/by-cpf"
++                        ).permitAll()
++
+                         .requestMatchers(
+                                 "/service-orders/**"
+                         ).hasAnyRole("ADMIN", "OPERATOR", "FIELD", "TECHNICIAN")
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/Installation.java b/backend/src/main/java/com/fusion/fusion/installation/Installation.java
+index c3dc992..26c08f8 100644
+--- a/backend/src/main/java/com/fusion/fusion/installation/Installation.java
++++ b/backend/src/main/java/com/fusion/fusion/installation/Installation.java
+@@ -49,18 +49,6 @@ public class Installation {
+ 
+     private String portalStatus;
+ 
+-    private String portalTecnico;
+-
+-    private String prazoConclusao;
+-
+-    private String parceiro;
+-
+-    private String slaCor;
+-
+-    private String slaLabel;
+-
+-    private LocalDateTime dataAtualizacao;
+-
+     @Enumerated(EnumType.STRING)
+     @Builder.Default
+     @Column(nullable = false)
+@@ -74,9 +62,14 @@ public class Installation {
+ 
+     private LocalDate alertDismissedAt;
+ 
+-    private LocalDate agendamentoAlertedAt;
++    private LocalDateTime closedAt;
+ 
+-    private String financialApprovalStatus;
++    private LocalDateTime createdAt;
++
++    private LocalDateTime updatedAt;
++
++    // Aprovação financeira de deslocamento (Fase 2)
++    private String financialApprovalStatus; // null | "APROVADO" | "REPROVADO"
+ 
+     private Double declaredDisplacementValue;
+ 
+@@ -86,12 +79,6 @@ public class Installation {
+ 
+     private LocalDateTime financialApprovedAt;
+ 
+-    private LocalDateTime closedAt;
+-
+-    private LocalDateTime createdAt;
+-
+-    private LocalDateTime updatedAt;
+-
+     @PrePersist
+     public void prePersist() {
+         createdAt = LocalDateTime.now(ZoneOffset.UTC);
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/InstallationController.java b/backend/src/main/java/com/fusion/fusion/installation/InstallationController.java
+index ebd942d..79cf991 100644
+--- a/backend/src/main/java/com/fusion/fusion/installation/InstallationController.java
++++ b/backend/src/main/java/com/fusion/fusion/installation/InstallationController.java
+@@ -53,74 +53,6 @@ public class InstallationController {
+         return service.getDashboard();
+     }
+ 
+-    @GetMapping("/portal-status")
+-    public Map<String, Object> portalStatus() {
+-        return service.getPortalStatusGroups();
+-    }
+-
+-    // Diagnostico temporario (Fase 2b) — contagem real por portalStatus
+-    // no banco, pra comparar com o portal e confirmar a varredura de
+-    // orfaos. Sem X-ETL-Key: pensado pra ser aberto no navegador por
+-    // usuario logado (cai em anyRequest().authenticated() default).
+-    @GetMapping("/diagnostic/status-count")
+-    public Map<String, Long> diagnosticStatusCount() {
+-        return service.getDiagnosticStatusCount();
+-    }
+-
+-    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) em
+-    // !aprovar-inst, pra calcular deslocamento sob demanda — Installation
+-    // nao tem lat/lon do cliente pre-calculados (ver InstallationService.
+-    // calculateDisplacement). Autenticado por X-ETL-Key, mesmo padrao dos
+-    // outros endpoints do ETL.
+-    @GetMapping("/{id}/calculate-displacement")
+-    public ResponseEntity<?> calculateDisplacement(
+-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+-            @PathVariable Long id,
+-            @RequestParam UUID technicianId
+-    ) {
+-        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+-            log.warn("GET /installations/{}/calculate-displacement rejeitado: X-ETL-Key inválida ou ausente", id);
+-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+-                    .body(Map.of("error", "Chave de API inválida"));
+-        }
+-        return ResponseEntity.ok(service.calculateDisplacement(id, technicianId));
+-    }
+-
+-    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no
+-    // comando !aprovar-inst — autenticado por X-ETL-Key, mesmo padrao de
+-    // GET /service-orders/by-plate. Ver permitAll em SecurityConfig.
+-    @GetMapping("/by-plate")
+-    public ResponseEntity<?> findByPlate(
+-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+-            @RequestParam String plate
+-    ) {
+-        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+-            log.warn("GET /installations/by-plate rejeitado: X-ETL-Key inválida ou ausente");
+-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+-                    .body(Map.of("error", "Chave de API inválida"));
+-        }
+-        return ResponseEntity.ok(service.findByPlate(plate));
+-    }
+-
+-    // Idem findByPlate — chamado em !aprovado-inst/!rejeitar-inst. Nao ha
+-    // endpoint JWT equivalente hoje (Installation ainda nao tem tela de
+-    // aprovacao financeira pro usuario logado), entao esse caminho fica
+-    // so' ETL por enquanto — se um dia existir uma tela assim, seguir o
+-    // padrao de ServiceOrderController (endpoint separado "-whatsapp").
+-    @PutMapping("/{id}/financial-approval")
+-    public ResponseEntity<?> updateFinancialApproval(
+-            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+-            @PathVariable Long id,
+-            @RequestBody InstallationFinancialApprovalRequest request
+-    ) {
+-        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+-            log.warn("PUT /installations/{}/financial-approval rejeitado: X-ETL-Key inválida ou ausente", id);
+-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+-                    .body(Map.of("error", "Chave de API inválida"));
+-        }
+-        return ResponseEntity.ok(service.updateFinancialApproval(id, request));
+-    }
+-
+     @PostMapping("/{id}/observations")
+     public InstallationObservationResponse addObservation(
+             @PathVariable Long id,
+@@ -171,6 +103,58 @@ public class InstallationController {
+         service.delete(id);
+     }
+ 
++    // ─── Fase 2: endpoints para ETL (X-ETL-Key) ─────────────────────────────
++
++    @GetMapping("/by-plate")
++    public ResponseEntity<Installation> getByPlate(
++            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
++            @RequestParam String plate) {
++        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
++            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
++        }
++        return service.findByPlate(plate)
++                .map(ResponseEntity::ok)
++                .orElse(ResponseEntity.notFound().build());
++    }
++
++    @PutMapping("/{id}/financial-approval")
++    public ResponseEntity<?> financialApproval(
++            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
++            @PathVariable Long id,
++            @RequestBody InstallationFinancialApprovalRequest req) {
++        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
++            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
++        }
++        try {
++            return ResponseEntity.ok(service.updateFinancialApproval(id, req));
++        } catch (Exception e) {
++            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
++        }
++    }
++
++    @GetMapping("/{id}/calculate-displacement")
++    public ResponseEntity<Map<String, Object>> calculateDisplacement(
++            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
++            @PathVariable Long id,
++            @RequestParam UUID technicianId) {
++        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
++            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
++        }
++        try {
++            return ResponseEntity.ok(service.calculateDisplacement(id, technicianId));
++        } catch (Exception e) {
++            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
++        }
++    }
++
++    @GetMapping("/diagnostic/status-count")
++    public ResponseEntity<Map<String, Long>> diagnosticStatusCount() {
++        Map<String, Long> counts = service.countByPortalStatus();
++        return ResponseEntity.ok(counts);
++    }
++
++    // ─────────────────────────────────────────────────────────────────────────
++
+     @PostMapping("/sync-portal")
+     public InstallationSyncResult syncPortal() {
+         return syncService.syncFromPortal();
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/InstallationFinancialApprovalRequest.java b/backend/src/main/java/com/fusion/fusion/installation/InstallationFinancialApprovalRequest.java
+index 2c39378..7703690 100644
+--- a/backend/src/main/java/com/fusion/fusion/installation/InstallationFinancialApprovalRequest.java
++++ b/backend/src/main/java/com/fusion/fusion/installation/InstallationFinancialApprovalRequest.java
+@@ -1,8 +1,28 @@
+ package com.fusion.fusion.installation;
+ 
+-public record InstallationFinancialApprovalRequest(
+-        String financialApprovalStatus,
+-        Double declaredValue,
+-        Double calculatedKm,
+-        Double calculatedDisplacement
+-) {}
++import java.util.UUID;
++
++public class InstallationFinancialApprovalRequest {
++
++    private String financialApprovalStatus; // "APROVADO" ou "REPROVADO"
++    private Double declaredValue;
++    private UUID technicianId;
++    private Double calculatedKm;
++    private Double calculatedDisplacement;
++
++    public String getFinancialApprovalStatus() { return financialApprovalStatus; }
++    public void setFinancialApprovalStatus(String financialApprovalStatus) { this.financialApprovalStatus = financialApprovalStatus; }
++
++    public Double getDeclaredValue() { return declaredValue; }
++    public void setDeclaredValue(Double declaredValue) { this.declaredValue = declaredValue; }
++
++    public UUID getTechnicianId() { return technicianId; }
++    public void setTechnicianId(UUID technicianId) { this.technicianId = technicianId; }
++
++    public Double getCalculatedKm() { return calculatedKm; }
++    public void setCalculatedKm(Double calculatedKm) { this.calculatedKm = calculatedKm; }
++
++    public Double getCalculatedDisplacement() { return calculatedDisplacement; }
++    public void setCalculatedDisplacement(Double calculatedDisplacement) { this.calculatedDisplacement = calculatedDisplacement; }
++
++}
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/InstallationPortalItemResponse.java b/backend/src/main/java/com/fusion/fusion/installation/InstallationPortalItemResponse.java
+deleted file mode 100644
+index e2168ca..0000000
+--- a/backend/src/main/java/com/fusion/fusion/installation/InstallationPortalItemResponse.java
++++ /dev/null
+@@ -1,53 +0,0 @@
+-package com.fusion.fusion.installation;
+-
+-import java.time.LocalDateTime;
+-
+-public record InstallationPortalItemResponse(
+-
+-        Long id,
+-
+-        String externalId,
+-
+-        String customerName,
+-
+-        String plate,
+-
+-        String model,
+-
+-        Long numeroProposta,
+-
+-        String prazoConclusao,
+-
+-        String portalTecnico,
+-
+-        LocalDateTime dataAtualizacao,
+-
+-        String slaCor,
+-
+-        String slaLabel,
+-
+-        String portalStatus,
+-
+-        String parceiro
+-
+-) {
+-
+-    public static InstallationPortalItemResponse from(Installation i) {
+-        return new InstallationPortalItemResponse(
+-                i.getId(),
+-                i.getExternalId(),
+-                i.getCustomerName(),
+-                i.getPlate(),
+-                i.getModel(),
+-                i.getNumeroProposta(),
+-                i.getPrazoConclusao(),
+-                i.getPortalTecnico(),
+-                i.getDataAtualizacao(),
+-                i.getSlaCor(),
+-                i.getSlaLabel(),
+-                i.getPortalStatus(),
+-                i.getParceiro()
+-        );
+-    }
+-
+-}
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/InstallationRepository.java b/backend/src/main/java/com/fusion/fusion/installation/InstallationRepository.java
+index bdbe655..3cccc1f 100644
+--- a/backend/src/main/java/com/fusion/fusion/installation/InstallationRepository.java
++++ b/backend/src/main/java/com/fusion/fusion/installation/InstallationRepository.java
+@@ -2,10 +2,8 @@ package com.fusion.fusion.installation;
+ 
+ import org.springframework.data.jpa.repository.JpaRepository;
+ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+-import org.springframework.data.jpa.repository.Query;
+ 
+ import java.time.LocalDateTime;
+-import java.util.Collection;
+ import java.util.List;
+ import java.util.Optional;
+ 
+@@ -28,24 +26,4 @@ public interface InstallationRepository
+ 
+     Optional<Installation> findByPlateIgnoreCase(String plate);
+ 
+-    List<Installation> findByPortalStatus(String portalStatus);
+-
+-    List<Installation> findByPortalStatusIn(Collection<String> portalStatuses);
+-
+-    // Diagnostico (GET /installations/diagnostic/status-count) — contagem
+-    // real por portalStatus no banco, incluindo valores fora dos 8 oficiais
+-    // (ex.: o antigo "SAIU_DE_AGUARDANDO_AGENDAMENTO" ou null), pra
+-    // comparar com o que o portal mostra.
+-    @Query("SELECT i.portalStatus, COUNT(i) FROM Installation i GROUP BY i.portalStatus")
+-    List<Object[]> countGroupedByPortalStatus();
+-
+-    // Varredura de orfaos (sync) — registros cujo externalId nao apareceu
+-    // em nenhuma das buscas do ciclo atual E que nao estao num status
+-    // terminal/ja-marcado. externalId nulo (instalacao criada manualmente,
+-    // sem vinculo com o portal) nunca cai aqui: "NOT IN" com coluna nula
+-    // nao bate (semantica padrao de NULL em SQL).
+-    List<Installation> findByPortalStatusNotInAndExternalIdNotIn(
+-            Collection<String> excludedStatuses, Collection<String> seenExternalIds
+-    );
+-
+ }
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/InstallationResponse.java b/backend/src/main/java/com/fusion/fusion/installation/InstallationResponse.java
+index 0fe0657..c7de394 100644
+--- a/backend/src/main/java/com/fusion/fusion/installation/InstallationResponse.java
++++ b/backend/src/main/java/com/fusion/fusion/installation/InstallationResponse.java
+@@ -53,16 +53,6 @@ public record InstallationResponse(
+ 
+         LocalDate alertDismissedAt,
+ 
+-        String financialApprovalStatus,
+-
+-        Double declaredDisplacementValue,
+-
+-        Double calculatedKm,
+-
+-        Double calculatedDisplacementValue,
+-
+-        LocalDateTime financialApprovedAt,
+-
+         LocalDateTime closedAt
+ 
+ ) {
+@@ -105,11 +95,6 @@ public record InstallationResponse(
+                 slaStatus,
+                 i.getLastObservation(),
+                 i.getAlertDismissedAt(),
+-                i.getFinancialApprovalStatus(),
+-                i.getDeclaredDisplacementValue(),
+-                i.getCalculatedKm(),
+-                i.getCalculatedDisplacementValue(),
+-                i.getFinancialApprovedAt(),
+                 i.getClosedAt()
+         );
+ 
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/InstallationService.java b/backend/src/main/java/com/fusion/fusion/installation/InstallationService.java
+index ca29bf0..3118dc7 100644
+--- a/backend/src/main/java/com/fusion/fusion/installation/InstallationService.java
++++ b/backend/src/main/java/com/fusion/fusion/installation/InstallationService.java
+@@ -23,13 +23,11 @@ import java.time.ZoneId;
+ import java.time.ZoneOffset;
+ import java.time.temporal.ChronoUnit;
+ import java.util.ArrayList;
+-import java.util.Comparator;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Optional;
+ import java.util.UUID;
+-import java.util.stream.Collectors;
+ 
+ @Slf4j
+ @Service
+@@ -44,10 +42,10 @@ public class InstallationService {
+ 
+     private final ServiceOrderService serviceOrderService;
+ 
+-    private final TechnicianRepository technicianRepository;
+-
+     private final OrsService orsService;
+ 
++    private final TechnicianRepository technicianRepository;
++
+     // Criacao manual via POST /installations (usuario logado, JWT) —
+     // diferente do sync() em lote abaixo, que e' exclusivo do ETL local
+     // via X-ETL-Key e espera externalId vindo do portal. externalId
+@@ -101,138 +99,6 @@ public class InstallationService {
+ 
+     }
+ 
+-    // Usado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no comando
+-    // !aprovar-inst — autenticado por X-ETL-Key no controller, nao por
+-    // JWT (ver InstallationController).
+-    public InstallationResponse findByPlate(String plate) {
+-        Installation installation = repository.findByPlateIgnoreCase(plate)
+-                .orElseThrow(() -> new ResourceNotFoundException(
+-                        "Instalação não encontrada para a placa: " + plate
+-                ));
+-        return InstallationResponse.from(installation);
+-    }
+-
+-    // Idem findByPlate — chamado pelo bot em !aprovado-inst/!rejeitar-inst,
+-    // com os valores vindos de GET /{id}/calculate-displacement (ver
+-    // abaixo), ja chamado antes pelo approvalFlow.js em !aprovar-inst.
+-    @Transactional
+-    public InstallationResponse updateFinancialApproval(Long id, InstallationFinancialApprovalRequest request) {
+-
+-        Installation installation = findOrThrow(id);
+-
+-        installation.setFinancialApprovalStatus(request.financialApprovalStatus());
+-        installation.setDeclaredDisplacementValue(request.declaredValue());
+-        if (request.calculatedKm() != null) {
+-            installation.setCalculatedKm(request.calculatedKm());
+-        }
+-        if (request.calculatedDisplacement() != null) {
+-            installation.setCalculatedDisplacementValue(request.calculatedDisplacement());
+-        }
+-        installation.setFinancialApprovedAt(LocalDateTime.now(ZoneOffset.UTC));
+-
+-        repository.save(installation);
+-
+-        return InstallationResponse.from(installation);
+-
+-    }
+-
+-    // Diagnostico temporario (GET /installations/diagnostic/status-count)
+-    // — contagem real por portalStatus, pra comparar com o que o portal
+-    // mostra e confirmar se a varredura de orfaos (InstallationSyncService.
+-    // varreduraDeOrfaos) esta' limpando os registros que pararam de
+-    // aparecer em qualquer dos 8 status buscados.
+-    public Map<String, Long> getDiagnosticStatusCount() {
+-        Map<String, Long> result = new LinkedHashMap<>();
+-        for (Object[] row : repository.countGroupedByPortalStatus()) {
+-            String status = (String) row[0];
+-            Long count = (Long) row[1];
+-            result.put(status == null ? "(sem portalStatus)" : status, count);
+-        }
+-        return result;
+-    }
+-
+-    // Calculo de deslocamento sob demanda pro fluxo !aprovar-inst — volta
+-    // pro backend porque a geocodificacao agora usa Nominatim (ver
+-    // OrsService.geocode), que funciona chamado de la', diferente do
+-    // geocode.maps.co. Installation NAO tem lat/lon do cliente guardados
+-    // (so' endereco em texto — address/city/state), diferente de
+-    // Technician (que ja' cacheia lat/lon). Por isso geocodifica o
+-    // endereco do cliente a cada chamada, sem cache.
+-    public Map<String, Object> calculateDisplacement(Long installationId, UUID technicianId) {
+-
+-        Installation installation = findOrThrow(installationId);
+-
+-        Technician technician = technicianRepository.findById(technicianId)
+-                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + technicianId));
+-
+-        if (technician.getLatitude() == null || technician.getLongitude() == null) {
+-            throw new BusinessException("Técnico " + technician.getName() + " não tem coordenadas cadastradas");
+-        }
+-
+-        if (installation.getAddress() == null || installation.getCity() == null) {
+-            throw new BusinessException("Instalação não tem endereço cadastrado para geocodificar");
+-        }
+-
+-        double[] clientCoords = orsService.geocode(
+-                installation.getAddress(), installation.getCity(), installation.getState()
+-        );
+-
+-        if (clientCoords == null) {
+-            throw new BusinessException("Não foi possível geocodificar o endereço do cliente");
+-        }
+-
+-        Double km = orsService.calculateRoundTripKm(
+-                technician.getLatitude(), technician.getLongitude(),
+-                clientCoords[0], clientCoords[1]
+-        );
+-
+-        if (km == null) {
+-            throw new BusinessException("Não foi possível calcular a distância (OSRM falhou)");
+-        }
+-
+-        BigDecimal displacement = orsService.calculateDisplacement(km);
+-
+-        Map<String, Object> result = new LinkedHashMap<>();
+-        result.put("km", km);
+-        result.put("displacement", displacement);
+-        result.put("technicianName", technician.getName());
+-        result.put("technicianAddress", technician.getAddress());
+-
+-        return result;
+-
+-    }
+-
+-    // Inclui a "aba" REMOVIDO_DO_PORTAL (marcador nosso, nao vem do
+-    // portal — ver InstallationSyncService.varreduraDeOrfaos) junto com
+-    // os 8 status oficiais, senao a tela nunca mostraria esses registros.
+-    public Map<String, Object> getPortalStatusGroups() {
+-
+-        List<String> statusesExibidos = new ArrayList<>(InstallationSyncService.ALL_STATUSES);
+-        statusesExibidos.add(InstallationSyncService.STATUS_REMOVIDO_DO_PORTAL);
+-
+-        Map<String, List<Installation>> porStatus = repository
+-                .findByPortalStatusIn(statusesExibidos)
+-                .stream()
+-                .collect(Collectors.groupingBy(Installation::getPortalStatus));
+-
+-        Map<String, Object> result = new LinkedHashMap<>();
+-
+-        for (String status : statusesExibidos) {
+-            List<InstallationPortalItemResponse> items = porStatus.getOrDefault(status, List.of())
+-                    .stream()
+-                    .sorted(Comparator.comparing(
+-                            Installation::getDataAtualizacao,
+-                            Comparator.nullsLast(Comparator.reverseOrder())
+-                    ))
+-                    .map(InstallationPortalItemResponse::from)
+-                    .toList();
+-            result.put(status, Map.of("total", items.size(), "items", items));
+-        }
+-
+-        return result;
+-
+-    }
+-
+     public List<InstallationResponse> findAll(String status) {
+ 
+         if (status == null || status.isBlank()) {
+@@ -464,13 +330,14 @@ public class InstallationService {
+ 
+     }
+ 
+-    // "status" aqui e' um dos 8 valores de portalStatus (ver
+-    // InstallationSyncService.ALL_STATUSES), nao mais o InstallationStatus
+-    // local antigo (PENDING/SCHEDULED/SENT/CANCELLED/APPROVED_FOR_PAYMENT) —
+-    // a tela de relatorios passou a filtrar pelos status do portal.
+-    public List<InstallationResponse> report(String search, String portalStatus, LocalDate startDate, LocalDate endDate) {
++    public List<InstallationResponse> report(String search, String status, LocalDate startDate, LocalDate endDate) {
+ 
+-        Specification<Installation> spec = buildReportSpec(search, portalStatus, startDate, endDate);
++        InstallationStatus statusEnum = null;
++        if (status != null && !status.isBlank()) {
++            statusEnum = InstallationStatus.valueOf(status.toUpperCase());
++        }
++
++        Specification<Installation> spec = buildReportSpec(search, statusEnum, startDate, endDate);
+ 
+         return repository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"))
+                 .stream()
+@@ -480,7 +347,7 @@ public class InstallationService {
+     }
+ 
+     private Specification<Installation> buildReportSpec(
+-            String search, String portalStatus, LocalDate startDate, LocalDate endDate
++            String search, InstallationStatus status, LocalDate startDate, LocalDate endDate
+     ) {
+         return (root, query, cb) -> {
+ 
+@@ -495,8 +362,8 @@ public class InstallationService {
+                 ));
+             }
+ 
+-            if (portalStatus != null && !portalStatus.isBlank()) {
+-                predicates.add(cb.equal(root.get("portalStatus"), portalStatus));
++            if (status != null) {
++                predicates.add(cb.equal(root.get("status"), status));
+             }
+ 
+             if (startDate != null) {
+@@ -516,6 +383,88 @@ public class InstallationService {
+         };
+     }
+ 
++    public Map<String, Long> countByPortalStatus() {
++        Map<String, Long> result = new LinkedHashMap<>();
++        repository.findAll().forEach(i -> {
++            String status = i.getPortalStatus() != null ? i.getPortalStatus() : "null";
++            result.merge(status, 1L, Long::sum);
++        });
++        return result;
++    }
++
++    // ─── Fase 2: endpoints chamados pelo ETL ────────────────────────────────
++
++    public Optional<Installation> findByPlate(String plate) {
++        return repository.findByPlateIgnoreCase(plate);
++    }
++
++    @Transactional
++    public Installation updateFinancialApproval(Long id, InstallationFinancialApprovalRequest req) {
++        Installation inst = findOrThrow(id);
++        inst.setFinancialApprovalStatus(req.getFinancialApprovalStatus());
++        inst.setDeclaredDisplacementValue(req.getDeclaredValue());
++        inst.setCalculatedKm(req.getCalculatedKm());
++        inst.setCalculatedDisplacementValue(req.getCalculatedDisplacement());
++        inst.setFinancialApprovedAt(LocalDateTime.now(ZoneOffset.UTC));
++        return repository.save(inst);
++    }
++
++    public Map<String, Object> calculateDisplacement(Long installationId, UUID technicianId) {
++        Installation inst = findOrThrow(installationId);
++
++        Technician tech = technicianRepository.findById(technicianId)
++                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + technicianId));
++
++        if (tech.getLatitude() == null || tech.getLongitude() == null) {
++            throw new BusinessException("Técnico não tem coordenadas cadastradas");
++        }
++
++        String address = inst.getAddress() != null ? inst.getAddress() : "";
++        String city    = inst.getCity()    != null ? inst.getCity()    : "";
++        String state   = inst.getState()   != null ? inst.getState()   : "";
++
++        double[] clientCoords = orsService.geocode(address, city, state);
++
++        Map<String, Object> result = new LinkedHashMap<>();
++
++        if (clientCoords == null) {
++            log.warn("[DISPLACEMENT] Não foi possível geocodificar: plate={} address={} city={} state={}",
++                    inst.getPlate(), address, city, state);
++            result.put("km", null);
++            result.put("displacement", null);
++            result.put("technicianName", tech.getName());
++            result.put("warning", "Não foi possível geocodificar o endereço do cliente");
++            return result;
++        }
++
++        Double km = orsService.calculateRoundTripKm(
++                tech.getLatitude(), tech.getLongitude(),
++                clientCoords[0], clientCoords[1]
++        );
++
++        if (km == null) {
++            log.warn("[DISPLACEMENT] OSRM não retornou rota: plate={}", inst.getPlate());
++            result.put("km", null);
++            result.put("displacement", null);
++            result.put("technicianName", tech.getName());
++            result.put("warning", "Não foi possível calcular a rota (OSRM indisponível)");
++            return result;
++        }
++
++        BigDecimal displacement = orsService.calculateDisplacement(km);
++
++        result.put("km", km);
++        result.put("displacement", displacement);
++        result.put("technicianName", tech.getName());
++        result.put("technicianCity", tech.getCity());
++
++        log.info("[DISPLACEMENT] plate={} km={} displacement={}", inst.getPlate(), km, displacement);
++
++        return result;
++    }
++
++    // ────────────────────────────────────────────────────────────────────────
++
+     private Installation findOrThrow(Long id) {
+ 
+         return repository.findById(id)
+diff --git a/backend/src/main/java/com/fusion/fusion/installation/InstallationSyncService.java b/backend/src/main/java/com/fusion/fusion/installation/InstallationSyncService.java
+index 3d05833..698618c 100644
+--- a/backend/src/main/java/com/fusion/fusion/installation/InstallationSyncService.java
++++ b/backend/src/main/java/com/fusion/fusion/installation/InstallationSyncService.java
+@@ -17,13 +17,8 @@ import org.springframework.util.MultiValueMap;
+ import org.springframework.web.client.HttpClientErrorException;
+ import org.springframework.web.client.RestTemplate;
+ 
+-import java.time.LocalDate;
+ import java.time.LocalDateTime;
+-import java.time.OffsetDateTime;
+-import java.time.ZoneId;
+ import java.time.ZoneOffset;
+-import java.time.format.DateTimeParseException;
+-import java.time.temporal.ChronoUnit;
+ import java.util.*;
+ import java.util.stream.Collectors;
+ 
+@@ -38,34 +33,6 @@ public class InstallationSyncService {
+     private final RestTemplate restTemplate;
+     private final ServiceOrderService serviceOrderService;
+ 
+-    public static final List<String> ALL_STATUSES = List.of(
+-            "AGUARDANDO_AGENDAMENTO",
+-            "AGENDADO_AGUARDANDO_ATIVACAO",
+-            "AGUARDANDO_INSTALACAO",
+-            "INSTALACAO_ENVIADA",
+-            "INSTALACAO_EM_ANALISE",
+-            "INSTALACAO_CONCLUIDA_SUCESSO",
+-            "INSTALACAO_CONCLUIDA_FALHA",
+-            "PENDENTE_INSTALACAO"
+-    );
+-
+-    private static final String STATUS_AGUARDANDO = "AGUARDANDO_AGENDAMENTO";
+-    private static final String STATUS_AGENDADO_ATIVACAO = "AGENDADO_AGUARDANDO_ATIVACAO";
+-    private static final String STATUS_CONCLUIDA_SUCESSO = "INSTALACAO_CONCLUIDA_SUCESSO";
+-    private static final String STATUS_CONCLUIDA_FALHA = "INSTALACAO_CONCLUIDA_FALHA";
+-
+-    // Nao e' um dos 8 status reais do portal — e' um marcador nosso pra
+-    // registro cujo externalId parou de aparecer em qualquer busca (ver
+-    // varreduraDeOrfaos()). Publico porque InstallationService precisa
+-    // dele pra incluir essa "aba" no agrupamento de getPortalStatusGroups().
+-    public static final String STATUS_REMOVIDO_DO_PORTAL = "REMOVIDO_DO_PORTAL";
+-
+-    private static final LocalDate DATA_ATUALIZACAO_MINIMA = LocalDate.of(2026, 9, 1);
+-    private static final ZoneId TZ_BRASIL = ZoneId.of("America/Sao_Paulo");
+-    private static final long DIAS_ALERTA_AGENDAMENTO_PARADO = 3;
+-
+-    private record PortalItem(Map<String, Object> data, String portalStatus) {}
+-
+     @Value("${portal.parceiro.url:https://onmeseguros.com.br}")
+     private String portalUrl;
+ 
+@@ -145,13 +112,7 @@ public class InstallationSyncService {
+ 
+             String token = getPortalToken();
+ 
+-            List<PortalItem> coletados = new ArrayList<>();
+-            for (String status : ALL_STATUSES) {
+-                for (Map<String, Object> data : fetchAllPages(token, status)) {
+-                    coletados.add(new PortalItem(data, status));
+-                }
+-            }
+-            List<PortalItem> allItems = deduplicarPorExternalId(coletados);
++            List<Map<String, Object>> allItems = fetchAllPages(token);
+ 
+             int found = allItems.size();
+             int inserted = 0;
+@@ -159,17 +120,14 @@ public class InstallationSyncService {
+             int closed = 0;
+             int reopened = 0;
+ 
+-            // externalIds presentes no portal neste ciclo, em qualquer dos status buscados
+-            // (inclui os descartados pelo filtro de data, para nao fechar por engano)
++            // externalIds presentes no portal neste ciclo (todos AGUARDANDO_AGENDAMENTO)
+             Set<String> externalIdsNoPortal = allItems.stream()
+-                    .map(o -> extractString(o.data(), "externalId"))
++                    .map(o -> extractString(o, "externalId"))
+                     .filter(Objects::nonNull)
+                     .collect(Collectors.toSet());
+ 
+-            for (PortalItem portalItem : allItems) {
++            for (Map<String, Object> item : allItems) {
+ 
+-                Map<String, Object> item = portalItem.data();
+-                String portalStatus = portalItem.portalStatus();
+                 String externalId = extractString(item, "externalId");
+ 
+                 if (externalId == null) {
+@@ -178,50 +136,21 @@ public class InstallationSyncService {
+                     continue;
+                 }
+ 
+-                LocalDateTime dataAtualizacao = extractDateTime(item, "dataAtualizacao");
+-                LocalDateTime referencia = dataAtualizacao != null
+-                        ? dataAtualizacao
+-                        : extractDateTime(item, "dataCriacao", "data_criacao");
+-                if (referencia != null && referencia.toLocalDate().isBefore(DATA_ATUALIZACAO_MINIMA)) {
+-                    skipped++;
+-                    continue;
+-                }
+-
+                 Optional<Installation> existingOpt = installationRepository.findByExternalId(externalId);
+                 if (existingOpt.isPresent()) {
+                     Installation inst = existingOpt.get();
+-                    String statusAnterior = inst.getPortalStatus();
+-
+-                    aplicarCamposPortal(inst, item, portalStatus, dataAtualizacao);
+-
+-                    boolean transicionou = false;
+-                    if (STATUS_AGUARDANDO.equals(portalStatus)) {
+-                        if (inst.getStatus() != InstallationStatus.PENDING) {
+-                            inst.setStatus(InstallationStatus.PENDING);
+-                            inst.setClosedAt(null);
+-                            log.info("[INSTALACOES] {} reaberta no portal (era {})",
+-                                    inst.getPlate(), inst.getStatus());
+-                            reopened++;
+-                            transicionou = true;
+-                        }
+-                    } else if (inst.getStatus() == InstallationStatus.PENDING) {
+-                        inst.setStatus(InstallationStatus.SCHEDULED);
+-                        if (inst.getClosedAt() == null) {
+-                            inst.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
+-                        }
+-                        closed++;
+-                        transicionou = true;
++                    if (inst.getStatus() != InstallationStatus.PENDING) {
++                        // Voltou para AGUARDANDO_AGENDAMENTO no portal — reabrir
++                        inst.setStatus(InstallationStatus.PENDING);
++                        inst.setPortalStatus("AGUARDANDO_AGENDAMENTO");
++                        inst.setClosedAt(null);
++                        installationRepository.save(inst);
++                        log.info("[INSTALACOES] {} reaberta no portal (era {})",
++                                inst.getPlate(), inst.getStatus());
++                        reopened++;
++                    } else {
++                        skipped++;
+                     }
+-
+-                    installationRepository.save(inst);
+-
+-                    if (!transicionou) skipped++;
+-
+-                    if (STATUS_CONCLUIDA_SUCESSO.equals(portalStatus)
+-                            && !portalStatus.equals(statusAnterior)) {
+-                        notificarConclusao(inst);
+-                    }
+-
+                     continue;
+                 }
+ 
+@@ -245,47 +174,37 @@ public class InstallationSyncService {
+                         .numeroProposta(extractNestedLong(item, "proposta", "numeroProposta"))
+                         .portalCreatedAt(extractDateTime(item, "dataCriacao", "data_criacao"))
+                         .serviceType(extractString(item, "tipoServico", "tipo_servico"))
++                        .portalStatus(extractString(item, "statusAtual", "status"))
+                         .build();
+ 
+-                aplicarCamposPortal(installation, item, portalStatus, dataAtualizacao);
+-
+-                if (!STATUS_AGUARDANDO.equals(portalStatus)) {
+-                    installation.setStatus(InstallationStatus.SCHEDULED);
+-                    installation.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
+-                }
+-
+                 log.info("[INSTALACOES] Tentando inserir: externalId={}, plate={}, customerName={}",
+                         installation.getExternalId(), installation.getPlate(), installation.getCustomerName());
+ 
+                 installationRepository.save(installation);
+                 inserted++;
+ 
+-                // Notificacao de instalacao nova e OS so' para quem esta de fato
+-                // aguardando agendamento — os outros status entram so' pra espelho.
+-                if (STATUS_AGUARDANDO.equals(portalStatus)) {
+-                    serviceOrderService.createFromInstallation(
+-                            installation.getExternalId(),
+-                            installation.getPlate(),
+-                            installation.getCustomerName(),
+-                            installation.getPhone(),
+-                            installation.getCity(),
+-                            installation.getAddress(),
+-                            installation.getNeighborhood(),
+-                            installation.getState(),
+-                            installation.getZipCode(),
+-                            installation.getPortalCreatedAt(),
+-                            null
+-                    );
+-
+-                    sendNtfyNotification(installation);
+-
+-                    queueWhatsAppMessage(installation);
+-                }
++                serviceOrderService.createFromInstallation(
++                        installation.getExternalId(),
++                        installation.getPlate(),
++                        installation.getCustomerName(),
++                        installation.getPhone(),
++                        installation.getCity(),
++                        installation.getAddress(),
++                        installation.getNeighborhood(),
++                        installation.getState(),
++                        installation.getZipCode(),
++                        installation.getPortalCreatedAt(),
++                        null
++                );
++
++                sendNtfyNotification(installation);
++
++                queueWhatsAppMessage(installation);
+ 
+             }
+ 
+             // Instalações que estavam PENDING no banco mas não apareceram mais
+-            // em nenhum dos status buscados = saíram de AGUARDANDO_AGENDAMENTO
++            // na lista do portal = saíram de AGUARDANDO_AGENDAMENTO
+             List<Installation> pendingNoBank =
+                     installationRepository.findByStatusOrderByCreatedAtDesc(InstallationStatus.PENDING);
+ 
+@@ -331,18 +250,6 @@ public class InstallationSyncService {
+             }
+             if (backfilled > 0) log.info("[INSTALACOES] Backfill: {} OS criadas para instalações PENDING sem OS", backfilled);
+ 
+-            try {
+-                varreduraDeOrfaos(externalIdsNoPortal);
+-            } catch (Exception e) {
+-                log.warn("[INSTALACOES] Falha na varredura de órfãos: {}", e.getMessage());
+-            }
+-
+-            try {
+-                alertarAgendamentosParados();
+-            } catch (Exception e) {
+-                log.warn("[INSTALACOES] Falha no alerta de agendamento parado: {}", e.getMessage());
+-            }
+-
+             long durationMs = System.currentTimeMillis() - startMs;
+             LocalDateTime nextRun = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(15);
+ 
+@@ -377,7 +284,7 @@ public class InstallationSyncService {
+     }
+ 
+     @SuppressWarnings("unchecked")
+-    private List<Map<String, Object>> fetchAllPages(String token, String status) {
++    private List<Map<String, Object>> fetchAllPages(String token) {
+ 
+         List<Map<String, Object>> all = new ArrayList<>();
+         int page = 0;
+@@ -388,7 +295,7 @@ public class InstallationSyncService {
+                     + "/ordens-instalacao"
+                     + "?page=" + page
+                     + "&size=50"
+-                    + "&status=" + status;
++                    + "&status=AGUARDANDO_AGENDAMENTO";
+ 
+             log.info("[INSTALACOES] GET {}", url);
+ 
+@@ -491,93 +398,6 @@ public class InstallationSyncService {
+ 
+     }
+ 
+-    private void aplicarCamposPortal(Installation inst, Map<String, Object> item,
+-                                     String portalStatus, LocalDateTime dataAtualizacao) {
+-        inst.setPortalStatus(portalStatus);
+-        inst.setDataAtualizacao(dataAtualizacao);
+-        inst.setPrazoConclusao(extractString(item, "prazoConclusao"));
+-        String parceiro = extractNestedString(item, "parceiro", "nome");
+-        if (parceiro == null) parceiro = extractString(item, "parceiro");
+-        inst.setParceiro(parceiro);
+-        inst.setSlaCor(extractString(item, "slaCor"));
+-        inst.setSlaLabel(extractString(item, "slaLabel"));
+-        String tecnico = extractNestedString(item, "dadosAgendamento", "tecnico");
+-        if (tecnico != null) inst.setPortalTecnico(tecnico);
+-    }
+-
+-    private void notificarConclusao(Installation inst) {
+-        String message = "✅ *INSTALAÇÃO CONCLUÍDA*\n" +
+-                "*Segurado:* " + Objects.toString(inst.getCustomerName(), "—") + "\n" +
+-                "*Placa:* " + Objects.toString(inst.getPlate(), "—") + "\n" +
+-                "*Proposta:* " + Objects.toString(inst.getNumeroProposta(), "—");
+-        enviarWhatsApp(message);
+-    }
+-
+-    // Passo 2c (diagnostico 13 vs 6 em AGUARDANDO_AGENDAMENTO) — varredura
+-    // mais abrangente que o fechamento de PENDING acima (linhas ~280-298):
+-    // aquele so' olha quem esta' com status LOCAL PENDING; esse aqui
+-    // escaneia a tabela inteira e fecha qualquer registro, em qualquer
+-    // portalStatus (exceto os ja terminais/ja marcados), cujo externalId
+-    // nao apareceu em NENHUMA das 8 buscas deste ciclo — inclusive os que
+-    // ja tinham ficado presos com um portalStatus antigo antes da Fase 1,
+-    // ou que escaparam do fechamento antigo por qualquer inconsistencia
+-    // entre o status local e o portalStatus.
+-    //
+-    // Usa o mesmo externalIdsNoPortal construido antes do loop principal
+-    // (inclui os descartados pelo filtro de data de 2026-09-01) em vez de
+-    // um Set novo preenchido so' com os "processados" dentro do loop —
+-    // um registro antigo (dataAtualizacao < corte) que ainda esta' de
+-    // verdade no portal nao pode ser marcado como removido so' por ser
+-    // antigo; sao preocupacoes diferentes.
+-    private void varreduraDeOrfaos(Set<String> seenExternalIds) {
+-
+-        List<Installation> orfaos = installationRepository.findByPortalStatusNotInAndExternalIdNotIn(
+-                List.of(STATUS_REMOVIDO_DO_PORTAL, STATUS_CONCLUIDA_SUCESSO, STATUS_CONCLUIDA_FALHA),
+-                seenExternalIds
+-        );
+-
+-        for (Installation inst : orfaos) {
+-            String statusAnterior = inst.getPortalStatus();
+-            inst.setPortalStatus(STATUS_REMOVIDO_DO_PORTAL);
+-            installationRepository.save(inst);
+-            log.info("[INSTALACOES] {} removida do portal (portalStatus anterior: {})",
+-                    inst.getPlate(), statusAnterior);
+-        }
+-
+-        if (!orfaos.isEmpty()) {
+-            log.info("[INSTALACOES] Varredura de órfãos: {} registro(s) marcado(s) como {}",
+-                    orfaos.size(), STATUS_REMOVIDO_DO_PORTAL);
+-        }
+-
+-    }
+-
+-    private void alertarAgendamentosParados() {
+-        LocalDate hoje = LocalDate.now(TZ_BRASIL);
+-        for (Installation inst : installationRepository.findByPortalStatus(STATUS_AGENDADO_ATIVACAO)) {
+-            if (inst.getDataAtualizacao() == null) continue;
+-            long dias = ChronoUnit.DAYS.between(inst.getDataAtualizacao().toLocalDate(), hoje);
+-            if (dias <= DIAS_ALERTA_AGENDAMENTO_PARADO) continue;
+-            if (hoje.equals(inst.getAgendamentoAlertedAt())) continue;
+-
+-            String message = "⚠️ *AGENDAMENTO PARADO*\n" +
+-                    "*Segurado:* " + Objects.toString(inst.getCustomerName(), "—") + "\n" +
+-                    "*Placa:* " + Objects.toString(inst.getPlate(), "—") + "\n" +
+-                    "*Agendado há:* " + dias + " dias sem atualização";
+-            enviarWhatsApp(message);
+-
+-            inst.setAgendamentoAlertedAt(hoje);
+-            installationRepository.save(inst);
+-        }
+-    }
+-
+-    private void enviarWhatsApp(String message) {
+-        try {
+-            etlTriggerService.requestWhatsApp(message);
+-        } catch (Exception e) {
+-            log.warn("[WHATSAPP] Falha ao enfileirar mensagem: {}", e.getMessage());
+-        }
+-    }
+-
+     private String extractString(Map<String, Object> map, String... keys) {
+         for (String key : keys) {
+             Object val = map.get(key);
+@@ -632,49 +452,14 @@ public class InstallationSyncService {
+         for (String key : keys) {
+             Object val = map.get(key);
+             if (val instanceof String s && !s.isBlank()) {
+-                LocalDateTime parsed = parseDataPortal(s);
+-                if (parsed != null) return parsed;
++                try {
++                    return LocalDateTime.parse(s.replace(" ", "T"));
++                } catch (Exception ignored) {}
+             }
+         }
+         return null;
+     }
+ 
+-    // Aceita ISO sem offset (tratado como ja' em UTC), com 'Z' ou com offset
+-    // (convertido pra UTC, que e' o padrao das colunas do banco).
+-    private LocalDateTime parseDataPortal(String valor) {
+-        String iso = valor.trim().replace(" ", "T");
+-        try {
+-            return OffsetDateTime.parse(iso)
+-                    .withOffsetSameInstant(ZoneOffset.UTC)
+-                    .toLocalDateTime();
+-        } catch (DateTimeParseException ignored) {}
+-        try {
+-            return LocalDateTime.parse(iso);
+-        } catch (DateTimeParseException ignored) {}
+-        return null;
+-    }
+-
+-    // Se o mesmo externalId veio em mais de uma busca no ciclo, fica com o status
+-    // mais avancado (posicao mais alta em ALL_STATUSES) — nao depende da ordem de
+-    // processamento.
+-    private List<PortalItem> deduplicarPorExternalId(List<PortalItem> itens) {
+-        Map<String, PortalItem> porId = new LinkedHashMap<>();
+-        List<PortalItem> semId = new ArrayList<>();
+-        for (PortalItem p : itens) {
+-            String id = extractString(p.data(), "externalId");
+-            if (id == null) {
+-                semId.add(p);
+-                continue;
+-            }
+-            porId.merge(id, p, (atual, novo) ->
+-                    ALL_STATUSES.indexOf(novo.portalStatus()) > ALL_STATUSES.indexOf(atual.portalStatus())
+-                            ? novo : atual);
+-        }
+-        List<PortalItem> resultado = new ArrayList<>(porId.values());
+-        resultado.addAll(semId);
+-        return resultado;
+-    }
+-
+     // Enviar notificação via Ntfy
+     private void sendNtfyNotification(Installation installation) {
+         try {
+diff --git a/backend/src/main/java/com/fusion/fusion/ors/OrsService.java b/backend/src/main/java/com/fusion/fusion/ors/OrsService.java
+index b58e89e..65aca9f 100644
+--- a/backend/src/main/java/com/fusion/fusion/ors/OrsService.java
++++ b/backend/src/main/java/com/fusion/fusion/ors/OrsService.java
+@@ -30,7 +30,7 @@ public class OrsService {
+     private static final double RATE_PER_KM = 1.20;
+ 
+     public double[] geocode(String address, String city, String state) {
+-        // Tentativa 1: endereço completo
++        // Tentativa 1: endereço completo via Nominatim (OpenStreetMap)
+         String query = address + ", " + city + ", " + (state != null ? state : "") + ", Brasil";
+         double[] result = geocodeQuery(query);
+ 
+@@ -43,34 +43,29 @@ public class OrsService {
+         return result;
+     }
+ 
+-    // Nominatim exige User-Agent (sem ele retorna 403) e nao precisa de
+-    // chave — geocode.maps.co respondia do browser mas falhava quando
+-    // chamado do backend no Railway (provavelmente IP bloqueado/rate
+-    // limited pelo provedor), por isso a troca.
+     private double[] geocodeQuery(String query) {
+         try {
+             String url = "https://nominatim.openstreetmap.org/search?q="
+                     + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
+-                    + "&format=json&limit=1";
++                    + "&format=json&countrycodes=br&limit=1";
+ 
+             log.info("[NOMINATIM] Geocodificando: {}", query);
+ 
+             HttpHeaders headers = new HttpHeaders();
+-            headers.set("User-Agent", "Fusion/1.0");
+             headers.set("Accept", "application/json");
++            headers.set("User-Agent", "Fusion/1.0 (garcia.carlosfilho@gmail.com)");
+             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
+ 
+             String responseBody = response.getBody();
+             JsonNode root = objectMapper.readTree(responseBody);
+-            if (!root.isArray() || root.isEmpty()) {
+-                throw new IllegalStateException("Nominatim não encontrou resultado para: " + query);
++            if (root.isArray() && root.size() > 0) {
++                double lat = root.get(0).path("lat").asDouble();
++                double lon = root.get(0).path("lon").asDouble();
++                log.info("[NOMINATIM] Resultado: lat={}, lon={}", lat, lon);
++                return new double[]{lat, lon};
++            } else {
++                log.warn("[NOMINATIM] Retornou vazio para: {} | Response: {}", query, responseBody);
+             }
+-
+-            // lat/lon vem como string no JSON do Nominatim
+-            double lat = Double.parseDouble(root.get(0).path("lat").asText());
+-            double lon = Double.parseDouble(root.get(0).path("lon").asText());
+-            log.info("[NOMINATIM] Resultado: lat={}, lon={}", lat, lon);
+-            return new double[]{lat, lon};
+         } catch (HttpClientErrorException e) {
+             log.debug("[NOMINATIM] HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
+         } catch (Exception e) {
+diff --git a/backend/src/main/java/com/fusion/fusion/technician/TechnicianController.java b/backend/src/main/java/com/fusion/fusion/technician/TechnicianController.java
+index b57d5a4..3d887dd 100644
+--- a/backend/src/main/java/com/fusion/fusion/technician/TechnicianController.java
++++ b/backend/src/main/java/com/fusion/fusion/technician/TechnicianController.java
+@@ -1,7 +1,6 @@
+ package com.fusion.fusion.technician;
+ 
+ import lombok.RequiredArgsConstructor;
+-import lombok.extern.slf4j.Slf4j;
+ import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.http.ResponseEntity;
+@@ -11,7 +10,6 @@ import java.util.List;
+ import java.util.Map;
+ import java.util.UUID;
+ 
+-@Slf4j
+ @RestController
+ @RequestMapping("/technicians")
+ @RequiredArgsConstructor
+@@ -27,22 +25,21 @@ public class TechnicianController {
+         return service.listAll();
+     }
+ 
+-    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no
+-    // comando !aprovar-inst — autenticado por X-ETL-Key, nao por JWT
+-    // (o bot nao tem usuario logado). Esse endpoint nao tinha consumidor
+-    // ate agora; se um dia precisar ser chamado tambem pelo navegador,
+-    // reavaliar (hoje fica so' ETL). Ver permitAll em SecurityConfig.
+     @GetMapping("/by-cpf")
+     public ResponseEntity<?> findByCpf(
+             @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+-            @RequestParam String cpf
+-    ) {
++            @RequestParam String cpf) {
+         if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+-            log.warn("GET /technicians/by-cpf rejeitado: X-ETL-Key inválida ou ausente");
+             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                     .body(Map.of("error", "Chave de API inválida"));
+         }
+-        return ResponseEntity.ok(service.findByCpf(cpf));
++        // TechnicianService.findByCpf já normaliza o CPF internamente
++        try {
++            return ResponseEntity.ok(service.findByCpf(cpf));
++        } catch (Exception e) {
++            return ResponseEntity.status(HttpStatus.NOT_FOUND)
++                    .body(Map.of("error", e.getMessage()));
++        }
+     }
+ 
+     @PostMapping
+diff --git a/frontend/src/pages/InstallationReports.jsx b/frontend/src/pages/InstallationReports.jsx
+index 60b1721..c1da2af 100644
+--- a/frontend/src/pages/InstallationReports.jsx
++++ b/frontend/src/pages/InstallationReports.jsx
+@@ -12,24 +12,11 @@ import { todayForFilename } from "../utils/exportXlsx";
+ 
+ import { formatLocalDateTime } from "../utils/dateUtils";
+ 
+-// Status do portal (ver InstallationSyncService.ALL_STATUSES) — nao mais
+-// o InstallationStatus local antigo (PENDING/SENT/CANCELLED/SCHEDULED).
+-// O parametro "status" enviado pro backend agora filtra por portalStatus.
+ const STATUS_LABELS = {
+-  AGUARDANDO_AGENDAMENTO: "Aguardando Agendamento",
+-  AGENDADO_AGUARDANDO_ATIVACAO: "Agendado",
+-  AGUARDANDO_INSTALACAO: "Aguardando Instalação",
+-  INSTALACAO_ENVIADA: "Instalação Enviada",
+-  INSTALACAO_EM_ANALISE: "Em Análise",
+-  INSTALACAO_CONCLUIDA_SUCESSO: "Concluído",
+-  INSTALACAO_CONCLUIDA_FALHA: "Falha",
+-  PENDENTE_INSTALACAO: "Pendente",
+-  REMOVIDO_DO_PORTAL: "Removido do Portal",
+-};
+-
+-const FINANCIAL_LABELS = {
+-  APROVADO: "Aprovado",
+-  REPROVADO: "Reprovado",
++  PENDING: "Pendente",
++  SCHEDULED: "Agendado",
++  SENT: "Enviado",
++  CANCELLED: "Cancelado",
+ };
+ 
+ const HEADERS = [
+@@ -43,21 +30,10 @@ const HEADERS = [
+   "Cidade/UF",
+   "CEP",
+   "Status",
+-  "Aprovação Financeira",
+-  "Valor Declarado",
+-  "KM Calculado",
+   "Enviado por",
+   "Data envio",
+ ];
+ 
+-function fmtCurrency(value) {
+-  return value != null ? `R$ ${Number(value).toFixed(2)}` : "--";
+-}
+-
+-function fmtKm(value) {
+-  return value != null ? `${value} km` : "--";
+-}
+-
+ function toRow(inst) {
+   return [
+     inst.portalCreatedAt
+@@ -73,10 +49,7 @@ function toRow(inst) {
+     inst.neighborhood || "--",
+     inst.city && inst.state ? `${inst.city}/${inst.state}` : inst.city || "--",
+     inst.zipCode || "--",
+-    STATUS_LABELS[inst.portalStatus] || inst.portalStatus || "--",
+-    FINANCIAL_LABELS[inst.financialApprovalStatus] || inst.financialApprovalStatus || "--",
+-    fmtCurrency(inst.declaredDisplacementValue),
+-    fmtKm(inst.calculatedKm),
++    STATUS_LABELS[inst.status] || inst.status,
+     inst.sentBy || "--",
+     inst.sentAt ? formatLocalDateTime(inst.sentAt) : "--",
+   ];
+@@ -117,18 +90,6 @@ export default function InstallationReports() {
+     ...(endDate ? { Até: endDate } : {}),
+   };
+ 
+-  // Resumo calculado em cima dos resultados ja carregados — "com
+-  // deslocamento aprovado" = aprovados com km/valor de deslocamento > 0.
+-  const aprovadosComDeslocamento = results.filter((r) => {
+-    if (r.financialApprovalStatus !== "APROVADO") return false;
+-    const km = r.calculatedKm ?? 0;
+-    const valor = r.declaredDisplacementValue ?? r.calculatedDisplacementValue ?? 0;
+-    return km > 0 || valor > 0;
+-  });
+-  const totalValoresAprovados = results
+-    .filter((r) => r.financialApprovalStatus === "APROVADO")
+-    .reduce((sum, r) => sum + (r.declaredDisplacementValue ?? r.calculatedDisplacementValue ?? 0), 0);
+-
+   async function handleExcelExport() {
+     if (results.length === 0) {
+       toast.error("Nenhum resultado para exportar");
+@@ -198,9 +159,10 @@ export default function InstallationReports() {
+               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+             >
+               <option value="">Todos</option>
+-              {Object.entries(STATUS_LABELS).map(([key, label]) => (
+-                <option key={key} value={key}>{label}</option>
+-              ))}
++              <option value="PENDING">Pendentes</option>
++              <option value="SENT">Enviados</option>
++              <option value="CANCELLED">Cancelados</option>
++              <option value="SCHEDULED">Agendados</option>
+             </select>
+           </div>
+ 
+@@ -258,20 +220,6 @@ export default function InstallationReports() {
+ 
+       </div>
+ 
+-      {/* Resumo */}
+-      {searched && results.length > 0 && (
+-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+-          <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-4">
+-            <p className="text-2xl font-bold text-green-400">{aprovadosComDeslocamento.length}</p>
+-            <p className="mt-1 text-xs text-zinc-500">Com deslocamento aprovado</p>
+-          </div>
+-          <div className="rounded-2xl border border-zinc-700/50 bg-zinc-800/60 p-4">
+-            <p className="text-2xl font-bold text-zinc-300">{fmtCurrency(totalValoresAprovados)}</p>
+-            <p className="mt-1 text-xs text-zinc-500">Soma dos valores aprovados</p>
+-          </div>
+-        </div>
+-      )}
+-
+       {/* Resultados */}
+       {searched && (
+         <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+@@ -339,16 +287,7 @@ export default function InstallationReports() {
+                           {inst.zipCode || "--"}
+                         </td>
+                         <td className="px-4 py-3">
+-                          <StatusBadge status={inst.portalStatus} />
+-                        </td>
+-                        <td className="px-4 py-3">
+-                          <FinancialBadge status={inst.financialApprovalStatus} />
+-                        </td>
+-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
+-                          {fmtCurrency(inst.declaredDisplacementValue)}
+-                        </td>
+-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
+-                          {fmtKm(inst.calculatedKm)}
++                          <StatusBadge status={inst.status} />
+                         </td>
+                         <td className="px-4 py-3 text-sm text-zinc-400">
+                           {inst.sentBy || "--"}
+@@ -375,40 +314,16 @@ export default function InstallationReports() {
+ function StatusBadge({ status }) {
+ 
+   const map = {
+-    AGUARDANDO_AGENDAMENTO:        { cls: "bg-yellow-500/15 text-yellow-400" },
+-    AGENDADO_AGUARDANDO_ATIVACAO:  { cls: "bg-blue-500/15 text-blue-400" },
+-    AGUARDANDO_INSTALACAO:         { cls: "bg-blue-500/15 text-blue-400" },
+-    INSTALACAO_ENVIADA:            { cls: "bg-blue-500/15 text-blue-400" },
+-    INSTALACAO_EM_ANALISE:         { cls: "bg-yellow-500/15 text-yellow-400" },
+-    INSTALACAO_CONCLUIDA_SUCESSO:  { cls: "bg-green-500/15 text-green-400" },
+-    INSTALACAO_CONCLUIDA_FALHA:    { cls: "bg-red-500/15 text-red-400" },
+-    PENDENTE_INSTALACAO:           { cls: "bg-zinc-700/40 text-zinc-400" },
+-    REMOVIDO_DO_PORTAL:            { cls: "bg-zinc-700/40 text-zinc-400" },
+-  };
+-
+-  const { cls } = map[status] || { cls: "bg-zinc-700/40 text-zinc-400" };
+-  const label = STATUS_LABELS[status] || status || "--";
+-
+-  return (
+-    <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
+-      {label}
+-    </span>
+-  );
+-
+-}
+-
+-function FinancialBadge({ status }) {
+-
+-  const map = {
+-    APROVADO:  { cls: "bg-green-500/15 text-green-400" },
+-    REPROVADO: { cls: "bg-red-500/15 text-red-400" },
++    PENDING:   { label: "Pendente",  cls: "bg-yellow-500/15 text-yellow-400" },
++    SCHEDULED: { label: "Agendado",  cls: "bg-blue-500/15 text-blue-400" },
++    SENT:      { label: "Enviado",   cls: "bg-green-500/15 text-green-400" },
++    CANCELLED: { label: "Cancelado", cls: "bg-zinc-700/40 text-zinc-400" },
+   };
+ 
+-  const { cls } = map[status] || { cls: "bg-zinc-700/40 text-zinc-400" };
+-  const label = FINANCIAL_LABELS[status] || status || "--";
++  const { label, cls } = map[status] || { label: status, cls: "bg-zinc-700/40 text-zinc-400" };
+ 
+   return (
+-    <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
++    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
+       {label}
+     </span>
+   );
+diff --git a/frontend/src/pages/Installations.jsx b/frontend/src/pages/Installations.jsx
+index 9e1f423..bdb54d6 100644
+--- a/frontend/src/pages/Installations.jsx
++++ b/frontend/src/pages/Installations.jsx
+@@ -1,175 +1,647 @@
+-import { useEffect, useMemo, useState } from "react";
++import { useEffect, useRef, useState } from "react";
+ 
+ import toast from "react-hot-toast";
+ 
+-import { RefreshCw } from "lucide-react";
++import {
++  Check,
++  CheckSquare,
++  ChevronDown,
++  ChevronRight,
++  ClipboardCopy,
++  Download,
++  MessageSquarePlus,
++  Plus,
++  RefreshCw,
++  Square,
++  UserCog,
++} from "lucide-react";
+ 
+-import { getInstallationsByPortalStatus } from "../services/installationService";
++import {
++  getServiceOrders,
++  updateServiceOrder,
++} from "../services/serviceOrderService";
++
++import InstallationModal from "../components/installations/InstallationModal";
++
++import SchedulingModal from "../components/installations/SchedulingModal";
+ 
+ import { formatLocalDateTime } from "../utils/dateUtils";
+ 
+-const TABS = [
+-  { key: "AGUARDANDO_AGENDAMENTO", label: "Aguardando Agendamento" },
+-  { key: "AGENDADO_AGUARDANDO_ATIVACAO", label: "Agendado" },
+-  { key: "AGUARDANDO_INSTALACAO", label: "Aguardando Instalação" },
+-  { key: "INSTALACAO_ENVIADA", label: "Instalação Enviada" },
+-  { key: "INSTALACAO_EM_ANALISE", label: "Em Análise" },
+-  { key: "INSTALACAO_CONCLUIDA_SUCESSO", label: "Concluído" },
+-  { key: "INSTALACAO_CONCLUIDA_FALHA", label: "Falha" },
+-  { key: "PENDENTE_INSTALACAO", label: "Pendente" },
+-  { key: "REMOVIDO_DO_PORTAL", label: "Removido do Portal" },
+-];
+-
+-const SLA_STYLE = {
+-  green: { badge: "bg-green-500/15 text-green-400", dot: "bg-green-500" },
+-  yellow: { badge: "bg-yellow-500/15 text-yellow-400", dot: "bg-yellow-500" },
+-  red: { badge: "bg-red-500/15 text-red-400", dot: "bg-red-500" },
+-};
+-
+-const SLA_FALLBACK = { badge: "bg-zinc-700/40 text-zinc-400", dot: "bg-zinc-500" };
+-
+-function formatPrazo(value) {
+-  if (!value) return "—";
+-  const date = new Date(value);
+-  if (Number.isNaN(date.getTime())) return value;
+-  return date.toLocaleString("pt-BR", {
+-    day: "2-digit",
+-    month: "2-digit",
+-    year: "numeric",
+-    hour: "2-digit",
+-    minute: "2-digit",
+-    timeZone: "America/Sao_Paulo",
+-  });
++// Tela migrada pra trabalhar com ServiceOrder (serviceType=INSTALACAO)
++// em vez da entidade Installation — ver investigacao/decisoes da
++// migracao (SchedulingStatus != CONCLUIDO = "Aguardando",
++// == CONCLUIDO = "Histórico"; sem campo de modelo do veiculo; sem
++// conceito de "enviado"/"cancelado"/"dispensar alerta", que
++// ServiceOrder nao tem equivalente).
++function buildMessage(so) {
++  return (
++    `*INSTALAÇÃO NOVA*\n\n` +
++    `*NOME:* ${so.customerName?.toUpperCase()}\n` +
++    `*ENDEREÇO:* ${so.address?.toUpperCase()} | *BAIRRO:* ${so.neighborhood?.toUpperCase()} - ${so.city?.toUpperCase()}/${so.state?.toUpperCase()}\n` +
++    `*CEP:* ${so.zipCode}\n` +
++    `*TELEFONE:* ${so.customerPhone}\n` +
++    `*PLACA:* ${so.plate?.toUpperCase()}`
++  );
++}
++
++// ServiceOrder nao tem um slaStatus pronto como Installation tinha —
++// so' slaDays (dias desde requestedAt). Mesmos limiares de antes.
++function slaStatusOf(so) {
++  if (so.slaDays == null) return null;
++  if (so.slaDays <= 1) return "SLA_OK";
++  if (so.slaDays === 2) return "SLA_WARNING";
++  return "SLA_CRITICAL";
++}
++
++function slaColors(slaStatus) {
++  if (slaStatus === "SLA_CRITICAL") return { row: "bg-red-500/5 border-l-2 border-red-500/40", badge: "bg-red-500/15 text-red-400", dot: "bg-red-500" };
++  if (slaStatus === "SLA_WARNING")  return { row: "bg-yellow-500/5 border-l-2 border-yellow-500/40", badge: "bg-yellow-500/15 text-yellow-400", dot: "bg-yellow-500" };
++  return { row: "", badge: "bg-green-500/15 text-green-400", dot: "bg-green-500" };
++}
++
++function slaLabel(so) {
++  if (so.slaDays == null) return "—";
++  if (so.slaDays === 0) return "Hoje";
++  if (so.slaDays === 1) return "1 dia";
++  return `${so.slaDays} dias`;
++}
++
++function isToday(dateStr) {
++  if (!dateStr) return false;
++  const today = new Date().toISOString().slice(0, 10);
++  return String(dateStr).slice(0, 10) === today;
+ }
+ 
+ export default function Installations() {
+-  const [tab, setTab] = useState(TABS[0].key);
+-  const [groups, setGroups] = useState({});
++  const [tab, setTab] = useState("active");
++
++  const [showNewModal, setShowNewModal] = useState(false);
++  const [schedulingId, setSchedulingId] = useState(null);
++
++  const [all, setAll] = useState([]);
+   const [loading, setLoading] = useState(true);
+-  const [search, setSearch] = useState("");
++
++  const [expandedId, setExpandedId] = useState(null);
++  const [obsDraft, setObsDraft] = useState({});
++  const [savingObs, setSavingObs] = useState({});
++
++  const [selected, setSelected] = useState(new Set());
++  const [copiedId, setCopiedId] = useState(null);
++  const [slaFilter, setSlaFilter] = useState("ALL");
++
++  const [historySearch, setHistorySearch] = useState("");
++  const [historyApproval, setHistoryApproval] = useState("");
++
++  const prevPendingIdsRef = useRef(null);
+ 
+   async function load() {
+     setLoading(true);
+     try {
+-      const data = await getInstallationsByPortalStatus();
+-      setGroups(data && typeof data === "object" ? data : {});
++      const data = await getServiceOrders({ includeCompleted: true, serviceType: "INSTALACAO" });
++      setAll(Array.isArray(data) ? data : []);
+     } catch (err) {
+       console.error(err);
+-      toast.error("Erro ao carregar instalações do portal");
++      toast.error("Erro ao carregar instalações");
+     } finally {
+       setLoading(false);
+     }
+   }
+ 
+-  useEffect(() => { load(); }, [tab]);
++  const pending = all.filter((so) => so.schedulingStatus !== "CONCLUIDO");
++  const history = all.filter((so) => so.schedulingStatus === "CONCLUIDO");
+ 
+-  const items = useMemo(() => {
+-    const list = groups[tab]?.items ?? [];
+-    const term = search.trim().toLowerCase();
+-    if (!term) return list;
+-    return list.filter((i) =>
+-      (i.customerName ?? "").toLowerCase().includes(term) ||
+-      (i.plate ?? "").toLowerCase().includes(term)
+-    );
+-  }, [groups, tab, search]);
++  useEffect(() => { load(); }, []);
++
++  useEffect(() => {
++    const interval = setInterval(async () => {
++      try {
++        const data = await getServiceOrders({ includeCompleted: true, serviceType: "INSTALACAO" });
++        const list = Array.isArray(data) ? data : [];
++        const newPending = list.filter((so) => so.schedulingStatus !== "CONCLUIDO");
++        if (prevPendingIdsRef.current !== null) {
++          const prevIds = prevPendingIdsRef.current;
++          const newItems = newPending.filter((i) => !prevIds.has(i.id));
++          if (newItems.length > 0) {
++            toast(`${newItems.length} nova(s) instalação(ões)`, { icon: "📋" });
++          }
++        }
++        prevPendingIdsRef.current = new Set(newPending.map((i) => i.id));
++        setAll(list);
++      } catch (err) {
++        console.error(err);
++      }
++    }, 60000);
++    return () => clearInterval(interval);
++  }, []);
++
++  function toggleExpand(id) {
++    setExpandedId((prev) => (prev === id ? null : id));
++  }
++
++  async function handleSaveObservations(so) {
++    const text = (obsDraft[so.id] ?? so.observations ?? "").trim();
++    setSavingObs((prev) => ({ ...prev, [so.id]: true }));
++    try {
++      await updateServiceOrder(so.id, {
++        requestedBy: so.requestedBy,
++        plate: so.plate,
++        chassis: so.chassis,
++        equipment: so.equipment,
++        serviceType: so.serviceType,
++        city: so.city,
++        address: so.address,
++        neighborhood: so.neighborhood,
++        state: so.state,
++        zipCode: so.zipCode,
++        customerName: so.customerName,
++        customerPhone: so.customerPhone,
++        observations: text,
++      });
++      setAll((prev) => prev.map((i) => (i.id === so.id ? { ...i, observations: text } : i)));
++      toast.success("Observação salva");
++    } catch (err) {
++      console.error(err);
++      toast.error("Erro ao salvar observação");
++    } finally {
++      setSavingObs((prev) => ({ ...prev, [so.id]: false }));
++    }
++  }
++
++  async function handleCopy(so) {
++    try {
++      await navigator.clipboard.writeText(buildMessage(so));
++      setCopiedId(so.id);
++      setTimeout(() => setCopiedId(null), 2000);
++      toast.success("Mensagem copiada!");
++    } catch {
++      toast.error("Erro ao copiar");
++    }
++  }
++
++  async function handleCopySelected() {
++    const msgs = pending
++      .filter((i) => selected.has(i.id))
++      .map(buildMessage)
++      .join("\n\n---\n\n");
++    try {
++      await navigator.clipboard.writeText(msgs);
++      toast.success(`${selected.size} mensagem(ns) copiada(s)`);
++    } catch {
++      toast.error("Erro ao copiar");
++    }
++  }
++
++  function toggleSelect(id) {
++    setSelected((prev) => {
++      const next = new Set(prev);
++      next.has(id) ? next.delete(id) : next.add(id);
++      return next;
++    });
++  }
++
++  function toggleSelectAll() {
++    const filtered = filteredPending();
++    if (selected.size === filtered.length) {
++      setSelected(new Set());
++    } else {
++      setSelected(new Set(filtered.map((i) => i.id)));
++    }
++  }
++
++  function filteredPending() {
++    if (slaFilter === "ALL") return pending;
++    return pending.filter((i) => slaStatusOf(i) === slaFilter);
++  }
++
++  function filteredHistory() {
++    return history.filter((i) => {
++      const matchSearch = !historySearch ||
++        (i.customerName?.toLowerCase().includes(historySearch.toLowerCase())) ||
++        (i.plate?.toLowerCase().includes(historySearch.toLowerCase())) ||
++        (i.city?.toLowerCase().includes(historySearch.toLowerCase()));
++      const matchApproval = !historyApproval || i.financialApprovalStatus === historyApproval;
++      return matchSearch && matchApproval;
++    });
++  }
++
++  function handleExportReport() {
++    try {
++      if (all.length === 0) {
++        toast("Nenhum dado encontrado", { icon: "ℹ️" });
++        return;
++      }
++      const headers = ["ID", "Segurado", "Placa", "Endereço", "Bairro", "Cidade", "UF", "CEP", "Telefone", "Status", "Aprovação Financeira", "SLA Dias", "Solicitado em", "Fechado em"];
++      const rows = all.map((i) => [
++        i.id, i.customerName, i.plate, i.address, i.neighborhood,
++        i.city, i.state, i.zipCode, i.customerPhone,
++        i.schedulingStatus, i.financialApprovalStatus, i.slaDays ?? "", i.requestedAt ?? "", i.closedAt ?? "",
++      ]);
++      const csv = [headers, ...rows]
++        .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
++        .join("\n");
++      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
++      const url = URL.createObjectURL(blob);
++      const a = document.createElement("a");
++      a.href = url;
++      a.download = `instalacoes_${new Date().toISOString().slice(0, 10)}.csv`;
++      a.click();
++      URL.revokeObjectURL(url);
++    } catch (err) {
++      console.error(err);
++      toast.error("Erro ao gerar relatório");
++    }
++  }
++
++  const displayed = filteredPending();
++  const allSelected = displayed.length > 0 && selected.size === displayed.length;
++
++  const ok = pending.filter((so) => slaStatusOf(so) === "SLA_OK").length;
++  const warning = pending.filter((so) => slaStatusOf(so) === "SLA_WARNING").length;
++  const critical = pending.filter((so) => slaStatusOf(so) === "SLA_CRITICAL").length;
++  const closedToday = history.filter((so) => isToday(so.closedAt)).length;
+ 
+   return (
+     <div className="space-y-6">
+ 
++      {/* Header */}
+       <div className="flex flex-wrap items-center justify-between gap-3">
+-        <div className="flex flex-wrap gap-2">
+-          {TABS.map((t) => {
+-            const total = groups[t.key]?.total ?? 0;
+-            const active = tab === t.key;
+-            return (
+-              <button
+-                key={t.key}
+-                onClick={() => setTab(t.key)}
+-                className={`flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold transition ${
+-                  active ? "bg-white text-black" : "border border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
+-                }`}
+-              >
+-                {t.label}
+-                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+-                  active ? "bg-black/10 text-black" : "bg-zinc-800 text-zinc-300"
+-                }`}>
+-                  {total}
+-                </span>
+-              </button>
+-            );
+-          })}
++        <div className="flex gap-2">
++          <button
++            onClick={() => setTab("active")}
++            className={`flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${
++              tab === "active" ? "bg-white text-black" : "border border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
++            }`}
++          >
++            Aguardando
++            {pending.length > 0 && (
++              <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
++                {pending.length}
++              </span>
++            )}
++          </button>
++          <button
++            onClick={() => setTab("history")}
++            className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${
++              tab === "history" ? "bg-white text-black" : "border border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
++            }`}
++          >
++            Histórico
++          </button>
+         </div>
+ 
+-        <button
+-          onClick={load}
+-          className="flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
+-        >
+-          <RefreshCw size={14} />
+-          Atualizar
+-        </button>
++        <div className="flex gap-2">
++          <button
++            onClick={() => setShowNewModal(true)}
++            className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
++          >
++            <Plus size={14} />
++            Nova Instalação
++          </button>
++          <button
++            onClick={load}
++            className="flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
++          >
++            <RefreshCw size={14} />
++            Atualizar
++          </button>
++          <button
++            onClick={handleExportReport}
++            className="flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-300 transition hover:bg-zinc-800"
++          >
++            <Download size={14} />
++            Relatório completo
++          </button>
++        </div>
+       </div>
+ 
+-      <input
+-        type="text"
+-        value={search}
+-        onChange={(e) => setSearch(e.target.value)}
+-        placeholder="Buscar por segurado ou placa..."
+-        className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-500 sm:max-w-sm"
+-      />
+-
+-      <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+-        <div className="overflow-x-auto">
+-          <table className="min-w-full">
+-            <thead className="border-b border-zinc-800 bg-zinc-950">
+-              <tr className="text-left text-xs text-zinc-500">
+-                <th className="px-4 py-3">Segurado</th>
+-                <th className="px-4 py-3">Placa</th>
+-                <th className="px-4 py-3">Modelo/Ano</th>
+-                <th className="px-4 py-3">Proposta</th>
+-                <th className="px-4 py-3">Técnico</th>
+-                <th className="px-4 py-3">Prazo</th>
+-                <th className="px-4 py-3">Atualizado em</th>
+-                <th className="px-4 py-3">SLA</th>
+-              </tr>
+-            </thead>
+-            <tbody>
+-              {loading ? (
+-                <tr><td colSpan={8} className="py-10 text-center text-zinc-500">Carregando...</td></tr>
+-              ) : items.length === 0 ? (
+-                <tr><td colSpan={8} className="py-10 text-center text-zinc-500">Nenhuma instalação neste status</td></tr>
+-              ) : (
+-                items.map((i) => {
+-                  const sla = SLA_STYLE[i.slaCor] ?? SLA_FALLBACK;
+-                  return (
+-                    <tr key={i.id} className="border-t border-zinc-800 transition hover:bg-zinc-800/40">
+-                      <td className="px-4 py-3 font-medium">{i.customerName || "—"}</td>
+-                      <td className="px-4 py-3 font-mono text-sm text-zinc-300">{i.plate || "—"}</td>
+-                      <td className="px-4 py-3 text-sm text-zinc-400">{i.model || "—"}</td>
+-                      <td className="px-4 py-3 font-mono text-sm text-zinc-400">{i.numeroProposta ?? "—"}</td>
+-                      <td className="px-4 py-3 text-sm text-zinc-400">{i.portalTecnico || "—"}</td>
+-                      <td className="px-4 py-3 text-sm text-zinc-400">{formatPrazo(i.prazoConclusao)}</td>
+-                      <td className="px-4 py-3 text-sm text-zinc-400">{formatLocalDateTime(i.dataAtualizacao)}</td>
+-                      <td className="px-4 py-3">
+-                        {tab === "REMOVIDO_DO_PORTAL" ? (
+-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-700/40 px-2.5 py-1 text-xs font-semibold text-zinc-400">
+-                            Removido
+-                          </span>
+-                        ) : (
+-                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${sla.badge}`}>
+-                            <span className={`h-1.5 w-1.5 rounded-full ${sla.dot}`} />
+-                            {i.slaLabel || "—"}
+-                          </span>
++      {/* Dashboard summary cards — calculados no browser a partir da
++          lista ja carregada (GET /service-orders/dashboard agrega
++          TODOS os tipos de OS, nao so' instalacao). */}
++      {tab === "active" && (
++        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
++          <SummaryCard
++            label="OK (0-1d)"
++            value={ok}
++            color="text-green-400"
++            bg="bg-green-500/10 border-green-500/20"
++            onClick={() => setSlaFilter(slaFilter === "SLA_OK" ? "ALL" : "SLA_OK")}
++            active={slaFilter === "SLA_OK"}
++          />
++          <SummaryCard
++            label="Atenção (2d)"
++            value={warning}
++            color="text-yellow-400"
++            bg="bg-yellow-500/10 border-yellow-500/20"
++            onClick={() => setSlaFilter(slaFilter === "SLA_WARNING" ? "ALL" : "SLA_WARNING")}
++            active={slaFilter === "SLA_WARNING"}
++          />
++          <SummaryCard
++            label="Crítico (3+d)"
++            value={critical}
++            color="text-red-400"
++            bg="bg-red-500/10 border-red-500/20"
++            onClick={() => setSlaFilter(slaFilter === "SLA_CRITICAL" ? "ALL" : "SLA_CRITICAL")}
++            active={slaFilter === "SLA_CRITICAL"}
++          />
++          <SummaryCard
++            label="Fechadas hoje"
++            value={closedToday}
++            color="text-zinc-300"
++            bg="bg-zinc-800/60 border-zinc-700/50"
++            onClick={() => { setTab("history"); }}
++            active={false}
++          />
++        </div>
++      )}
++
++      {/* Bulk action bar */}
++      {tab === "active" && selected.size > 0 && (
++        <div className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3">
++          <span className="text-sm text-zinc-300">{selected.size} selecionada(s)</span>
++          <button
++            onClick={handleCopySelected}
++            className="flex items-center gap-2 rounded-xl bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-200 transition hover:bg-zinc-700"
++          >
++            <ClipboardCopy size={13} />
++            Copiar mensagens
++          </button>
++          <button
++            onClick={() => setSelected(new Set())}
++            className="ml-auto text-xs text-zinc-500 hover:text-zinc-300"
++          >
++            Limpar seleção
++          </button>
++        </div>
++      )}
++
++      {/* Active tab — pending table */}
++      {tab === "active" && (
++        <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
++          {loading ? (
++            <p className="py-10 text-center text-zinc-500">Carregando...</p>
++          ) : displayed.length === 0 ? (
++            <p className="py-10 text-center text-zinc-500">
++              {slaFilter !== "ALL" ? "Nenhuma instalação neste filtro" : "Nenhuma instalação aguardando"}
++            </p>
++          ) : (
++            <div className="overflow-x-auto">
++              <table className="min-w-full">
++                <thead className="border-b border-zinc-800 bg-zinc-950">
++                  <tr className="text-left text-xs text-zinc-500">
++                    <th className="w-10 px-4 py-3">
++                      <button onClick={toggleSelectAll}>
++                        {allSelected ? <CheckSquare size={15} className="text-zinc-300" /> : <Square size={15} />}
++                      </button>
++                    </th>
++                    <th className="px-4 py-3">SLA</th>
++                    <th className="px-4 py-3">Segurado</th>
++                    <th className="px-4 py-3">Placa</th>
++                    <th className="px-4 py-3">Telefone</th>
++                    <th className="px-4 py-3">Cidade/UF</th>
++                    <th className="px-4 py-3">Técnico</th>
++                    <th className="px-4 py-3"></th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {displayed.map((so) => {
++                    const { row, badge, dot } = slaColors(slaStatusOf(so));
++                    const isExpanded = expandedId === so.id;
++
++                    return (
++                      <>
++                        <tr
++                          key={so.id}
++                          className={`border-t border-zinc-800 transition hover:bg-zinc-800/40 cursor-pointer ${row}`}
++                        >
++                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
++                            <button onClick={() => toggleSelect(so.id)}>
++                              {selected.has(so.id)
++                                ? <CheckSquare size={15} className="text-white" />
++                                : <Square size={15} className="text-zinc-600" />}
++                            </button>
++                          </td>
++                          <td className="px-4 py-3" onClick={() => toggleExpand(so.id)}>
++                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${badge}`}>
++                              <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
++                              {slaLabel(so)}
++                            </span>
++                          </td>
++                          <td className="px-4 py-3 font-medium" onClick={() => toggleExpand(so.id)}>
++                            {so.customerName || "—"}
++                          </td>
++                          <td className="px-4 py-3 font-mono text-sm text-zinc-300" onClick={() => toggleExpand(so.id)}>
++                            {so.plate || "—"}
++                          </td>
++                          <td className="px-4 py-3 text-zinc-400" onClick={() => toggleExpand(so.id)}>
++                            {so.customerPhone || "—"}
++                          </td>
++                          <td className="px-4 py-3 text-zinc-400 text-sm" onClick={() => toggleExpand(so.id)}>
++                            {so.city ? `${so.city}/${so.state}` : "—"}
++                          </td>
++                          <td className="px-4 py-3 text-zinc-400 text-sm" onClick={() => toggleExpand(so.id)}>
++                            {so.technician?.name || "—"}
++                          </td>
++                          <td className="px-4 py-3">
++                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
++                              <button
++                                onClick={() => setSchedulingId(so.id)}
++                                title="Vincular técnico / agendar"
++                                className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
++                              >
++                                <UserCog size={14} />
++                              </button>
++                              <button
++                                onClick={() => toggleExpand(so.id)}
++                                title="Ver / editar observações"
++                                className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
++                              >
++                                <MessageSquarePlus size={14} />
++                              </button>
++                              <button
++                                onClick={() => handleCopy(so)}
++                                title="Copiar mensagem"
++                                className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
++                              >
++                                {copiedId === so.id ? <Check size={14} className="text-green-400" /> : <ClipboardCopy size={14} />}
++                              </button>
++                              <button
++                                onClick={() => toggleExpand(so.id)}
++                                className="rounded-xl border border-zinc-700 bg-zinc-950 p-2 text-zinc-400 transition hover:bg-zinc-800 hover:text-white"
++                              >
++                                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
++                              </button>
++                            </div>
++                          </td>
++                        </tr>
++
++                        {isExpanded && (
++                          <tr key={`${so.id}-expand`} className="border-t border-zinc-800/50">
++                            <td colSpan={8} className="bg-zinc-950 px-6 py-4">
++                              <div className="grid gap-4 sm:grid-cols-2">
++
++                                {/* Details */}
++                                <div className="space-y-2 text-sm">
++                                  <p className="font-semibold text-zinc-300">Detalhes</p>
++                                  {so.address && (
++                                    <p className="text-zinc-400">
++                                      {so.address}
++                                      {so.neighborhood ? ` | ${so.neighborhood}` : ""}
++                                    </p>
++                                  )}
++                                  {so.zipCode && <p className="text-zinc-500">CEP: {so.zipCode}</p>}
++                                  {so.technician?.name && <p className="text-zinc-400">Técnico: {so.technician.name}</p>}
++                                  {so.distanceKm != null && (
++                                    <p className="text-zinc-400">Distância: {so.distanceKm} km — Deslocamento: R$ {so.displacementValue ?? 0}</p>
++                                  )}
++                                  {so.serviceValue != null && <p className="text-zinc-400">Valor do serviço: R$ {so.serviceValue}</p>}
++                                  {so.requestedAt && (
++                                    <p className="text-zinc-500">Solicitada em: {formatLocalDateTime(so.requestedAt)}</p>
++                                  )}
++                                  {(so.displacementValue ?? 0) > 0 && (
++                                    <p className="text-zinc-500">Aprovação financeira: {so.financialApprovalStatus}</p>
++                                  )}
++                                </div>
++
++                                {/* Observations — campo unico de texto em
++                                    ServiceOrder, nao e' uma lista com
++                                    autor/data como era em Installation. */}
++                                <div className="space-y-3">
++                                  <p className="text-sm font-semibold text-zinc-300">Observações</p>
++                                  <textarea
++                                    rows={4}
++                                    value={obsDraft[so.id] ?? so.observations ?? ""}
++                                    onChange={(e) => setObsDraft((prev) => ({ ...prev, [so.id]: e.target.value }))}
++                                    placeholder="Observações desta OS..."
++                                    className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-500"
++                                  />
++                                  <button
++                                    onClick={() => handleSaveObservations(so)}
++                                    disabled={savingObs[so.id]}
++                                    className="rounded-xl bg-white px-4 py-2 text-xs font-semibold text-black transition hover:opacity-90 disabled:opacity-40"
++                                  >
++                                    {savingObs[so.id] ? "..." : "Salvar"}
++                                  </button>
++                                </div>
++
++                              </div>
++                            </td>
++                          </tr>
+                         )}
+-                      </td>
+-                    </tr>
+-                  );
+-                })
+-              )}
+-            </tbody>
+-          </table>
++                      </>
++                    );
++                  })}
++                </tbody>
++              </table>
++            </div>
++          )}
+         </div>
+-      </div>
++      )}
++
++      {/* History tab */}
++      {tab === "history" && (
++        <div className="space-y-4">
++          <div className="flex flex-wrap gap-3">
++            <input
++              type="text"
++              value={historySearch}
++              onChange={(e) => setHistorySearch(e.target.value)}
++              placeholder="Buscar por cliente, placa, cidade..."
++              className="flex-1 min-w-48 rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm text-white placeholder-zinc-600 outline-none focus:border-zinc-500"
++            />
++            <select
++              value={historyApproval}
++              onChange={(e) => setHistoryApproval(e.target.value)}
++              className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-300 outline-none"
++            >
++              <option value="">Todas as aprovações</option>
++              <option value="PENDENTE">Pendente</option>
++              <option value="APROVADO">Aprovado</option>
++              <option value="REPROVADO">Reprovado</option>
++            </select>
++          </div>
++
++          <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
++            <div className="overflow-x-auto">
++              <table className="min-w-full">
++                <thead className="border-b border-zinc-800 bg-zinc-950">
++                  <tr className="text-left text-xs text-zinc-500">
++                    <th className="px-4 py-3">Cliente</th>
++                    <th className="px-4 py-3">Placa</th>
++                    <th className="px-4 py-3">Cidade/UF</th>
++                    <th className="px-4 py-3">Técnico</th>
++                    <th className="px-4 py-3">Aprovação</th>
++                    <th className="px-4 py-3">Duração SLA</th>
++                    <th className="px-4 py-3">Fechado em</th>
++                  </tr>
++                </thead>
++                <tbody>
++                  {loading ? (
++                    <tr><td colSpan={7} className="py-10 text-center text-zinc-500">Carregando...</td></tr>
++                  ) : filteredHistory().length === 0 ? (
++                    <tr><td colSpan={7} className="py-10 text-center text-zinc-500">Nenhum registro</td></tr>
++                  ) : (
++                    filteredHistory().map((so) => (
++                      <tr key={so.id} className="border-t border-zinc-800 transition hover:bg-zinc-800/40">
++                        <td className="px-4 py-3 font-medium">{so.customerName || "—"}</td>
++                        <td className="px-4 py-3 font-mono text-sm text-zinc-300">{so.plate || "—"}</td>
++                        <td className="px-4 py-3 text-zinc-400 text-sm">{so.city ? `${so.city}/${so.state}` : "—"}</td>
++                        <td className="px-4 py-3 text-zinc-400 text-sm">{so.technician?.name || "—"}</td>
++                        <td className="px-4 py-3"><ApprovalStatusBadge status={so.financialApprovalStatus} /></td>
++                        <td className="px-4 py-3 text-zinc-400 text-sm">
++                          {so.slaDays != null ? `${so.slaDays}d` : "—"}
++                        </td>
++                        <td className="px-4 py-3 text-zinc-400 text-sm">
++                          {so.closedAt ? formatLocalDateTime(so.closedAt) : "—"}
++                        </td>
++                      </tr>
++                    ))
++                  )}
++                </tbody>
++              </table>
++            </div>
++          </div>
++        </div>
++      )}
++
++      {showNewModal && (
++        <InstallationModal
++          onClose={() => setShowNewModal(false)}
++          onSaved={load}
++        />
++      )}
++
++      {schedulingId && (
++        <SchedulingModal
++          serviceOrderId={schedulingId}
++          onClose={() => setSchedulingId(null)}
++          onSaved={load}
++        />
++      )}
+ 
+     </div>
+   );
+ }
++
++function SummaryCard({ label, value, color, bg, onClick, active }) {
++  return (
++    <button
++      onClick={onClick}
++      className={`rounded-2xl border p-4 text-left transition hover:opacity-90 ${bg} ${active ? "ring-2 ring-white/20" : ""}`}
++    >
++      <p className={`text-2xl font-bold ${color}`}>{value}</p>
++      <p className="mt-1 text-xs text-zinc-500">{label}</p>
++    </button>
++  );
++}
++
++function ApprovalStatusBadge({ status }) {
++  const map = {
++    APROVADO:  { label: "Aprovado",  cls: "bg-green-500/15 text-green-400" },
++    REPROVADO: { label: "Reprovado", cls: "bg-red-500/15 text-red-400" },
++    PENDENTE:  { label: "Pendente",  cls: "bg-yellow-500/15 text-yellow-400" },
++  };
++  const { label, cls } = map[status] || { label: status || "—", cls: "bg-zinc-700/40 text-zinc-400" };
++  return (
++    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>{label}</span>
++  );
++}
+diff --git a/frontend/src/pages/Technicians.jsx b/frontend/src/pages/Technicians.jsx
+index bf39714..41727a2 100644
+--- a/frontend/src/pages/Technicians.jsx
++++ b/frontend/src/pages/Technicians.jsx
+@@ -41,6 +41,17 @@ const formatPhone = (value) => {
+   return digits.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
+ };
+ 
++const GEOCODE_KEY = "6a767720c9a23759209230ybg19c2d3";
++async function geocode(address) {
++  try {
++    const url = `https://geocode.maps.co/search?q=${encodeURIComponent(address)}&api_key=${GEOCODE_KEY}&countrycodes=br&limit=1`;
++    const res = await fetch(url);
++    const data = await res.json();
++    if (data.length > 0) return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
++    return null;
++  } catch { return null; }
++}
++
+ async function fetchCep(cep) {
+   const clean = cep.replace(/\D/g, "");
+   if (clean.length !== 8) return null;
+@@ -123,6 +134,15 @@ export default function Technicians() {
+         defaultServiceValue: form.defaultServiceValue || null,
+       };
+ 
++      const addressParts = [form.address, form.city, form.state].filter(Boolean);
++      if (addressParts.length > 0) {
++        const coords = await geocode(addressParts.join(", "));
++        if (coords) {
++          payload.latitude = coords.lat;
++          payload.longitude = coords.lon;
++        }
++      }
++
+       if (modal.mode === "create") await createTechnician(payload);
+       else await updateTechnician(modal.id, payload);
+       toast.success(modal.mode === "create" ? "Técnico criado" : "Técnico atualizado");
+diff --git a/frontend/src/services/installationService.js b/frontend/src/services/installationService.js
+index 39cf82f..95c7b0d 100644
+--- a/frontend/src/services/installationService.js
++++ b/frontend/src/services/installationService.js
+@@ -13,10 +13,6 @@ export async function getInstallationsPendingCount() {
+   return apiClient.get("/installations/pending-count");
+ }
+ 
+-export async function getInstallationsByPortalStatus() {
+-  return apiClient.get("/installations/portal-status");
+-}
+-
+ export async function getInstallationsDashboard() {
+   return apiClient.get("/installations/dashboard");
+ }
+diff --git a/fusion-etl/.env.example b/fusion-etl/.env.example
+deleted file mode 100644
+index cc738ae..0000000
+--- a/fusion-etl/.env.example
++++ /dev/null
+@@ -1,7 +0,0 @@
+-BACKEND_URL=
+-ETL_API_KEY=
+-ETL_LOG_DIR=
+-WHATSAPP_DEILA_NUMBER=
+-WHATSAPP_GERENTE_NUMBER=
+-WHATSAPP_GROUP_ID=
+-WHATSAPP_GROUP_ID_2=
+diff --git a/fusion-etl/src/approvalFlow.js b/fusion-etl/src/approvalFlow.js
+index 1571050..eab13d4 100644
+--- a/fusion-etl/src/approvalFlow.js
++++ b/fusion-etl/src/approvalFlow.js
+@@ -31,29 +31,11 @@
+ // Suporta multiplas aprovacoes simultaneas porque cada uma vive numa
+ // chave diferente do Map (a placa) — nao ha estado global unico.
+ //
+-// Fase 2 — fluxo paralelo pra aprovacao de pagamento de Installation
+-// (!aprovar-inst), independente do fluxo de ServiceOrder acima (Map
+-// separado, pendingInstApprovals, mesmo que a placa coincida):
+-//   !aprovar-inst {placa} {valor} {cpf_tecnico}  — so' de
+-//     WHATSAPP_DEILA_NUMBER. Busca a instalacao via GET /installations/
+-//     by-plate e o tecnico via GET /technicians/by-cpf, confere que o
+-//     tecnico tem lat/lon cadastrada e abre a pendencia com o valor
+-//     declarado (digitado no comando, nao calculado).
+-//   !aprovado-inst / !rejeitar-inst {placa} — so' de
+-//     WHATSAPP_GERENTE_NUMBER. Chama PUT /installations/{id}/
+-//     financial-approval com o valor declarado.
+-//   !cancelar-inst {placa} — so' de WHATSAPP_DEILA_NUMBER, estado local.
+-//
+-// Fase 2d — calculo de deslocamento voltou pro backend: !aprovar-inst
+-// chama GET /installations/{id}/calculate-displacement?technicianId=X
+-// (backend geocodifica o endereco do cliente via Nominatim e calcula
+-// ida+volta via OSRM — ver InstallationService.calculateDisplacement /
+-// OrsService.geocode). A troca de geocode.maps.co por Nominatim no
+-// OrsService resolveu o problema de chamar geocodificacao do Railway —
+-// o calculo no ETL (Fase 2c, ./geocode.js) nao e' mais necessario. Se a
+-// chamada falhar (geocode nao achou endereco, tecnico sem lat/lon, OSRM
+-// fora do ar etc.), NAO bloqueia a solicitacao — so' entra um aviso ⚠️
+-// na mensagem e os campos calculados ficam null.
++// Fase 2 — fluxo paralelo para Instalacoes:
++//   !aprovar-inst {placa} {valor} {cpf} — so' de WHATSAPP_DEILA_NUMBER
++//   !aprovado-inst {placa}              — so' de WHATSAPP_GERENTE_NUMBER
++//   !rejeitar-inst {placa}              — so' de WHATSAPP_GERENTE_NUMBER
++//   !cancelar-inst {placa}              — so' de WHATSAPP_DEILA_NUMBER
+ 
+ const axios = require('axios');
+ const { log } = require('./file-utils');
+@@ -69,7 +51,7 @@ const REMINDER_AFTER_MS = 2 * 60 * 60 * 1000; // 2h
+ // Map<placa, { serviceOrderId, requestedBy, reminderTimer }>
+ const pendingApprovals = new Map();
+ 
+-// Map<placa, { installationId, technicianId, declaredValue, requestedBy, reminderTimer }>
++// Map<placa, { installationId, technicianId, declaredValue, calculatedKm, calculatedDisplacement, requestedBy, reminderTimer }>
+ const pendingInstApprovals = new Map();
+ 
+ function normalizeNumber(raw) {
+@@ -94,14 +76,6 @@ function fmtMoney(value) {
+     return value != null ? Number(value).toFixed(2) : '0.00';
+ }
+ 
+-// Separador decimal brasileiro (110,00) — so' pra mensagens novas do
+-// fluxo !aprovar-inst; buildApprovalMessage (ServiceOrder) continua com
+-// ponto, de proposito, pra nao mudar o formato de algo que ja' esta' em
+-// produção sem pedido.
+-function fmtMoneyBr(value) {
+-    return fmtMoney(value).replace('.', ',');
+-}
+-
+ function buildApprovalMessage(so) {
+     const lines = [
+         '*SOLICITAÇÃO DE APROVAÇÃO DE PAGAMENTO*',
+@@ -126,43 +100,10 @@ function buildApprovalMessage(so) {
+     return lines.join('\n');
+ }
+ 
+-function buildInstApprovalMessage(installation, technician, declaredValue, calculatedKm, calculatedDisplacement, warning) {
+-    const lines = [
+-        '*SOLICITAÇÃO DE APROVAÇÃO — INSTALAÇÃO*',
+-        '',
+-        `PLACA: ${installation.plate || '--'}`,
+-        `SEGURADO: ${installation.customerName || '--'}`,
+-        `TÉCNICO: ${technician.name || '--'}`,
+-        `CPF TÉCNICO: ${technician.cpf || '--'}`,
+-        `VALOR DECLARADO: R$ ${fmtMoneyBr(declaredValue)}`,
+-    ];
+-
+-    // So' mostra as duas linhas de calculo quando o calculo deu certo —
+-    // quando falha, warning (calcNote) ja' explica o motivo, sem linha
+-    // de "nao disponivel" redundante.
+-    if (calculatedKm != null) {
+-        lines.push(`DISTÂNCIA CALCULADA: ${calculatedKm} km (ida+volta)`);
+-        lines.push(`DESLOCAMENTO CALCULADO: R$ ${fmtMoneyBr(calculatedDisplacement)}`);
+-    }
+-
+-    if (warning) {
+-        lines.push(warning);
+-    }
+-
+-    lines.push('');
+-    lines.push(`Responda !aprovado-inst ${installation.plate} ou !rejeitar-inst ${installation.plate}`);
+-
+-    return lines.join('\n');
+-}
+-
+ async function handleIncomingMessage(msg, sendToGroup) {
+ 
+     if (msg.key.fromMe) return;
+ 
+-    const textDebug = extractText(msg).trim();
+-    const senderDebug = senderNumber(msg);
+-    log(`[APPROVAL-FLOW DEBUG] msg recebida — sender: ${senderDebug}, text: "${textDebug}"`);
+-
+     const text = extractText(msg).trim();
+ 
+     if (!text.startsWith('!')) return;
+@@ -171,10 +112,8 @@ async function handleIncomingMessage(msg, sendToGroup) {
+     const command = parts[0].toLowerCase();
+     const sender = senderNumber(msg);
+ 
+-    if (![
+-        '!aprovar', '!aprovado', '!rejeitar', '!cancelar',
+-        '!aprovar-inst', '!aprovado-inst', '!rejeitar-inst', '!cancelar-inst',
+-    ].includes(command)) {
++    if (!['!aprovar', '!aprovado', '!rejeitar', '!cancelar',
++          '!aprovar-inst', '!aprovado-inst', '!rejeitar-inst', '!cancelar-inst'].includes(command)) {
+         return;
+     }
+ 
+@@ -319,92 +258,113 @@ async function handleCancelar(parts, sender, sendToGroup) {
+ 
+ }
+ 
+-async function handleAprovarInst(parts, sender, sendToGroup) {
++// ─── Fase 2: fluxo de instalações ────────────────────────────────────────────
+ 
+-    if (sender !== WHATSAPP_DEILA_NUMBER) return;
++async function handleAprovarInst(parts, sender, sendToGroup) {
++    if (sender !== WHATSAPP_DEILA_NUMBER) {
++        log(`[APPROVAL-FLOW-INST] !aprovar-inst ignorado: sender=${sender} esperado=${WHATSAPP_DEILA_NUMBER}`);
++        return;
++    }
+ 
++    // !aprovar-inst {placa} {valor} {cpf}
+     const plateRaw = parts[1];
+-    const valorRaw = parts[2];
++    const declaredValueRaw = parts[2];
+     const cpfRaw = parts[3];
+ 
+-    if (!plateRaw || !valorRaw || !cpfRaw) {
++    if (!plateRaw || !declaredValueRaw || !cpfRaw) {
+         await sendToGroup('Uso: !aprovar-inst {placa} {valor} {cpf_tecnico}');
+         return;
+     }
+ 
+     const plate = plateRaw.toUpperCase();
+-    const declaredValue = Number(valorRaw.replace(',', '.'));
++    const declaredValue = parseFloat(declaredValueRaw.replace(',', '.'));
++    const cpf = cpfRaw.replace(/\D/g, '');
+ 
+-    if (Number.isNaN(declaredValue)) {
+-        await sendToGroup('Valor inválido. Uso: !aprovar-inst {placa} {valor} {cpf_tecnico}');
++    if (isNaN(declaredValue)) {
++        await sendToGroup(`Valor inválido: ${declaredValueRaw}`);
+         return;
+     }
+ 
+     if (pendingInstApprovals.has(plate)) {
+-        await sendToGroup(`Já existe uma aprovação de instalação pendente para ${plate}. Use !cancelar-inst ${plate} antes de abrir outra.`);
++        await sendToGroup(`Já existe aprovação de instalação pendente para ${plate}. Use !cancelar-inst ${plate} antes.`);
+         return;
+     }
+ 
+-    const installationResponse = await axios.get(
+-        `${BACKEND_URL}/installations/by-plate`,
+-        {
+-            params: { plate },
+-            headers: { 'X-ETL-Key': ETL_API_KEY },
+-        }
+-    );
+-
+-    const installation = installationResponse.data;
++    // Busca a instalação
++    const instResp = await axios.get(`${BACKEND_URL}/installations/by-plate`, {
++        params: { plate },
++        headers: { 'X-ETL-Key': ETL_API_KEY },
++    });
++    const inst = instResp.data;
+ 
+-    const technicianResponse = await axios.get(
+-        `${BACKEND_URL}/technicians/by-cpf`,
+-        {
+-            params: { cpf: cpfRaw },
+-            headers: { 'X-ETL-Key': ETL_API_KEY },
+-        }
+-    );
++    // Busca o técnico por CPF
++    const techResp = await axios.get(`${BACKEND_URL}/technicians/by-cpf`, {
++        params: { cpf },
++        headers: { 'X-ETL-Key': ETL_API_KEY },
++    });
++    const tech = techResp.data;
+ 
+-    const technician = technicianResponse.data;
++    if (!tech.latitude || !tech.longitude) {
++        await sendToGroup(`⚠️ Técnico ${tech.name} não tem coordenadas cadastradas. Atualize o cadastro antes.`);
++        return;
++    }
+ 
++    // Calcula deslocamento via backend (Nominatim + OSRM)
+     let calculatedKm = null;
+     let calculatedDisplacement = null;
+-    let warning = '';
++    let calcWarning = '';
+ 
+     try {
+-
+-        const calcResponse = await axios.get(
+-            `${BACKEND_URL}/installations/${installation.id}/calculate-displacement`,
++        const calcResp = await axios.get(
++            `${BACKEND_URL}/installations/${inst.id}/calculate-displacement`,
+             {
+-                params: { technicianId: technician.id },
++                params: { technicianId: tech.id },
+                 headers: { 'X-ETL-Key': ETL_API_KEY },
+             }
+         );
++        calculatedKm = calcResp.data.km;
++        calculatedDisplacement = calcResp.data.displacement;
+ 
+-        calculatedKm = calcResponse.data.km;
+-        calculatedDisplacement = calcResponse.data.displacement;
+-
+-        if (calculatedDisplacement != null && declaredValue > 0) {
+-            const diffPct = Math.abs(declaredValue - calculatedDisplacement) / declaredValue * 100;
+-            if (diffPct > 20) {
+-                warning = `⚠️ ATENÇÃO: diferença de ${diffPct.toFixed(0)}% entre declarado e calculado.`;
++        if (calculatedDisplacement != null && calculatedDisplacement > 0) {
++            const diff = Math.abs(declaredValue - calculatedDisplacement) / calculatedDisplacement;
++            if (diff > 0.20) {
++                calcWarning = `\n⚠️ ATENÇÃO: diferença de ${(diff * 100).toFixed(0)}% entre declarado e calculado`;
+             }
+         }
++    } catch (calcErr) {
++        const errMsg = calcErr.response?.data?.error || calcErr.message;
++        calcWarning = `\n⚠️ Não foi possível calcular automaticamente: ${errMsg}`;
++        log(`[APPROVAL-FLOW-INST] Erro no cálculo para ${plate}: ${errMsg}`);
++    }
+ 
+-    } catch (e) {
+-
+-        const detail = e.response?.data?.error || e.message;
+-        log(`[APPROVAL-FLOW] Falha ao calcular deslocamento de ${plate}: ${detail}`);
+-        warning = `⚠️ Cálculo automático indisponível: ${detail}`;
++    const lines = [
++        '*SOLICITAÇÃO DE APROVAÇÃO — DESLOCAMENTO INSTALAÇÃO*',
++        '',
++        `PLACA: ${inst.plate || plate}`,
++        `SEGURADO: ${inst.customerName || '--'}`,
++        `TÉCNICO: ${tech.name}`,
++        `CPF TÉCNICO: ${cpfRaw}`,
++        `VALOR DECLARADO: R$ ${declaredValue.toFixed(2)}`,
++    ];
+ 
++    if (calculatedKm != null) {
++        lines.push(`DISTÂNCIA CALCULADA (ida+volta): ${calculatedKm} km`);
++        lines.push(`DESLOCAMENTO CALCULADO: R$ ${calculatedDisplacement != null ? Number(calculatedDisplacement).toFixed(2) : '0.00'}`);
+     }
+ 
++    if (calcWarning) lines.push(calcWarning);
++
++    lines.push('');
++    lines.push(`Responda !aprovado-inst ${plate} ou !rejeitar-inst ${plate}`);
++
+     const reminderTimer = setTimeout(
+         () => sendReminderInst(plate, sendToGroup),
+         REMINDER_AFTER_MS
+     );
+ 
+     pendingInstApprovals.set(plate, {
+-        installationId: installation.id,
+-        technicianId: technician.id,
++        installationId: inst.id,
++        technicianId: tech.id,
+         declaredValue,
+         calculatedKm,
+         calculatedDisplacement,
+@@ -412,25 +372,19 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
+         reminderTimer,
+     });
+ 
+-    await sendToGroup(buildInstApprovalMessage(installation, technician, declaredValue, calculatedKm, calculatedDisplacement, warning));
+-
+-    log(`[APPROVAL-FLOW] Aprovação de instalação iniciada para ${plate} por ${sender} (installation ${installation.id})`);
+-
++    await sendToGroup(lines.join('\n'));
++    log(`[APPROVAL-FLOW-INST] Aprovação instalação iniciada para ${plate} técnico ${tech.name}`);
+ }
+ 
+ async function sendReminderInst(plate, sendToGroup) {
+-
+     if (!pendingInstApprovals.has(plate)) return;
+-
+     await sendToGroup(
+-        `⏰ LEMBRETE: aprovação de instalação de ${plate} está pendente há mais de 2h. ` +
++        `⏰ LEMBRETE: aprovação de deslocamento de instalação ${plate} pendente há mais de 2h. ` +
+         `Responda !aprovado-inst ${plate} ou !rejeitar-inst ${plate}.`
+     );
+-
+ }
+ 
+ async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalStatus) {
+-
+     if (sender !== WHATSAPP_GERENTE_NUMBER) return;
+ 
+     const plate = (parts[1] || '').toUpperCase();
+@@ -446,8 +400,9 @@ async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalSt
+         {
+             financialApprovalStatus,
+             declaredValue: pending.declaredValue,
+-            calculatedKm: pending.calculatedKm,
+-            calculatedDisplacement: pending.calculatedDisplacement,
++            technicianId: pending.technicianId,
++            calculatedKm: pending.calculatedKm || null,
++            calculatedDisplacement: pending.calculatedDisplacement || null,
+         },
+         { headers: { 'X-ETL-Key': ETL_API_KEY } }
+     );
+@@ -457,14 +412,11 @@ async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalSt
+ 
+     const emoji = financialApprovalStatus === 'APROVADO' ? '✅' : '❌';
+     const label = financialApprovalStatus === 'APROVADO' ? 'aprovado' : 'rejeitado';
+-    await sendToGroup(`${emoji} Pagamento de instalação de ${plate} ${label}.`);
+-
+-    log(`[APPROVAL-FLOW] Instalação ${plate} ${label} por ${sender} (installation ${pending.installationId})`);
+-
++    await sendToGroup(`${emoji} Deslocamento de instalação ${plate} ${label}.`);
++    log(`[APPROVAL-FLOW-INST] Instalação ${plate} ${label} por ${sender}`);
+ }
+ 
+ async function handleCancelarInst(parts, sender, sendToGroup) {
+-
+     if (sender !== WHATSAPP_DEILA_NUMBER) return;
+ 
+     const plate = (parts[1] || '').toUpperCase();
+@@ -477,11 +429,8 @@ async function handleCancelarInst(parts, sender, sendToGroup) {
+ 
+     clearTimeout(pending.reminderTimer);
+     pendingInstApprovals.delete(plate);
+-
+-    await sendToGroup(`Solicitação de aprovação de instalação de ${plate} cancelada.`);
+-
+-    log(`[APPROVAL-FLOW] Instalação ${plate} cancelada por ${sender}`);
+-
++    await sendToGroup(`Solicitação de aprovação de instalação ${plate} cancelada.`);
++    log(`[APPROVAL-FLOW-INST] Instalação ${plate} cancelada por ${sender}`);
+ }
+ 
+ module.exports = { handleIncomingMessage };

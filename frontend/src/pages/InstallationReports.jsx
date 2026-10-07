@@ -12,24 +12,11 @@ import { todayForFilename } from "../utils/exportXlsx";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
-// Status do portal (ver InstallationSyncService.ALL_STATUSES) — nao mais
-// o InstallationStatus local antigo (PENDING/SENT/CANCELLED/SCHEDULED).
-// O parametro "status" enviado pro backend agora filtra por portalStatus.
 const STATUS_LABELS = {
-  AGUARDANDO_AGENDAMENTO: "Aguardando Agendamento",
-  AGENDADO_AGUARDANDO_ATIVACAO: "Agendado",
-  AGUARDANDO_INSTALACAO: "Aguardando Instalação",
-  INSTALACAO_ENVIADA: "Instalação Enviada",
-  INSTALACAO_EM_ANALISE: "Em Análise",
-  INSTALACAO_CONCLUIDA_SUCESSO: "Concluído",
-  INSTALACAO_CONCLUIDA_FALHA: "Falha",
-  PENDENTE_INSTALACAO: "Pendente",
-  REMOVIDO_DO_PORTAL: "Removido do Portal",
-};
-
-const FINANCIAL_LABELS = {
-  APROVADO: "Aprovado",
-  REPROVADO: "Reprovado",
+  PENDING: "Pendente",
+  SCHEDULED: "Agendado",
+  SENT: "Enviado",
+  CANCELLED: "Cancelado",
 };
 
 const HEADERS = [
@@ -43,20 +30,9 @@ const HEADERS = [
   "Cidade/UF",
   "CEP",
   "Status",
-  "Aprovação Financeira",
-  "Valor Declarado",
-  "KM Calculado",
   "Enviado por",
   "Data envio",
 ];
-
-function fmtCurrency(value) {
-  return value != null ? `R$ ${Number(value).toFixed(2)}` : "--";
-}
-
-function fmtKm(value) {
-  return value != null ? `${value} km` : "--";
-}
 
 function toRow(inst) {
   return [
@@ -73,10 +49,7 @@ function toRow(inst) {
     inst.neighborhood || "--",
     inst.city && inst.state ? `${inst.city}/${inst.state}` : inst.city || "--",
     inst.zipCode || "--",
-    STATUS_LABELS[inst.portalStatus] || inst.portalStatus || "--",
-    FINANCIAL_LABELS[inst.financialApprovalStatus] || inst.financialApprovalStatus || "--",
-    fmtCurrency(inst.declaredDisplacementValue),
-    fmtKm(inst.calculatedKm),
+    STATUS_LABELS[inst.status] || inst.status,
     inst.sentBy || "--",
     inst.sentAt ? formatLocalDateTime(inst.sentAt) : "--",
   ];
@@ -116,18 +89,6 @@ export default function InstallationReports() {
     ...(startDate ? { De: startDate } : {}),
     ...(endDate ? { Até: endDate } : {}),
   };
-
-  // Resumo calculado em cima dos resultados ja carregados — "com
-  // deslocamento aprovado" = aprovados com km/valor de deslocamento > 0.
-  const aprovadosComDeslocamento = results.filter((r) => {
-    if (r.financialApprovalStatus !== "APROVADO") return false;
-    const km = r.calculatedKm ?? 0;
-    const valor = r.declaredDisplacementValue ?? r.calculatedDisplacementValue ?? 0;
-    return km > 0 || valor > 0;
-  });
-  const totalValoresAprovados = results
-    .filter((r) => r.financialApprovalStatus === "APROVADO")
-    .reduce((sum, r) => sum + (r.declaredDisplacementValue ?? r.calculatedDisplacementValue ?? 0), 0);
 
   async function handleExcelExport() {
     if (results.length === 0) {
@@ -198,9 +159,10 @@ export default function InstallationReports() {
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
             >
               <option value="">Todos</option>
-              {Object.entries(STATUS_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
+              <option value="PENDING">Pendentes</option>
+              <option value="SENT">Enviados</option>
+              <option value="CANCELLED">Cancelados</option>
+              <option value="SCHEDULED">Agendados</option>
             </select>
           </div>
 
@@ -257,20 +219,6 @@ export default function InstallationReports() {
         </div>
 
       </div>
-
-      {/* Resumo */}
-      {searched && results.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-green-500/20 bg-green-500/10 p-4">
-            <p className="text-2xl font-bold text-green-400">{aprovadosComDeslocamento.length}</p>
-            <p className="mt-1 text-xs text-zinc-500">Com deslocamento aprovado</p>
-          </div>
-          <div className="rounded-2xl border border-zinc-700/50 bg-zinc-800/60 p-4">
-            <p className="text-2xl font-bold text-zinc-300">{fmtCurrency(totalValoresAprovados)}</p>
-            <p className="mt-1 text-xs text-zinc-500">Soma dos valores aprovados</p>
-          </div>
-        </div>
-      )}
 
       {/* Resultados */}
       {searched && (
@@ -339,16 +287,7 @@ export default function InstallationReports() {
                           {inst.zipCode || "--"}
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={inst.portalStatus} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <FinancialBadge status={inst.financialApprovalStatus} />
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                          {fmtCurrency(inst.declaredDisplacementValue)}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                          {fmtKm(inst.calculatedKm)}
+                          <StatusBadge status={inst.status} />
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-400">
                           {inst.sentBy || "--"}
@@ -375,40 +314,16 @@ export default function InstallationReports() {
 function StatusBadge({ status }) {
 
   const map = {
-    AGUARDANDO_AGENDAMENTO:        { cls: "bg-yellow-500/15 text-yellow-400" },
-    AGENDADO_AGUARDANDO_ATIVACAO:  { cls: "bg-blue-500/15 text-blue-400" },
-    AGUARDANDO_INSTALACAO:         { cls: "bg-blue-500/15 text-blue-400" },
-    INSTALACAO_ENVIADA:            { cls: "bg-blue-500/15 text-blue-400" },
-    INSTALACAO_EM_ANALISE:         { cls: "bg-yellow-500/15 text-yellow-400" },
-    INSTALACAO_CONCLUIDA_SUCESSO:  { cls: "bg-green-500/15 text-green-400" },
-    INSTALACAO_CONCLUIDA_FALHA:    { cls: "bg-red-500/15 text-red-400" },
-    PENDENTE_INSTALACAO:           { cls: "bg-zinc-700/40 text-zinc-400" },
-    REMOVIDO_DO_PORTAL:            { cls: "bg-zinc-700/40 text-zinc-400" },
+    PENDING:   { label: "Pendente",  cls: "bg-yellow-500/15 text-yellow-400" },
+    SCHEDULED: { label: "Agendado",  cls: "bg-blue-500/15 text-blue-400" },
+    SENT:      { label: "Enviado",   cls: "bg-green-500/15 text-green-400" },
+    CANCELLED: { label: "Cancelado", cls: "bg-zinc-700/40 text-zinc-400" },
   };
 
-  const { cls } = map[status] || { cls: "bg-zinc-700/40 text-zinc-400" };
-  const label = STATUS_LABELS[status] || status || "--";
+  const { label, cls } = map[status] || { label: status, cls: "bg-zinc-700/40 text-zinc-400" };
 
   return (
-    <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
-      {label}
-    </span>
-  );
-
-}
-
-function FinancialBadge({ status }) {
-
-  const map = {
-    APROVADO:  { cls: "bg-green-500/15 text-green-400" },
-    REPROVADO: { cls: "bg-red-500/15 text-red-400" },
-  };
-
-  const { cls } = map[status] || { cls: "bg-zinc-700/40 text-zinc-400" };
-  const label = FINANCIAL_LABELS[status] || status || "--";
-
-  return (
-    <span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
+    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>
       {label}
     </span>
   );

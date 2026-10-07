@@ -98,31 +98,6 @@ public class SecurityConfig {
                                 "/sinistro/upload"
                         ).permitAll()
 
-                        // Regra explicita antes da geral /technicians/** abaixo —
-                        // bot do WhatsApp (approvalFlow.js) chama esses dois sem
-                        // JWT, autenticados por X-ETL-Key dentro do proprio
-                        // metodo (igual /installations/sync e /service-orders/
-                        // by-plate). Usado pelo comando !aprovar-inst.
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/installations/by-plate"
-                        ).permitAll()
-
-                        .requestMatchers(
-                                HttpMethod.PUT,
-                                "/installations/*/financial-approval"
-                        ).permitAll()
-
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/installations/*/calculate-displacement"
-                        ).permitAll()
-
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/technicians/by-cpf"
-                        ).permitAll()
-
                         // /etl/heartbeat com metodo explicito — igual ao
                         // padrao ja usado em /etl/status (linha abaixo),
                         // que sempre funcionou. Sem o HttpMethod aqui, o
@@ -150,6 +125,32 @@ public class SecurityConfig {
                         .requestMatchers(
                                 HttpMethod.PUT,
                                 "/service-orders/*/financial-approval-whatsapp"
+                        ).permitAll()
+
+                        // Fase 2 — ETL chama esses endpoints com X-ETL-Key (sem JWT)
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/installations/by-plate"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/installations/*/financial-approval"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/installations/*/calculate-displacement"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/installations/diagnostic/**"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/technicians/by-cpf"
                         ).permitAll()
 
                         .requestMatchers(

@@ -49,18 +49,6 @@ public class Installation {
 
     private String portalStatus;
 
-    private String portalTecnico;
-
-    private String prazoConclusao;
-
-    private String parceiro;
-
-    private String slaCor;
-
-    private String slaLabel;
-
-    private LocalDateTime dataAtualizacao;
-
     @Enumerated(EnumType.STRING)
     @Builder.Default
     @Column(nullable = false)
@@ -74,9 +62,14 @@ public class Installation {
 
     private LocalDate alertDismissedAt;
 
-    private LocalDate agendamentoAlertedAt;
+    private LocalDateTime closedAt;
 
-    private String financialApprovalStatus;
+    private LocalDateTime createdAt;
+
+    private LocalDateTime updatedAt;
+
+    // Aprovação financeira de deslocamento (Fase 2)
+    private String financialApprovalStatus; // null | "APROVADO" | "REPROVADO"
 
     private Double declaredDisplacementValue;
 
@@ -85,12 +78,6 @@ public class Installation {
     private Double calculatedDisplacementValue;
 
     private LocalDateTime financialApprovedAt;
-
-    private LocalDateTime closedAt;
-
-    private LocalDateTime createdAt;
-
-    private LocalDateTime updatedAt;
 
     @PrePersist
     public void prePersist() {

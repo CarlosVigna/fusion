@@ -31,29 +31,11 @@
 // Suporta multiplas aprovacoes simultaneas porque cada uma vive numa
 // chave diferente do Map (a placa) — nao ha estado global unico.
 //
-// Fase 2 — fluxo paralelo pra aprovacao de pagamento de Installation
-// (!aprovar-inst), independente do fluxo de ServiceOrder acima (Map
-// separado, pendingInstApprovals, mesmo que a placa coincida):
-//   !aprovar-inst {placa} {valor} {cpf_tecnico}  — so' de
-//     WHATSAPP_DEILA_NUMBER. Busca a instalacao via GET /installations/
-//     by-plate e o tecnico via GET /technicians/by-cpf, confere que o
-//     tecnico tem lat/lon cadastrada e abre a pendencia com o valor
-//     declarado (digitado no comando, nao calculado).
-//   !aprovado-inst / !rejeitar-inst {placa} — so' de
-//     WHATSAPP_GERENTE_NUMBER. Chama PUT /installations/{id}/
-//     financial-approval com o valor declarado.
-//   !cancelar-inst {placa} — so' de WHATSAPP_DEILA_NUMBER, estado local.
-//
-// Fase 2d — calculo de deslocamento voltou pro backend: !aprovar-inst
-// chama GET /installations/{id}/calculate-displacement?technicianId=X
-// (backend geocodifica o endereco do cliente via Nominatim e calcula
-// ida+volta via OSRM — ver InstallationService.calculateDisplacement /
-// OrsService.geocode). A troca de geocode.maps.co por Nominatim no
-// OrsService resolveu o problema de chamar geocodificacao do Railway —
-// o calculo no ETL (Fase 2c, ./geocode.js) nao e' mais necessario. Se a
-// chamada falhar (geocode nao achou endereco, tecnico sem lat/lon, OSRM
-// fora do ar etc.), NAO bloqueia a solicitacao — so' entra um aviso ⚠️
-// na mensagem e os campos calculados ficam null.
+// Fase 2 — fluxo paralelo para Instalacoes:
+//   !aprovar-inst {placa} {valor} {cpf} — so' de WHATSAPP_DEILA_NUMBER
+//   !aprovado-inst {placa}              — so' de WHATSAPP_GERENTE_NUMBER
+//   !rejeitar-inst {placa}              — so' de WHATSAPP_GERENTE_NUMBER
+//   !cancelar-inst {placa}              — so' de WHATSAPP_DEILA_NUMBER
 
 const axios = require('axios');
 const { log } = require('./file-utils');
@@ -69,7 +51,7 @@ const REMINDER_AFTER_MS = 2 * 60 * 60 * 1000; // 2h
 // Map<placa, { serviceOrderId, requestedBy, reminderTimer }>
 const pendingApprovals = new Map();
 
-// Map<placa, { installationId, technicianId, declaredValue, requestedBy, reminderTimer }>
+// Map<placa, { installationId, technicianId, declaredValue, calculatedKm, calculatedDisplacement, requestedBy, reminderTimer }>
 const pendingInstApprovals = new Map();
 
 function normalizeNumber(raw) {
@@ -92,14 +74,6 @@ function extractText(msg) {
 
 function fmtMoney(value) {
     return value != null ? Number(value).toFixed(2) : '0.00';
-}
-
-// Separador decimal brasileiro (110,00) — so' pra mensagens novas do
-// fluxo !aprovar-inst; buildApprovalMessage (ServiceOrder) continua com
-// ponto, de proposito, pra nao mudar o formato de algo que ja' esta' em
-// produção sem pedido.
-function fmtMoneyBr(value) {
-    return fmtMoney(value).replace('.', ',');
 }
 
 function buildApprovalMessage(so) {
@@ -126,42 +100,9 @@ function buildApprovalMessage(so) {
     return lines.join('\n');
 }
 
-function buildInstApprovalMessage(installation, technician, declaredValue, calculatedKm, calculatedDisplacement, warning) {
-    const lines = [
-        '*SOLICITAÇÃO DE APROVAÇÃO — INSTALAÇÃO*',
-        '',
-        `PLACA: ${installation.plate || '--'}`,
-        `SEGURADO: ${installation.customerName || '--'}`,
-        `TÉCNICO: ${technician.name || '--'}`,
-        `CPF TÉCNICO: ${technician.cpf || '--'}`,
-        `VALOR DECLARADO: R$ ${fmtMoneyBr(declaredValue)}`,
-    ];
-
-    // So' mostra as duas linhas de calculo quando o calculo deu certo —
-    // quando falha, warning (calcNote) ja' explica o motivo, sem linha
-    // de "nao disponivel" redundante.
-    if (calculatedKm != null) {
-        lines.push(`DISTÂNCIA CALCULADA: ${calculatedKm} km (ida+volta)`);
-        lines.push(`DESLOCAMENTO CALCULADO: R$ ${fmtMoneyBr(calculatedDisplacement)}`);
-    }
-
-    if (warning) {
-        lines.push(warning);
-    }
-
-    lines.push('');
-    lines.push(`Responda !aprovado-inst ${installation.plate} ou !rejeitar-inst ${installation.plate}`);
-
-    return lines.join('\n');
-}
-
 async function handleIncomingMessage(msg, sendToGroup) {
 
     if (msg.key.fromMe) return;
-
-    const textDebug = extractText(msg).trim();
-    const senderDebug = senderNumber(msg);
-    log(`[APPROVAL-FLOW DEBUG] msg recebida — sender: ${senderDebug}, text: "${textDebug}"`);
 
     const text = extractText(msg).trim();
 
@@ -171,10 +112,8 @@ async function handleIncomingMessage(msg, sendToGroup) {
     const command = parts[0].toLowerCase();
     const sender = senderNumber(msg);
 
-    if (![
-        '!aprovar', '!aprovado', '!rejeitar', '!cancelar',
-        '!aprovar-inst', '!aprovado-inst', '!rejeitar-inst', '!cancelar-inst',
-    ].includes(command)) {
+    if (!['!aprovar', '!aprovado', '!rejeitar', '!cancelar',
+          '!aprovar-inst', '!aprovado-inst', '!rejeitar-inst', '!cancelar-inst'].includes(command)) {
         return;
     }
 
@@ -319,83 +258,104 @@ async function handleCancelar(parts, sender, sendToGroup) {
 
 }
 
+// ─── Fase 2: fluxo de instalações ────────────────────────────────────────────
+
 async function handleAprovarInst(parts, sender, sendToGroup) {
+    if (sender !== WHATSAPP_DEILA_NUMBER) {
+        log(`[APPROVAL-FLOW-INST] !aprovar-inst ignorado: sender=${sender} esperado=${WHATSAPP_DEILA_NUMBER}`);
+        return;
+    }
 
-    if (sender !== WHATSAPP_DEILA_NUMBER) return;
-
+    // !aprovar-inst {placa} {valor} {cpf}
     const plateRaw = parts[1];
-    const valorRaw = parts[2];
+    const declaredValueRaw = parts[2];
     const cpfRaw = parts[3];
 
-    if (!plateRaw || !valorRaw || !cpfRaw) {
+    if (!plateRaw || !declaredValueRaw || !cpfRaw) {
         await sendToGroup('Uso: !aprovar-inst {placa} {valor} {cpf_tecnico}');
         return;
     }
 
     const plate = plateRaw.toUpperCase();
-    const declaredValue = Number(valorRaw.replace(',', '.'));
+    const declaredValue = parseFloat(declaredValueRaw.replace(',', '.'));
+    const cpf = cpfRaw.replace(/\D/g, '');
 
-    if (Number.isNaN(declaredValue)) {
-        await sendToGroup('Valor inválido. Uso: !aprovar-inst {placa} {valor} {cpf_tecnico}');
+    if (isNaN(declaredValue)) {
+        await sendToGroup(`Valor inválido: ${declaredValueRaw}`);
         return;
     }
 
     if (pendingInstApprovals.has(plate)) {
-        await sendToGroup(`Já existe uma aprovação de instalação pendente para ${plate}. Use !cancelar-inst ${plate} antes de abrir outra.`);
+        await sendToGroup(`Já existe aprovação de instalação pendente para ${plate}. Use !cancelar-inst ${plate} antes.`);
         return;
     }
 
-    const installationResponse = await axios.get(
-        `${BACKEND_URL}/installations/by-plate`,
-        {
-            params: { plate },
-            headers: { 'X-ETL-Key': ETL_API_KEY },
-        }
-    );
+    // Busca a instalação
+    const instResp = await axios.get(`${BACKEND_URL}/installations/by-plate`, {
+        params: { plate },
+        headers: { 'X-ETL-Key': ETL_API_KEY },
+    });
+    const inst = instResp.data;
 
-    const installation = installationResponse.data;
+    // Busca o técnico por CPF
+    const techResp = await axios.get(`${BACKEND_URL}/technicians/by-cpf`, {
+        params: { cpf },
+        headers: { 'X-ETL-Key': ETL_API_KEY },
+    });
+    const tech = techResp.data;
 
-    const technicianResponse = await axios.get(
-        `${BACKEND_URL}/technicians/by-cpf`,
-        {
-            params: { cpf: cpfRaw },
-            headers: { 'X-ETL-Key': ETL_API_KEY },
-        }
-    );
+    if (!tech.latitude || !tech.longitude) {
+        await sendToGroup(`⚠️ Técnico ${tech.name} não tem coordenadas cadastradas. Atualize o cadastro antes.`);
+        return;
+    }
 
-    const technician = technicianResponse.data;
-
+    // Calcula deslocamento via backend (Nominatim + OSRM)
     let calculatedKm = null;
     let calculatedDisplacement = null;
-    let warning = '';
+    let calcWarning = '';
 
     try {
-
-        const calcResponse = await axios.get(
-            `${BACKEND_URL}/installations/${installation.id}/calculate-displacement`,
+        const calcResp = await axios.get(
+            `${BACKEND_URL}/installations/${inst.id}/calculate-displacement`,
             {
-                params: { technicianId: technician.id },
+                params: { technicianId: tech.id },
                 headers: { 'X-ETL-Key': ETL_API_KEY },
             }
         );
+        calculatedKm = calcResp.data.km;
+        calculatedDisplacement = calcResp.data.displacement;
 
-        calculatedKm = calcResponse.data.km;
-        calculatedDisplacement = calcResponse.data.displacement;
-
-        if (calculatedDisplacement != null && declaredValue > 0) {
-            const diffPct = Math.abs(declaredValue - calculatedDisplacement) / declaredValue * 100;
-            if (diffPct > 20) {
-                warning = `⚠️ ATENÇÃO: diferença de ${diffPct.toFixed(0)}% entre declarado e calculado.`;
+        if (calculatedDisplacement != null && calculatedDisplacement > 0) {
+            const diff = Math.abs(declaredValue - calculatedDisplacement) / calculatedDisplacement;
+            if (diff > 0.20) {
+                calcWarning = `\n⚠️ ATENÇÃO: diferença de ${(diff * 100).toFixed(0)}% entre declarado e calculado`;
             }
         }
-
-    } catch (e) {
-
-        const detail = e.response?.data?.error || e.message;
-        log(`[APPROVAL-FLOW] Falha ao calcular deslocamento de ${plate}: ${detail}`);
-        warning = `⚠️ Cálculo automático indisponível: ${detail}`;
-
+    } catch (calcErr) {
+        const errMsg = calcErr.response?.data?.error || calcErr.message;
+        calcWarning = `\n⚠️ Não foi possível calcular automaticamente: ${errMsg}`;
+        log(`[APPROVAL-FLOW-INST] Erro no cálculo para ${plate}: ${errMsg}`);
     }
+
+    const lines = [
+        '*SOLICITAÇÃO DE APROVAÇÃO — DESLOCAMENTO INSTALAÇÃO*',
+        '',
+        `PLACA: ${inst.plate || plate}`,
+        `SEGURADO: ${inst.customerName || '--'}`,
+        `TÉCNICO: ${tech.name}`,
+        `CPF TÉCNICO: ${cpfRaw}`,
+        `VALOR DECLARADO: R$ ${declaredValue.toFixed(2)}`,
+    ];
+
+    if (calculatedKm != null) {
+        lines.push(`DISTÂNCIA CALCULADA (ida+volta): ${calculatedKm} km`);
+        lines.push(`DESLOCAMENTO CALCULADO: R$ ${calculatedDisplacement != null ? Number(calculatedDisplacement).toFixed(2) : '0.00'}`);
+    }
+
+    if (calcWarning) lines.push(calcWarning);
+
+    lines.push('');
+    lines.push(`Responda !aprovado-inst ${plate} ou !rejeitar-inst ${plate}`);
 
     const reminderTimer = setTimeout(
         () => sendReminderInst(plate, sendToGroup),
@@ -403,8 +363,8 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
     );
 
     pendingInstApprovals.set(plate, {
-        installationId: installation.id,
-        technicianId: technician.id,
+        installationId: inst.id,
+        technicianId: tech.id,
         declaredValue,
         calculatedKm,
         calculatedDisplacement,
@@ -412,25 +372,19 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
         reminderTimer,
     });
 
-    await sendToGroup(buildInstApprovalMessage(installation, technician, declaredValue, calculatedKm, calculatedDisplacement, warning));
-
-    log(`[APPROVAL-FLOW] Aprovação de instalação iniciada para ${plate} por ${sender} (installation ${installation.id})`);
-
+    await sendToGroup(lines.join('\n'));
+    log(`[APPROVAL-FLOW-INST] Aprovação instalação iniciada para ${plate} técnico ${tech.name}`);
 }
 
 async function sendReminderInst(plate, sendToGroup) {
-
     if (!pendingInstApprovals.has(plate)) return;
-
     await sendToGroup(
-        `⏰ LEMBRETE: aprovação de instalação de ${plate} está pendente há mais de 2h. ` +
+        `⏰ LEMBRETE: aprovação de deslocamento de instalação ${plate} pendente há mais de 2h. ` +
         `Responda !aprovado-inst ${plate} ou !rejeitar-inst ${plate}.`
     );
-
 }
 
 async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalStatus) {
-
     if (sender !== WHATSAPP_GERENTE_NUMBER) return;
 
     const plate = (parts[1] || '').toUpperCase();
@@ -446,8 +400,9 @@ async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalSt
         {
             financialApprovalStatus,
             declaredValue: pending.declaredValue,
-            calculatedKm: pending.calculatedKm,
-            calculatedDisplacement: pending.calculatedDisplacement,
+            technicianId: pending.technicianId,
+            calculatedKm: pending.calculatedKm || null,
+            calculatedDisplacement: pending.calculatedDisplacement || null,
         },
         { headers: { 'X-ETL-Key': ETL_API_KEY } }
     );
@@ -457,14 +412,11 @@ async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalSt
 
     const emoji = financialApprovalStatus === 'APROVADO' ? '✅' : '❌';
     const label = financialApprovalStatus === 'APROVADO' ? 'aprovado' : 'rejeitado';
-    await sendToGroup(`${emoji} Pagamento de instalação de ${plate} ${label}.`);
-
-    log(`[APPROVAL-FLOW] Instalação ${plate} ${label} por ${sender} (installation ${pending.installationId})`);
-
+    await sendToGroup(`${emoji} Deslocamento de instalação ${plate} ${label}.`);
+    log(`[APPROVAL-FLOW-INST] Instalação ${plate} ${label} por ${sender}`);
 }
 
 async function handleCancelarInst(parts, sender, sendToGroup) {
-
     if (sender !== WHATSAPP_DEILA_NUMBER) return;
 
     const plate = (parts[1] || '').toUpperCase();
@@ -477,11 +429,8 @@ async function handleCancelarInst(parts, sender, sendToGroup) {
 
     clearTimeout(pending.reminderTimer);
     pendingInstApprovals.delete(plate);
-
-    await sendToGroup(`Solicitação de aprovação de instalação de ${plate} cancelada.`);
-
-    log(`[APPROVAL-FLOW] Instalação ${plate} cancelada por ${sender}`);
-
+    await sendToGroup(`Solicitação de aprovação de instalação ${plate} cancelada.`);
+    log(`[APPROVAL-FLOW-INST] Instalação ${plate} cancelada por ${sender}`);
 }
 
 module.exports = { handleIncomingMessage };
