@@ -52,6 +52,13 @@ public class InstallationSyncService {
     private static final String STATUS_AGUARDANDO = "AGUARDANDO_AGENDAMENTO";
     private static final String STATUS_AGENDADO_ATIVACAO = "AGENDADO_AGUARDANDO_ATIVACAO";
     private static final String STATUS_CONCLUIDA_SUCESSO = "INSTALACAO_CONCLUIDA_SUCESSO";
+    private static final String STATUS_CONCLUIDA_FALHA = "INSTALACAO_CONCLUIDA_FALHA";
+
+    // Nao e' um dos 8 status reais do portal — e' um marcador nosso pra
+    // registro cujo externalId parou de aparecer em qualquer busca (ver
+    // varreduraDeOrfaos()). Publico porque InstallationService precisa
+    // dele pra incluir essa "aba" no agrupamento de getPortalStatusGroups().
+    public static final String STATUS_REMOVIDO_DO_PORTAL = "REMOVIDO_DO_PORTAL";
 
     private static final LocalDate DATA_ATUALIZACAO_MINIMA = LocalDate.of(2026, 9, 1);
     private static final ZoneId TZ_BRASIL = ZoneId.of("America/Sao_Paulo");
@@ -325,6 +332,12 @@ public class InstallationSyncService {
             if (backfilled > 0) log.info("[INSTALACOES] Backfill: {} OS criadas para instalações PENDING sem OS", backfilled);
 
             try {
+                varreduraDeOrfaos(externalIdsNoPortal);
+            } catch (Exception e) {
+                log.warn("[INSTALACOES] Falha na varredura de órfãos: {}", e.getMessage());
+            }
+
+            try {
                 alertarAgendamentosParados();
             } catch (Exception e) {
                 log.warn("[INSTALACOES] Falha no alerta de agendamento parado: {}", e.getMessage());
@@ -498,6 +511,44 @@ public class InstallationSyncService {
                 "*Placa:* " + Objects.toString(inst.getPlate(), "—") + "\n" +
                 "*Proposta:* " + Objects.toString(inst.getNumeroProposta(), "—");
         enviarWhatsApp(message);
+    }
+
+    // Passo 2c (diagnostico 13 vs 6 em AGUARDANDO_AGENDAMENTO) — varredura
+    // mais abrangente que o fechamento de PENDING acima (linhas ~280-298):
+    // aquele so' olha quem esta' com status LOCAL PENDING; esse aqui
+    // escaneia a tabela inteira e fecha qualquer registro, em qualquer
+    // portalStatus (exceto os ja terminais/ja marcados), cujo externalId
+    // nao apareceu em NENHUMA das 8 buscas deste ciclo — inclusive os que
+    // ja tinham ficado presos com um portalStatus antigo antes da Fase 1,
+    // ou que escaparam do fechamento antigo por qualquer inconsistencia
+    // entre o status local e o portalStatus.
+    //
+    // Usa o mesmo externalIdsNoPortal construido antes do loop principal
+    // (inclui os descartados pelo filtro de data de 2026-09-01) em vez de
+    // um Set novo preenchido so' com os "processados" dentro do loop —
+    // um registro antigo (dataAtualizacao < corte) que ainda esta' de
+    // verdade no portal nao pode ser marcado como removido so' por ser
+    // antigo; sao preocupacoes diferentes.
+    private void varreduraDeOrfaos(Set<String> seenExternalIds) {
+
+        List<Installation> orfaos = installationRepository.findByPortalStatusNotInAndExternalIdNotIn(
+                List.of(STATUS_REMOVIDO_DO_PORTAL, STATUS_CONCLUIDA_SUCESSO, STATUS_CONCLUIDA_FALHA),
+                seenExternalIds
+        );
+
+        for (Installation inst : orfaos) {
+            String statusAnterior = inst.getPortalStatus();
+            inst.setPortalStatus(STATUS_REMOVIDO_DO_PORTAL);
+            installationRepository.save(inst);
+            log.info("[INSTALACOES] {} removida do portal (portalStatus anterior: {})",
+                    inst.getPlate(), statusAnterior);
+        }
+
+        if (!orfaos.isEmpty()) {
+            log.info("[INSTALACOES] Varredura de órfãos: {} registro(s) marcado(s) como {}",
+                    orfaos.size(), STATUS_REMOVIDO_DO_PORTAL);
+        }
+
     }
 
     private void alertarAgendamentosParados() {

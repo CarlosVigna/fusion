@@ -17,6 +17,7 @@ const TABS = [
   { key: "INSTALACAO_CONCLUIDA_SUCESSO", label: "Concluído" },
   { key: "INSTALACAO_CONCLUIDA_FALHA", label: "Falha" },
   { key: "PENDENTE_INSTALACAO", label: "Pendente" },
+  { key: "REMOVIDO_DO_PORTAL", label: "Removido do Portal" },
 ];
 
 const SLA_STYLE = {
@@ -149,10 +150,16 @@ export default function Installations() {
                       <td className="px-4 py-3 text-sm text-zinc-400">{formatPrazo(i.prazoConclusao)}</td>
                       <td className="px-4 py-3 text-sm text-zinc-400">{formatLocalDateTime(i.dataAtualizacao)}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${sla.badge}`}>
-                          <span className={`h-1.5 w-1.5 rounded-full ${sla.dot}`} />
-                          {i.slaLabel || "—"}
-                        </span>
+                        {tab === "REMOVIDO_DO_PORTAL" ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-zinc-700/40 px-2.5 py-1 text-xs font-semibold text-zinc-400">
+                            Removido
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${sla.badge}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${sla.dot}`} />
+                            {i.slaLabel || "—"}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

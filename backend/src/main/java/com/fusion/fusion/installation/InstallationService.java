@@ -3,7 +3,10 @@ package com.fusion.fusion.installation;
 import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.common.security.CurrentUserService;
+import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
+import com.fusion.fusion.technician.Technician;
+import com.fusion.fusion.technician.TechnicianRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,6 +16,7 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -39,6 +43,10 @@ public class InstallationService {
     private final CurrentUserService currentUserService;
 
     private final ServiceOrderService serviceOrderService;
+
+    private final TechnicianRepository technicianRepository;
+
+    private final OrsService orsService;
 
     // Criacao manual via POST /installations (usuario logado, JWT) —
     // diferente do sync() em lote abaixo, que e' exclusivo do ETL local
@@ -131,16 +139,87 @@ public class InstallationService {
 
     }
 
+    // Diagnostico temporario (GET /installations/diagnostic/status-count)
+    // — contagem real por portalStatus, pra comparar com o que o portal
+    // mostra e confirmar se a varredura de orfaos (InstallationSyncService.
+    // varreduraDeOrfaos) esta' limpando os registros que pararam de
+    // aparecer em qualquer dos 8 status buscados.
+    public Map<String, Long> getDiagnosticStatusCount() {
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (Object[] row : repository.countGroupedByPortalStatus()) {
+            String status = (String) row[0];
+            Long count = (Long) row[1];
+            result.put(status == null ? "(sem portalStatus)" : status, count);
+        }
+        return result;
+    }
+
+    // Opcao B (Fase 2b) — calculo de deslocamento sob demanda pro fluxo
+    // !aprovar-inst. Installation NAO tem lat/lon do cliente guardados
+    // (so' endereco em texto — address/city/state), diferente de
+    // Technician (que ja' cacheia lat/lon). Por isso geocodifica o
+    // endereco do cliente a cada chamada, sem cache — a mesma limitacao
+    // que a geocodificacao removida de Technicians.jsx tinha.
+    public Map<String, Object> calculateDisplacement(Long installationId, UUID technicianId) {
+
+        Installation installation = findOrThrow(installationId);
+
+        Technician technician = technicianRepository.findById(technicianId)
+                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + technicianId));
+
+        if (technician.getLatitude() == null || technician.getLongitude() == null) {
+            throw new BusinessException("Técnico " + technician.getName() + " não tem coordenadas cadastradas");
+        }
+
+        if (installation.getAddress() == null || installation.getCity() == null) {
+            throw new BusinessException("Instalação não tem endereço cadastrado para geocodificar");
+        }
+
+        double[] clientCoords = orsService.geocode(
+                installation.getAddress(), installation.getCity(), installation.getState()
+        );
+
+        if (clientCoords == null) {
+            throw new BusinessException("Não foi possível geocodificar o endereço do cliente");
+        }
+
+        Double km = orsService.calculateRoundTripKm(
+                technician.getLatitude(), technician.getLongitude(),
+                clientCoords[0], clientCoords[1]
+        );
+
+        if (km == null) {
+            throw new BusinessException("Não foi possível calcular a distância (OSRM falhou)");
+        }
+
+        BigDecimal displacement = orsService.calculateDisplacement(km);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("km", km);
+        result.put("displacement", displacement);
+        result.put("technicianName", technician.getName());
+        result.put("technicianAddress", technician.getAddress());
+
+        return result;
+
+    }
+
+    // Inclui a "aba" REMOVIDO_DO_PORTAL (marcador nosso, nao vem do
+    // portal — ver InstallationSyncService.varreduraDeOrfaos) junto com
+    // os 8 status oficiais, senao a tela nunca mostraria esses registros.
     public Map<String, Object> getPortalStatusGroups() {
 
+        List<String> statusesExibidos = new ArrayList<>(InstallationSyncService.ALL_STATUSES);
+        statusesExibidos.add(InstallationSyncService.STATUS_REMOVIDO_DO_PORTAL);
+
         Map<String, List<Installation>> porStatus = repository
-                .findByPortalStatusIn(InstallationSyncService.ALL_STATUSES)
+                .findByPortalStatusIn(statusesExibidos)
                 .stream()
                 .collect(Collectors.groupingBy(Installation::getPortalStatus));
 
         Map<String, Object> result = new LinkedHashMap<>();
 
-        for (String status : InstallationSyncService.ALL_STATUSES) {
+        for (String status : statusesExibidos) {
             List<InstallationPortalItemResponse> items = porStatus.getOrDefault(status, List.of())
                     .stream()
                     .sorted(Comparator.comparing(

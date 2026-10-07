@@ -44,13 +44,16 @@
 //     financial-approval com o valor declarado.
 //   !cancelar-inst {placa} — so' de WHATSAPP_DEILA_NUMBER, estado local.
 //
-// IMPORTANTE: esse fluxo NAO calcula km/deslocamento. O check de lat/lon
-// do tecnico so' valida que o cadastro esta completo — nada aqui chama
-// OrsService (Java) pra calcular distancia, porque (a) este processo e'
-// Node e nao tem acesso a ele, e (b) Installation nao tem lat/lon do
-// endereco do cliente pra alimentar esse calculo. calculatedKm/
-// calculatedDisplacement ficam null nessa chamada; se precisar desses
-// valores de verdade, o calculo tem que ser feito no backend antes.
+// Fase 2b — calculo de deslocamento passou a existir de verdade: depois
+// de buscar instalacao/tecnico, !aprovar-inst chama GET /installations/
+// {id}/calculate-displacement?technicianId=X (backend geocodifica o
+// endereco do cliente on-demand e calcula ida+volta via OSRM — ver
+// InstallationService.calculateDisplacement). Se der certo, o km e o
+// deslocamento calculados entram na mensagem pro gerente e sao
+// guardados em pendingInstApprovals pra ir junto no PUT de aprovacao.
+// Se a chamada falhar (geocode nao achou endereco, tecnico sem lat/lon,
+// OSRM fora do ar etc.), NAO bloqueia a solicitacao — so' entra um aviso
+// ⚠️ na mensagem e os campos calculados ficam null.
 
 const axios = require('axios');
 const { log } = require('./file-utils');
@@ -115,7 +118,7 @@ function buildApprovalMessage(so) {
     return lines.join('\n');
 }
 
-function buildInstApprovalMessage(installation, technician, declaredValue) {
+function buildInstApprovalMessage(installation, technician, declaredValue, calculatedKm, calculatedDisplacement, warning) {
     const lines = [
         '*SOLICITAÇÃO DE APROVAÇÃO — INSTALAÇÃO*',
         '',
@@ -124,9 +127,22 @@ function buildInstApprovalMessage(installation, technician, declaredValue) {
         `TÉCNICO: ${technician.name || '--'}`,
         `CPF TÉCNICO: ${technician.cpf || '--'}`,
         `VALOR DECLARADO: R$ ${fmtMoney(declaredValue)}`,
-        '',
-        `Responda !aprovado-inst ${installation.plate} ou !rejeitar-inst ${installation.plate}`,
     ];
+
+    if (calculatedKm != null) {
+        lines.push(`DISTÂNCIA CALCULADA (ida+volta): ${calculatedKm} km`);
+        lines.push(`DESLOCAMENTO CALCULADO: R$ ${fmtMoney(calculatedDisplacement)}`);
+    } else {
+        lines.push('DESLOCAMENTO CALCULADO: não disponível');
+    }
+
+    if (warning) {
+        lines.push('');
+        lines.push(warning);
+    }
+
+    lines.push('');
+    lines.push(`Responda !aprovado-inst ${installation.plate} ou !rejeitar-inst ${installation.plate}`);
 
     return lines.join('\n');
 }
@@ -337,9 +353,36 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
 
     const technician = technicianResponse.data;
 
-    if (technician.latitude == null || technician.longitude == null) {
-        await sendToGroup(`⚠️ Técnico ${technician.name || cpfRaw} não tem coordenadas cadastradas. Cadastre o endereço do técnico antes de aprovar.`);
-        return;
+    let calculatedKm = null;
+    let calculatedDisplacement = null;
+    let warning = '';
+
+    try {
+
+        const calcResponse = await axios.get(
+            `${BACKEND_URL}/installations/${installation.id}/calculate-displacement`,
+            {
+                params: { technicianId: technician.id },
+                headers: { 'X-ETL-Key': ETL_API_KEY },
+            }
+        );
+
+        calculatedKm = calcResponse.data.km;
+        calculatedDisplacement = calcResponse.data.displacement;
+
+        if (calculatedDisplacement != null && declaredValue > 0) {
+            const diffPct = Math.abs(declaredValue - calculatedDisplacement) / declaredValue * 100;
+            if (diffPct > 20) {
+                warning = `⚠️ Valor declarado diverge ${diffPct.toFixed(0)}% do deslocamento calculado.`;
+            }
+        }
+
+    } catch (e) {
+
+        const detail = e.response?.data?.error || e.message;
+        log(`[APPROVAL-FLOW] Falha ao calcular deslocamento de ${plate}: ${detail}`);
+        warning = '⚠️ Não foi possível calcular o deslocamento automaticamente.';
+
     }
 
     const reminderTimer = setTimeout(
@@ -351,11 +394,13 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
         installationId: installation.id,
         technicianId: technician.id,
         declaredValue,
+        calculatedKm,
+        calculatedDisplacement,
         requestedBy: sender,
         reminderTimer,
     });
 
-    await sendToGroup(buildInstApprovalMessage(installation, technician, declaredValue));
+    await sendToGroup(buildInstApprovalMessage(installation, technician, declaredValue, calculatedKm, calculatedDisplacement, warning));
 
     log(`[APPROVAL-FLOW] Aprovação de instalação iniciada para ${plate} por ${sender} (installation ${installation.id})`);
 
@@ -386,7 +431,12 @@ async function handleDecisaoInst(parts, sender, sendToGroup, financialApprovalSt
 
     await axios.put(
         `${BACKEND_URL}/installations/${pending.installationId}/financial-approval`,
-        { financialApprovalStatus, declaredValue: pending.declaredValue },
+        {
+            financialApprovalStatus,
+            declaredValue: pending.declaredValue,
+            calculatedKm: pending.calculatedKm,
+            calculatedDisplacement: pending.calculatedDisplacement,
+        },
         { headers: { 'X-ETL-Key': ETL_API_KEY } }
     );
 

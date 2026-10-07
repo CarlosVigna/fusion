@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -55,6 +56,34 @@ public class InstallationController {
     @GetMapping("/portal-status")
     public Map<String, Object> portalStatus() {
         return service.getPortalStatusGroups();
+    }
+
+    // Diagnostico temporario (Fase 2b) — contagem real por portalStatus
+    // no banco, pra comparar com o portal e confirmar a varredura de
+    // orfaos. Sem X-ETL-Key: pensado pra ser aberto no navegador por
+    // usuario logado (cai em anyRequest().authenticated() default).
+    @GetMapping("/diagnostic/status-count")
+    public Map<String, Long> diagnosticStatusCount() {
+        return service.getDiagnosticStatusCount();
+    }
+
+    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) em
+    // !aprovar-inst, pra calcular deslocamento sob demanda — Installation
+    // nao tem lat/lon do cliente pre-calculados (ver InstallationService.
+    // calculateDisplacement). Autenticado por X-ETL-Key, mesmo padrao dos
+    // outros endpoints do ETL.
+    @GetMapping("/{id}/calculate-displacement")
+    public ResponseEntity<?> calculateDisplacement(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @PathVariable Long id,
+            @RequestParam UUID technicianId
+    ) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            log.warn("GET /installations/{}/calculate-displacement rejeitado: X-ETL-Key inválida ou ausente", id);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Chave de API inválida"));
+        }
+        return ResponseEntity.ok(service.calculateDisplacement(id, technicianId));
     }
 
     // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no

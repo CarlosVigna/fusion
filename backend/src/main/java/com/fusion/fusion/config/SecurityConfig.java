@@ -115,6 +115,11 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.GET,
+                                "/installations/*/calculate-displacement"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                HttpMethod.GET,
                                 "/technicians/by-cpf"
                         ).permitAll()
 

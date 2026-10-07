@@ -24,6 +24,7 @@ const STATUS_LABELS = {
   INSTALACAO_CONCLUIDA_SUCESSO: "Concluído",
   INSTALACAO_CONCLUIDA_FALHA: "Falha",
   PENDENTE_INSTALACAO: "Pendente",
+  REMOVIDO_DO_PORTAL: "Removido do Portal",
 };
 
 const FINANCIAL_LABELS = {
@@ -382,6 +383,7 @@ function StatusBadge({ status }) {
     INSTALACAO_CONCLUIDA_SUCESSO:  { cls: "bg-green-500/15 text-green-400" },
     INSTALACAO_CONCLUIDA_FALHA:    { cls: "bg-red-500/15 text-red-400" },
     PENDENTE_INSTALACAO:           { cls: "bg-zinc-700/40 text-zinc-400" },
+    REMOVIDO_DO_PORTAL:            { cls: "bg-zinc-700/40 text-zinc-400" },
   };
 
   const { cls } = map[status] || { cls: "bg-zinc-700/40 text-zinc-400" };
