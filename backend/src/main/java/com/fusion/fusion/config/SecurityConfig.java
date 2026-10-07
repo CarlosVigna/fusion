@@ -115,19 +115,6 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 HttpMethod.GET,
-                                "/installations/*/calculate-displacement"
-                        ).permitAll()
-
-                        // Diagnostico TEMPORARIO, sem autenticacao de proposito —
-                        // pedido explicitamente pra testar via PowerShell sem
-                        // precisar de token. Remover junto com a rota depois.
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/installations/diagnostic/test-displacement"
-                        ).permitAll()
-
-                        .requestMatchers(
-                                HttpMethod.GET,
                                 "/technicians/by-cpf"
                         ).permitAll()
 

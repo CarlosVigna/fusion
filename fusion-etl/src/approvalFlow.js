@@ -44,19 +44,22 @@
 //     financial-approval com o valor declarado.
 //   !cancelar-inst {placa} — so' de WHATSAPP_DEILA_NUMBER, estado local.
 //
-// Fase 2b — calculo de deslocamento passou a existir de verdade: depois
-// de buscar instalacao/tecnico, !aprovar-inst chama GET /installations/
-// {id}/calculate-displacement?technicianId=X (backend geocodifica o
-// endereco do cliente on-demand e calcula ida+volta via OSRM — ver
-// InstallationService.calculateDisplacement). Se der certo, o km e o
+// Fase 2c — calculo de deslocamento migrado pro proprio ETL (Node, ver
+// ./geocode.js) em vez de chamar o backend: geocode.maps.co responde
+// quando chamado do browser ou daqui, mas falha quando chamado do
+// backend Java no Railway (InstallationService.calculateDisplacement()
+// e o endpoint GET /installations/{id}/calculate-displacement foram
+// removidos por isso). !aprovar-inst geocodifica o endereco do cliente
+// e calcula ida+volta via OSRM direto aqui. Se der certo, o km e o
 // deslocamento calculados entram na mensagem pro gerente e sao
 // guardados em pendingInstApprovals pra ir junto no PUT de aprovacao.
-// Se a chamada falhar (geocode nao achou endereco, tecnico sem lat/lon,
-// OSRM fora do ar etc.), NAO bloqueia a solicitacao — so' entra um aviso
-// ⚠️ na mensagem e os campos calculados ficam null.
+// Se falhar (geocode nao achou endereco, OSRM fora do ar etc.), NAO
+// bloqueia a solicitacao — so' entra um aviso ⚠️ na mensagem e os campos
+// calculados ficam null.
 
 const axios = require('axios');
 const { log } = require('./file-utils');
+const { geocode, calculateRoundTripKm, calculateDisplacement } = require('./geocode');
 
 const BACKEND_URL = process.env.BACKEND_URL;
 const ETL_API_KEY = process.env.ETL_API_KEY;
@@ -94,6 +97,14 @@ function fmtMoney(value) {
     return value != null ? Number(value).toFixed(2) : '0.00';
 }
 
+// Separador decimal brasileiro (110,00) — so' pra mensagens novas do
+// fluxo !aprovar-inst; buildApprovalMessage (ServiceOrder) continua com
+// ponto, de proposito, pra nao mudar o formato de algo que ja' esta' em
+// produção sem pedido.
+function fmtMoneyBr(value) {
+    return fmtMoney(value).replace('.', ',');
+}
+
 function buildApprovalMessage(so) {
     const lines = [
         '*SOLICITAÇÃO DE APROVAÇÃO DE PAGAMENTO*',
@@ -126,18 +137,18 @@ function buildInstApprovalMessage(installation, technician, declaredValue, calcu
         `SEGURADO: ${installation.customerName || '--'}`,
         `TÉCNICO: ${technician.name || '--'}`,
         `CPF TÉCNICO: ${technician.cpf || '--'}`,
-        `VALOR DECLARADO: R$ ${fmtMoney(declaredValue)}`,
+        `VALOR DECLARADO: R$ ${fmtMoneyBr(declaredValue)}`,
     ];
 
+    // So' mostra as duas linhas de calculo quando o calculo deu certo —
+    // quando falha, warning (calcNote) ja' explica o motivo, sem linha
+    // de "nao disponivel" redundante.
     if (calculatedKm != null) {
-        lines.push(`DISTÂNCIA CALCULADA (ida+volta): ${calculatedKm} km`);
-        lines.push(`DESLOCAMENTO CALCULADO: R$ ${fmtMoney(calculatedDisplacement)}`);
-    } else {
-        lines.push('DESLOCAMENTO CALCULADO: não disponível');
+        lines.push(`DISTÂNCIA CALCULADA: ${calculatedKm} km (ida+volta)`);
+        lines.push(`DESLOCAMENTO CALCULADO: R$ ${fmtMoneyBr(calculatedDisplacement)}`);
     }
 
     if (warning) {
-        lines.push('');
         lines.push(warning);
     }
 
@@ -359,29 +370,24 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
 
     try {
 
-        const calcResponse = await axios.get(
-            `${BACKEND_URL}/installations/${installation.id}/calculate-displacement`,
-            {
-                params: { technicianId: technician.id },
-                headers: { 'X-ETL-Key': ETL_API_KEY },
-            }
+        const clientCoords = await geocode(installation.address, installation.city, installation.state);
+        calculatedKm = await calculateRoundTripKm(
+            technician.latitude, technician.longitude,
+            clientCoords.lat, clientCoords.lon
         );
+        calculatedDisplacement = calculateDisplacement(calculatedKm);
 
-        calculatedKm = calcResponse.data.km;
-        calculatedDisplacement = calcResponse.data.displacement;
-
-        if (calculatedDisplacement != null && declaredValue > 0) {
+        if (declaredValue > 0) {
             const diffPct = Math.abs(declaredValue - calculatedDisplacement) / declaredValue * 100;
             if (diffPct > 20) {
-                warning = `⚠️ Valor declarado diverge ${diffPct.toFixed(0)}% do deslocamento calculado.`;
+                warning = `⚠️ ATENÇÃO: diferença de ${diffPct.toFixed(0)}% entre declarado e calculado.`;
             }
         }
 
     } catch (e) {
 
-        const detail = e.response?.data?.error || e.message;
-        log(`[APPROVAL-FLOW] Falha ao calcular deslocamento de ${plate}: ${detail}`);
-        warning = '⚠️ Não foi possível calcular o deslocamento automaticamente.';
+        log(`[APPROVAL-FLOW] Falha ao calcular deslocamento de ${plate}: ${e.message}`);
+        warning = `⚠️ Cálculo automático indisponível: ${e.message}`;
 
     }
 

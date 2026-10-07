@@ -3,10 +3,7 @@ package com.fusion.fusion.installation;
 import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.common.security.CurrentUserService;
-import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
-import com.fusion.fusion.technician.Technician;
-import com.fusion.fusion.technician.TechnicianRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -16,7 +13,6 @@ import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -28,7 +24,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -43,10 +38,6 @@ public class InstallationService {
     private final CurrentUserService currentUserService;
 
     private final ServiceOrderService serviceOrderService;
-
-    private final TechnicianRepository technicianRepository;
-
-    private final OrsService orsService;
 
     // Criacao manual via POST /installations (usuario logado, JWT) —
     // diferente do sync() em lote abaixo, que e' exclusivo do ETL local
@@ -152,119 +143,6 @@ public class InstallationService {
             result.put(status == null ? "(sem portalStatus)" : status, count);
         }
         return result;
-    }
-
-    // Opcao B (Fase 2b) — calculo de deslocamento sob demanda pro fluxo
-    // !aprovar-inst. Installation NAO tem lat/lon do cliente guardados
-    // (so' endereco em texto — address/city/state), diferente de
-    // Technician (que ja' cacheia lat/lon). Por isso geocodifica o
-    // endereco do cliente a cada chamada, sem cache — a mesma limitacao
-    // que a geocodificacao removida de Technicians.jsx tinha.
-    public Map<String, Object> calculateDisplacement(Long installationId, UUID technicianId) {
-
-        Installation installation = findOrThrow(installationId);
-
-        Technician technician = technicianRepository.findById(technicianId)
-                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + technicianId));
-
-        if (technician.getLatitude() == null || technician.getLongitude() == null) {
-            throw new BusinessException("Técnico " + technician.getName() + " não tem coordenadas cadastradas");
-        }
-
-        if (installation.getAddress() == null || installation.getCity() == null) {
-            throw new BusinessException("Instalação não tem endereço cadastrado para geocodificar");
-        }
-
-        double[] clientCoords = orsService.geocode(
-                installation.getAddress(), installation.getCity(), installation.getState()
-        );
-
-        if (clientCoords == null) {
-            throw new BusinessException("Não foi possível geocodificar o endereço do cliente");
-        }
-
-        Double km = orsService.calculateRoundTripKm(
-                technician.getLatitude(), technician.getLongitude(),
-                clientCoords[0], clientCoords[1]
-        );
-
-        if (km == null) {
-            throw new BusinessException("Não foi possível calcular a distância (OSRM falhou)");
-        }
-
-        BigDecimal displacement = orsService.calculateDisplacement(km);
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("km", km);
-        result.put("displacement", displacement);
-        result.put("technicianName", technician.getName());
-        result.put("technicianAddress", technician.getAddress());
-
-        return result;
-
-    }
-
-    // Diagnostico TEMPORARIO (GET /installations/diagnostic/test-displacement)
-    // — testa calculateDisplacement() com o primeiro tecnico com lat/lon e
-    // a primeira instalacao fora de REMOVIDO_DO_PORTAL, sem precisar
-    // descobrir ids na mao. Sem autenticacao (permitAll em SecurityConfig)
-    // — remover junto com a rota depois de confirmar o calculo.
-    public Map<String, Object> testDisplacement() {
-
-        Map<String, Object> result = new LinkedHashMap<>();
-
-        Optional<Technician> technicianOpt = technicianRepository.findAll().stream()
-                .filter(t -> t.getLatitude() != null && t.getLongitude() != null)
-                .findFirst();
-
-        Map<String, Object> technicianInfo = null;
-        if (technicianOpt.isPresent()) {
-            Technician t = technicianOpt.get();
-            technicianInfo = new LinkedHashMap<>();
-            technicianInfo.put("id", t.getId());
-            technicianInfo.put("name", t.getName());
-            technicianInfo.put("latitude", t.getLatitude());
-            technicianInfo.put("longitude", t.getLongitude());
-        }
-        result.put("technician", technicianInfo);
-
-        List<Installation> installations = repository.findAll().stream()
-                .filter(i -> !InstallationSyncService.STATUS_REMOVIDO_DO_PORTAL.equals(i.getPortalStatus()))
-                .limit(3)
-                .toList();
-
-        result.put("installations", installations.stream().map(i -> {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("id", i.getId());
-            m.put("plate", i.getPlate());
-            m.put("customerName", i.getCustomerName());
-            m.put("address", i.getAddress());
-            m.put("city", i.getCity());
-            m.put("state", i.getState());
-            m.put("portalStatus", i.getPortalStatus());
-            return m;
-        }).toList());
-
-        Map<String, Object> displacementTest = new LinkedHashMap<>();
-        if (technicianOpt.isPresent() && !installations.isEmpty()) {
-            try {
-                displacementTest.put("success", true);
-                displacementTest.put("result", calculateDisplacement(
-                        installations.get(0).getId(), technicianOpt.get().getId()
-                ));
-            } catch (Exception e) {
-                displacementTest.put("success", false);
-                displacementTest.put("error", e.getMessage());
-            }
-        } else {
-            displacementTest.put("success", false);
-            displacementTest.put("error", "Faltam dados: " +
-                    (technicianOpt.isEmpty() ? "nenhum técnico com lat/lon cadastrado" : "nenhuma instalação disponível"));
-        }
-        result.put("displacementTest", displacementTest);
-
-        return result;
-
     }
 
     // Inclui a "aba" REMOVIDO_DO_PORTAL (marcador nosso, nao vem do
