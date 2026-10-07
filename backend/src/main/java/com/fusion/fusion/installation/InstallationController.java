@@ -66,6 +66,15 @@ public class InstallationController {
         return service.getDiagnosticStatusCount();
     }
 
+    // Diagnostico TEMPORARIO — sem autenticacao de proposito (permitAll em
+    // SecurityConfig), pra testar o Nominatim direto do navegador/
+    // PowerShell sem precisar de JWT. Ver InstallationService.
+    // testDisplacement(). Remover depois de concluir o diagnostico.
+    @GetMapping("/diagnostic/test-displacement")
+    public Map<String, Object> testDisplacement() {
+        return service.testDisplacement();
+    }
+
     // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no
     // comando !aprovar-inst — autenticado por X-ETL-Key, mesmo padrao de
     // GET /service-orders/by-plate. Ver permitAll em SecurityConfig.

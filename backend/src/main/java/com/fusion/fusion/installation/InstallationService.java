@@ -6,8 +6,14 @@ import com.fusion.fusion.common.security.CurrentUserService;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestTemplate;
 
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
@@ -143,6 +149,51 @@ public class InstallationService {
             result.put(status == null ? "(sem portalStatus)" : status, count);
         }
         return result;
+    }
+
+    // Diagnostico TEMPORARIO (GET /installations/diagnostic/test-displacement)
+    // — testa se o Nominatim responde quando chamado direto do backend
+    // Java no Railway (geocode.maps.co nao respondia de la', ver historico
+    // da migracao da geocodificacao pro ETL). RestTemplate local em vez do
+    // bean injetado — chamada isolada, nao precisa de nada que o bean
+    // padrao configure. Sem autenticacao (ver permitAll em SecurityConfig)
+    // — remover junto com a rota depois de concluir o diagnostico.
+    public Map<String, Object> testDisplacement() {
+
+        String url = "https://nominatim.openstreetmap.org/search?q=Rua+Bela+Cintra,+100,+Sao+Paulo,+SP,+Brasil&format=json&limit=1";
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("url", url);
+
+        RestTemplate rest = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("User-Agent", "Fusion/1.0");
+
+        try {
+
+            ResponseEntity<Object> response = rest.exchange(
+                    url, HttpMethod.GET, new HttpEntity<>(headers), Object.class
+            );
+
+            result.put("success", true);
+            result.put("httpStatus", response.getStatusCode().value());
+            result.put("body", response.getBody());
+
+        } catch (HttpStatusCodeException e) {
+
+            result.put("success", false);
+            result.put("httpStatus", e.getStatusCode().value());
+            result.put("error", e.getResponseBodyAsString());
+
+        } catch (Exception e) {
+
+            result.put("success", false);
+            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
+
+        }
+
+        return result;
+
     }
 
     // Inclui a "aba" REMOVIDO_DO_PORTAL (marcador nosso, nao vem do
