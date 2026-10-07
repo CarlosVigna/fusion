@@ -26,9 +26,6 @@ public class OrsService {
     @Value("${ors.api-key:}")
     private String apiKey;
 
-    @Value("${geocode.maps.api.key:}")
-    private String geocodeApiKey;
-
     private static final double FREE_KM = 40.0;
     private static final double RATE_PER_KM = 1.20;
 
@@ -46,33 +43,38 @@ public class OrsService {
         return result;
     }
 
+    // Nominatim exige User-Agent (sem ele retorna 403) e nao precisa de
+    // chave — geocode.maps.co respondia do browser mas falhava quando
+    // chamado do backend no Railway (provavelmente IP bloqueado/rate
+    // limited pelo provedor), por isso a troca.
     private double[] geocodeQuery(String query) {
         try {
-            String url = "https://geocode.maps.co/search?q="
+            String url = "https://nominatim.openstreetmap.org/search?q="
                     + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
-                    + "&api_key=" + geocodeApiKey
-                    + "&countrycodes=br&limit=1";
+                    + "&format=json&limit=1";
 
-            log.info("[GEOCODE] Geocodificando: {}", query);
+            log.info("[NOMINATIM] Geocodificando: {}", query);
 
             HttpHeaders headers = new HttpHeaders();
+            headers.set("User-Agent", "Fusion/1.0");
             headers.set("Accept", "application/json");
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
 
             String responseBody = response.getBody();
             JsonNode root = objectMapper.readTree(responseBody);
-            if (root.isArray() && root.size() > 0) {
-                double lat = root.get(0).path("lat").asDouble();
-                double lon = root.get(0).path("lon").asDouble();
-                log.info("[GEOCODE] Resultado: lat={}, lon={}", lat, lon);
-                return new double[]{lat, lon};
-            } else {
-                log.warn("[GEOCODE] Retornou vazio para: {} | Response: {}", query, responseBody);
+            if (!root.isArray() || root.isEmpty()) {
+                throw new IllegalStateException("Nominatim não encontrou resultado para: " + query);
             }
+
+            // lat/lon vem como string no JSON do Nominatim
+            double lat = Double.parseDouble(root.get(0).path("lat").asText());
+            double lon = Double.parseDouble(root.get(0).path("lon").asText());
+            log.info("[NOMINATIM] Resultado: lat={}, lon={}", lat, lon);
+            return new double[]{lat, lon};
         } catch (HttpClientErrorException e) {
-            log.debug("[GEOCODE] HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
+            log.debug("[NOMINATIM] HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
         } catch (Exception e) {
-            log.warn("[GEOCODE] Falhou para '{}': {}", query, e.getMessage());
+            log.warn("[NOMINATIM] Falhou para '{}': {}", query, e.getMessage());
         }
         return null;
     }

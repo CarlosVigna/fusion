@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.UUID;
 
 @Slf4j
 @RestController
@@ -66,13 +67,23 @@ public class InstallationController {
         return service.getDiagnosticStatusCount();
     }
 
-    // Diagnostico TEMPORARIO — sem autenticacao de proposito (permitAll em
-    // SecurityConfig), pra testar o Nominatim direto do navegador/
-    // PowerShell sem precisar de JWT. Ver InstallationService.
-    // testDisplacement(). Remover depois de concluir o diagnostico.
-    @GetMapping("/diagnostic/test-displacement")
-    public Map<String, Object> testDisplacement() {
-        return service.testDisplacement();
+    // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) em
+    // !aprovar-inst, pra calcular deslocamento sob demanda — Installation
+    // nao tem lat/lon do cliente pre-calculados (ver InstallationService.
+    // calculateDisplacement). Autenticado por X-ETL-Key, mesmo padrao dos
+    // outros endpoints do ETL.
+    @GetMapping("/{id}/calculate-displacement")
+    public ResponseEntity<?> calculateDisplacement(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @PathVariable Long id,
+            @RequestParam UUID technicianId
+    ) {
+        if (etlApiKey == null || etlApiKey.isBlank() || !etlApiKey.equals(providedKey)) {
+            log.warn("GET /installations/{}/calculate-displacement rejeitado: X-ETL-Key inválida ou ausente", id);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", "Chave de API inválida"));
+        }
+        return ResponseEntity.ok(service.calculateDisplacement(id, technicianId));
     }
 
     // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl) no

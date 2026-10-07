@@ -44,22 +44,19 @@
 //     financial-approval com o valor declarado.
 //   !cancelar-inst {placa} — so' de WHATSAPP_DEILA_NUMBER, estado local.
 //
-// Fase 2c — calculo de deslocamento migrado pro proprio ETL (Node, ver
-// ./geocode.js) em vez de chamar o backend: geocode.maps.co responde
-// quando chamado do browser ou daqui, mas falha quando chamado do
-// backend Java no Railway (InstallationService.calculateDisplacement()
-// e o endpoint GET /installations/{id}/calculate-displacement foram
-// removidos por isso). !aprovar-inst geocodifica o endereco do cliente
-// e calcula ida+volta via OSRM direto aqui. Se der certo, o km e o
-// deslocamento calculados entram na mensagem pro gerente e sao
-// guardados em pendingInstApprovals pra ir junto no PUT de aprovacao.
-// Se falhar (geocode nao achou endereco, OSRM fora do ar etc.), NAO
-// bloqueia a solicitacao — so' entra um aviso ⚠️ na mensagem e os campos
-// calculados ficam null.
+// Fase 2d — calculo de deslocamento voltou pro backend: !aprovar-inst
+// chama GET /installations/{id}/calculate-displacement?technicianId=X
+// (backend geocodifica o endereco do cliente via Nominatim e calcula
+// ida+volta via OSRM — ver InstallationService.calculateDisplacement /
+// OrsService.geocode). A troca de geocode.maps.co por Nominatim no
+// OrsService resolveu o problema de chamar geocodificacao do Railway —
+// o calculo no ETL (Fase 2c, ./geocode.js) nao e' mais necessario. Se a
+// chamada falhar (geocode nao achou endereco, tecnico sem lat/lon, OSRM
+// fora do ar etc.), NAO bloqueia a solicitacao — so' entra um aviso ⚠️
+// na mensagem e os campos calculados ficam null.
 
 const axios = require('axios');
 const { log } = require('./file-utils');
-const { geocode, calculateRoundTripKm, calculateDisplacement } = require('./geocode');
 
 const BACKEND_URL = process.env.BACKEND_URL;
 const ETL_API_KEY = process.env.ETL_API_KEY;
@@ -374,14 +371,18 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
 
     try {
 
-        const clientCoords = await geocode(installation.address, installation.city, installation.state);
-        calculatedKm = await calculateRoundTripKm(
-            technician.latitude, technician.longitude,
-            clientCoords.lat, clientCoords.lon
+        const calcResponse = await axios.get(
+            `${BACKEND_URL}/installations/${installation.id}/calculate-displacement`,
+            {
+                params: { technicianId: technician.id },
+                headers: { 'X-ETL-Key': ETL_API_KEY },
+            }
         );
-        calculatedDisplacement = calculateDisplacement(calculatedKm);
 
-        if (declaredValue > 0) {
+        calculatedKm = calcResponse.data.km;
+        calculatedDisplacement = calcResponse.data.displacement;
+
+        if (calculatedDisplacement != null && declaredValue > 0) {
             const diffPct = Math.abs(declaredValue - calculatedDisplacement) / declaredValue * 100;
             if (diffPct > 20) {
                 warning = `⚠️ ATENÇÃO: diferença de ${diffPct.toFixed(0)}% entre declarado e calculado.`;
@@ -390,8 +391,9 @@ async function handleAprovarInst(parts, sender, sendToGroup) {
 
     } catch (e) {
 
-        log(`[APPROVAL-FLOW] Falha ao calcular deslocamento de ${plate}: ${e.message}`);
-        warning = `⚠️ Cálculo automático indisponível: ${e.message}`;
+        const detail = e.response?.data?.error || e.message;
+        log(`[APPROVAL-FLOW] Falha ao calcular deslocamento de ${plate}: ${detail}`);
+        warning = `⚠️ Cálculo automático indisponível: ${detail}`;
 
     }
 

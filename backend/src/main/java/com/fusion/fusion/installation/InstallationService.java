@@ -3,22 +3,20 @@ package com.fusion.fusion.installation;
 import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
 import com.fusion.fusion.common.security.CurrentUserService;
+import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.serviceorder.ServiceOrderService;
+import com.fusion.fusion.technician.Technician;
+import com.fusion.fusion.technician.TechnicianRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpStatusCodeException;
-import org.springframework.web.client.RestTemplate;
 
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -30,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -44,6 +43,10 @@ public class InstallationService {
     private final CurrentUserService currentUserService;
 
     private final ServiceOrderService serviceOrderService;
+
+    private final TechnicianRepository technicianRepository;
+
+    private final OrsService orsService;
 
     // Criacao manual via POST /installations (usuario logado, JWT) —
     // diferente do sync() em lote abaixo, que e' exclusivo do ETL local
@@ -109,12 +112,9 @@ public class InstallationService {
         return InstallationResponse.from(installation);
     }
 
-    // Idem findByPlate — chamado pelo bot em !aprovado-inst/!rejeitar-inst.
-    // declaredValue vem do valor digitado em !aprovar-inst (nao recalculado
-    // aqui); calculatedKm/calculatedDisplacement ficam null nesse fluxo,
-    // porque o bot (Node) nao tem como chamar o OrsService (Java) e
-    // Installation nao tem lat/lon do cliente pra calcular distancia —
-    // ver nota no approvalFlow.js.
+    // Idem findByPlate — chamado pelo bot em !aprovado-inst/!rejeitar-inst,
+    // com os valores vindos de GET /{id}/calculate-displacement (ver
+    // abaixo), ja chamado antes pelo approvalFlow.js em !aprovar-inst.
     @Transactional
     public InstallationResponse updateFinancialApproval(Long id, InstallationFinancialApprovalRequest request) {
 
@@ -151,46 +151,52 @@ public class InstallationService {
         return result;
     }
 
-    // Diagnostico TEMPORARIO (GET /installations/diagnostic/test-displacement)
-    // — testa se o Nominatim responde quando chamado direto do backend
-    // Java no Railway (geocode.maps.co nao respondia de la', ver historico
-    // da migracao da geocodificacao pro ETL). RestTemplate local em vez do
-    // bean injetado — chamada isolada, nao precisa de nada que o bean
-    // padrao configure. Sem autenticacao (ver permitAll em SecurityConfig)
-    // — remover junto com a rota depois de concluir o diagnostico.
-    public Map<String, Object> testDisplacement() {
+    // Calculo de deslocamento sob demanda pro fluxo !aprovar-inst — volta
+    // pro backend porque a geocodificacao agora usa Nominatim (ver
+    // OrsService.geocode), que funciona chamado de la', diferente do
+    // geocode.maps.co. Installation NAO tem lat/lon do cliente guardados
+    // (so' endereco em texto — address/city/state), diferente de
+    // Technician (que ja' cacheia lat/lon). Por isso geocodifica o
+    // endereco do cliente a cada chamada, sem cache.
+    public Map<String, Object> calculateDisplacement(Long installationId, UUID technicianId) {
 
-        String url = "https://nominatim.openstreetmap.org/search?q=Rua+Bela+Cintra,+100,+Sao+Paulo,+SP,+Brasil&format=json&limit=1";
+        Installation installation = findOrThrow(installationId);
+
+        Technician technician = technicianRepository.findById(technicianId)
+                .orElseThrow(() -> new ResourceNotFoundException("Técnico não encontrado: " + technicianId));
+
+        if (technician.getLatitude() == null || technician.getLongitude() == null) {
+            throw new BusinessException("Técnico " + technician.getName() + " não tem coordenadas cadastradas");
+        }
+
+        if (installation.getAddress() == null || installation.getCity() == null) {
+            throw new BusinessException("Instalação não tem endereço cadastrado para geocodificar");
+        }
+
+        double[] clientCoords = orsService.geocode(
+                installation.getAddress(), installation.getCity(), installation.getState()
+        );
+
+        if (clientCoords == null) {
+            throw new BusinessException("Não foi possível geocodificar o endereço do cliente");
+        }
+
+        Double km = orsService.calculateRoundTripKm(
+                technician.getLatitude(), technician.getLongitude(),
+                clientCoords[0], clientCoords[1]
+        );
+
+        if (km == null) {
+            throw new BusinessException("Não foi possível calcular a distância (OSRM falhou)");
+        }
+
+        BigDecimal displacement = orsService.calculateDisplacement(km);
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("url", url);
-
-        RestTemplate rest = new RestTemplate();
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("User-Agent", "Fusion/1.0");
-
-        try {
-
-            ResponseEntity<Object> response = rest.exchange(
-                    url, HttpMethod.GET, new HttpEntity<>(headers), Object.class
-            );
-
-            result.put("success", true);
-            result.put("httpStatus", response.getStatusCode().value());
-            result.put("body", response.getBody());
-
-        } catch (HttpStatusCodeException e) {
-
-            result.put("success", false);
-            result.put("httpStatus", e.getStatusCode().value());
-            result.put("error", e.getResponseBodyAsString());
-
-        } catch (Exception e) {
-
-            result.put("success", false);
-            result.put("error", e.getClass().getSimpleName() + ": " + e.getMessage());
-
-        }
+        result.put("km", km);
+        result.put("displacement", displacement);
+        result.put("technicianName", technician.getName());
+        result.put("technicianAddress", technician.getAddress());
 
         return result;
 
