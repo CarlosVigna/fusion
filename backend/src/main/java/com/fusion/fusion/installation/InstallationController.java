@@ -52,6 +52,11 @@ public class InstallationController {
         return service.getDashboard();
     }
 
+    @GetMapping("/portal-status")
+    public Map<String, Object> portalStatus() {
+        return service.getPortalStatusGroups();
+    }
+
     @PostMapping("/{id}/observations")
     public InstallationObservationResponse addObservation(
             @PathVariable Long id,

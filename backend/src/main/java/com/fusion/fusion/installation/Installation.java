@@ -49,6 +49,18 @@ public class Installation {
 
     private String portalStatus;
 
+    private String portalTecnico;
+
+    private String prazoConclusao;
+
+    private String parceiro;
+
+    private String slaCor;
+
+    private String slaLabel;
+
+    private LocalDateTime dataAtualizacao;
+
     @Enumerated(EnumType.STRING)
     @Builder.Default
     @Column(nullable = false)
@@ -61,6 +73,8 @@ public class Installation {
     private String lastObservation;
 
     private LocalDate alertDismissedAt;
+
+    private LocalDate agendamentoAlertedAt;
 
     private LocalDateTime closedAt;
 

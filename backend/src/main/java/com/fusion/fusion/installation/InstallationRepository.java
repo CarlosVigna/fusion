@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,5 +24,9 @@ public interface InstallationRepository
     List<Installation> findTop5ByStatusNotOrderByClosedAtDesc(InstallationStatus status);
 
     Optional<Installation> findByExternalId(String externalId);
+
+    List<Installation> findByPortalStatus(String portalStatus);
+
+    List<Installation> findByPortalStatusIn(Collection<String> portalStatuses);
 
 }

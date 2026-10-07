@@ -19,11 +19,13 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -88,6 +90,31 @@ public class InstallationService {
                 installation.getPlate(), installation.getCustomerName());
 
         return InstallationResponse.from(installation);
+
+    }
+
+    public Map<String, Object> getPortalStatusGroups() {
+
+        Map<String, List<Installation>> porStatus = repository
+                .findByPortalStatusIn(InstallationSyncService.ALL_STATUSES)
+                .stream()
+                .collect(Collectors.groupingBy(Installation::getPortalStatus));
+
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        for (String status : InstallationSyncService.ALL_STATUSES) {
+            List<InstallationPortalItemResponse> items = porStatus.getOrDefault(status, List.of())
+                    .stream()
+                    .sorted(Comparator.comparing(
+                            Installation::getDataAtualizacao,
+                            Comparator.nullsLast(Comparator.reverseOrder())
+                    ))
+                    .map(InstallationPortalItemResponse::from)
+                    .toList();
+            result.put(status, Map.of("total", items.size(), "items", items));
+        }
+
+        return result;
 
     }
 

@@ -13,6 +13,10 @@ export async function getInstallationsPendingCount() {
   return apiClient.get("/installations/pending-count");
 }
 
+export async function getInstallationsByPortalStatus() {
+  return apiClient.get("/installations/portal-status");
+}
+
 export async function getInstallationsDashboard() {
   return apiClient.get("/installations/dashboard");
 }
