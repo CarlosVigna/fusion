@@ -94,6 +94,7 @@ public class SecurityConfig {
                                 "/imports/upload",
                                 "/etl/poll",
                                 "/etl/poll-whatsapp",
+                                "/etl/diag/installations-summary", // TEMPORARIO
                                 "/installations/sync",
                                 "/sinistro/upload"
                         ).permitAll()

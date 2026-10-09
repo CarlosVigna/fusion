@@ -1,6 +1,9 @@
 package com.fusion.fusion.etl;
 
 import com.fusion.fusion.importation.ImportType;
+import com.fusion.fusion.installation.Installation;
+import com.fusion.fusion.installation.InstallationRepository;
+import com.fusion.fusion.installation.InstallationStatus;
 import com.fusion.fusion.sinistro.SinistroAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,9 +15,14 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -27,6 +35,8 @@ public class EtlController {
     private final EtlStatusService statusService;
 
     private final SinistroAnalysisService sinistroAnalysisService;
+
+    private final InstallationRepository installationRepository;
 
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
@@ -152,6 +162,65 @@ public class EtlController {
     public List<EtlStatusResponse> status() {
 
         return statusService.findAll();
+
+    }
+
+    // TEMPORARIO — diagnostico da distribuicao de instalacoes no banco.
+    // Remover depois (junto com a entrada em SecurityConfig).
+    private static final Set<String> DIAG_KNOWN_PLATES =
+            Set.of("FGS5F15", "ENJ9259", "EMN3I26", "IXD8A73");
+
+    @GetMapping("/diag/installations-summary")
+    public ResponseEntity<?> installationsSummary(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey
+    ) {
+
+        if (!isValidKey(providedKey)) {
+            return unauthorized();
+        }
+
+        List<Installation> all = installationRepository.findAll();
+
+        Map<String, Long> byStatus = new LinkedHashMap<>();
+        Arrays.stream(InstallationStatus.values()).forEach(s -> byStatus.put(s.name(), 0L));
+        all.forEach(i -> byStatus.merge(i.getStatus() != null ? i.getStatus().name() : "NULL", 1L, Long::sum));
+
+        Map<String, Long> byCreatedMonth = all.stream()
+                .collect(Collectors.groupingBy(
+                        i -> i.getCreatedAt() != null
+                                ? String.format("%d-%02d", i.getCreatedAt().getYear(), i.getCreatedAt().getMonthValue())
+                                : "sem-data",
+                        TreeMap::new,
+                        Collectors.counting()
+                ));
+
+        List<Map<String, Object>> pendingOutsideKnownPlates = all.stream()
+                .filter(i -> i.getStatus() == InstallationStatus.PENDING)
+                .filter(i -> i.getPlate() == null
+                        || !DIAG_KNOWN_PLATES.contains(i.getPlate().trim().toUpperCase()))
+                .map(i -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("id", i.getId());
+                    m.put("externalId", i.getExternalId());
+                    m.put("plate", i.getPlate());
+                    m.put("customerName", i.getCustomerName());
+                    m.put("city", i.getCity());
+                    m.put("portalStatus", i.getPortalStatus());
+                    m.put("portalCreatedAt", i.getPortalCreatedAt());
+                    m.put("createdAt", i.getCreatedAt());
+                    return m;
+                })
+                .toList();
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("total", all.size());
+        body.put("byStatus", byStatus);
+        body.put("byCreatedMonth", byCreatedMonth);
+        body.put("knownPlates", DIAG_KNOWN_PLATES);
+        body.put("pendingOutsideKnownPlatesCount", pendingOutsideKnownPlates.size());
+        body.put("pendingOutsideKnownPlates", pendingOutsideKnownPlates);
+
+        return ResponseEntity.ok(body);
 
     }
 
