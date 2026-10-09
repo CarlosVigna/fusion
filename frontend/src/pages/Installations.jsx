@@ -28,11 +28,10 @@ import SchedulingModal from "../components/installations/SchedulingModal";
 import { formatLocalDateTime } from "../utils/dateUtils";
 
 // Tela migrada pra trabalhar com ServiceOrder (serviceType=INSTALACAO)
-// em vez da entidade Installation — ver investigacao/decisoes da
-// migracao (SchedulingStatus != CONCLUIDO = "Aguardando",
-// == CONCLUIDO = "Histórico"; sem campo de modelo do veiculo; sem
-// conceito de "enviado"/"cancelado"/"dispensar alerta", que
-// ServiceOrder nao tem equivalente).
+// em vez da entidade Installation — abas por portalStatus (ver
+// PORTAL_TABS); sem campo de modelo do veiculo; sem conceito de
+// "enviado"/"cancelado"/"dispensar alerta", que ServiceOrder nao tem
+// equivalente.
 function buildMessage(so) {
   return (
     `*INSTALAÇÃO NOVA*\n\n` +
@@ -66,6 +65,34 @@ function slaLabel(so) {
   return `${so.slaDays} dias`;
 }
 
+// Abas espelhando os status do portal (portalStatus vem da Installation
+// vinculada, preenchido em GET /service-orders). kind define a tabela:
+// "active" = tabela com acoes/SLA, "done" = tabela de historico,
+// "other" = OS manual sem portal / marcadores antigos (abertas usam a
+// tabela com acoes, concluidas a tabela simples).
+const PORTAL_TABS = [
+  { key: "AGUARDANDO_AGENDAMENTO",       label: "Aguardando Agendamento", kind: "active" },
+  { key: "AGENDADO_AGUARDANDO_ATIVACAO", label: "Ag. Ativação",           kind: "active" },
+  { key: "AGUARDANDO_INSTALACAO",        label: "Aguardando Instalação",  kind: "active" },
+  { key: "PENDENTE_INSTALACAO",          label: "Pendente",               kind: "active" },
+  { key: "INSTALACAO_EM_ANALISE",        label: "Em Análise",             kind: "active" },
+  { key: "INSTALACAO_ENVIADA",           label: "Enviada",                kind: "active" },
+  { key: "INSTALACAO_CONCLUIDA_SUCESSO", label: "Concluída ✅",           kind: "done" },
+  { key: "INSTALACAO_CONCLUIDA_FALHA",   label: "Falha ❌",               kind: "done" },
+  { key: "OUTROS",                       label: "Outros",                 kind: "other" },
+];
+
+const KNOWN_PORTAL_STATUSES = new Set(PORTAL_TABS.filter((t) => t.key !== "OUTROS").map((t) => t.key));
+
+function tabKeyOf(so) {
+  return KNOWN_PORTAL_STATUSES.has(so.portalStatus) ? so.portalStatus : "OUTROS";
+}
+
+function portalStatusLabel(status) {
+  if (!status) return "—";
+  return PORTAL_TABS.find((t) => t.key === status)?.label ?? status;
+}
+
 function isToday(dateStr) {
   if (!dateStr) return false;
   const today = new Date().toISOString().slice(0, 10);
@@ -73,7 +100,7 @@ function isToday(dateStr) {
 }
 
 export default function Installations() {
-  const [tab, setTab] = useState("active");
+  const [tab, setTab] = useState("AGUARDANDO_AGENDAMENTO");
 
   const [showNewModal, setShowNewModal] = useState(false);
   const [schedulingId, setSchedulingId] = useState(null);
@@ -107,8 +134,28 @@ export default function Installations() {
     }
   }
 
-  const pending = all.filter((so) => so.schedulingStatus !== "CONCLUIDO");
-  const history = all.filter((so) => so.schedulingStatus === "CONCLUIDO");
+  const currentTab = PORTAL_TABS.find((t) => t.key === tab) ?? PORTAL_TABS[0];
+  const inTab = all.filter((so) => tabKeyOf(so) === currentTab.key);
+
+  // Em "Outros", OS ainda abertas (ex.: criadas manualmente) precisam das
+  // acoes de agendar/tecnico — vao pra tabela com acoes; so' as concluidas
+  // ficam na tabela simples.
+  const activeRows = currentTab.kind === "other"
+    ? inTab.filter((so) => so.schedulingStatus !== "CONCLUIDO")
+    : inTab;
+  const simpleRows = inTab.filter((so) => so.schedulingStatus === "CONCLUIDO");
+  const showActiveTable = currentTab.kind === "active" || (currentTab.kind === "other" && activeRows.length > 0);
+  const showSimpleTable = currentTab.kind === "other" && (simpleRows.length > 0 || activeRows.length === 0);
+
+  function countFor(key) {
+    return all.filter((so) => tabKeyOf(so) === key).length;
+  }
+
+  function changeTab(key) {
+    setTab(key);
+    setSelected(new Set());
+    setSlaFilter("ALL");
+  }
 
   useEffect(() => { load(); }, []);
 
@@ -117,7 +164,7 @@ export default function Installations() {
       try {
         const data = await getServiceOrders({ includeCompleted: true, serviceType: "INSTALACAO" });
         const list = Array.isArray(data) ? data : [];
-        const newPending = list.filter((so) => so.schedulingStatus !== "CONCLUIDO");
+        const newPending = list.filter((so) => so.portalStatus === "AGUARDANDO_AGENDAMENTO");
         if (prevPendingIdsRef.current !== null) {
           const prevIds = prevPendingIdsRef.current;
           const newItems = newPending.filter((i) => !prevIds.has(i.id));
@@ -179,7 +226,7 @@ export default function Installations() {
   }
 
   async function handleCopySelected() {
-    const msgs = pending
+    const msgs = inTab
       .filter((i) => selected.has(i.id))
       .map(buildMessage)
       .join("\n\n---\n\n");
@@ -209,12 +256,12 @@ export default function Installations() {
   }
 
   function filteredPending() {
-    if (slaFilter === "ALL") return pending;
-    return pending.filter((i) => slaStatusOf(i) === slaFilter);
+    if (slaFilter === "ALL") return activeRows;
+    return activeRows.filter((i) => slaStatusOf(i) === slaFilter);
   }
 
   function filteredHistory() {
-    return history.filter((i) => {
+    return inTab.filter((i) => {
       const matchSearch = !historySearch ||
         (i.customerName?.toLowerCase().includes(historySearch.toLowerCase())) ||
         (i.plate?.toLowerCase().includes(historySearch.toLowerCase())) ||
@@ -230,11 +277,11 @@ export default function Installations() {
         toast("Nenhum dado encontrado", { icon: "ℹ️" });
         return;
       }
-      const headers = ["ID", "Segurado", "Placa", "Endereço", "Bairro", "Cidade", "UF", "CEP", "Telefone", "Status", "Aprovação Financeira", "SLA Dias", "Solicitado em", "Fechado em"];
+      const headers = ["ID", "Segurado", "Placa", "Endereço", "Bairro", "Cidade", "UF", "CEP", "Telefone", "Status", "Status Portal", "Aprovação Financeira", "SLA Dias", "Solicitado em", "Fechado em"];
       const rows = all.map((i) => [
         i.id, i.customerName, i.plate, i.address, i.neighborhood,
         i.city, i.state, i.zipCode, i.customerPhone,
-        i.schedulingStatus, i.financialApprovalStatus, i.slaDays ?? "", i.requestedAt ?? "", i.closedAt ?? "",
+        i.schedulingStatus, portalStatusLabel(i.portalStatus), i.financialApprovalStatus, i.slaDays ?? "", i.requestedAt ?? "", i.closedAt ?? "",
       ]);
       const csv = [headers, ...rows]
         .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
@@ -255,41 +302,17 @@ export default function Installations() {
   const displayed = filteredPending();
   const allSelected = displayed.length > 0 && selected.size === displayed.length;
 
-  const ok = pending.filter((so) => slaStatusOf(so) === "SLA_OK").length;
-  const warning = pending.filter((so) => slaStatusOf(so) === "SLA_WARNING").length;
-  const critical = pending.filter((so) => slaStatusOf(so) === "SLA_CRITICAL").length;
-  const closedToday = history.filter((so) => isToday(so.closedAt)).length;
+  const ok = activeRows.filter((so) => slaStatusOf(so) === "SLA_OK").length;
+  const warning = activeRows.filter((so) => slaStatusOf(so) === "SLA_WARNING").length;
+  const critical = activeRows.filter((so) => slaStatusOf(so) === "SLA_CRITICAL").length;
+  const closedToday = all.filter((so) => so.schedulingStatus === "CONCLUIDO" && isToday(so.closedAt)).length;
 
   return (
     <div className="space-y-6">
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setTab("active")}
-            className={`flex items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${
-              tab === "active" ? "bg-white text-black" : "border border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
-            }`}
-          >
-            Aguardando
-            {pending.length > 0 && (
-              <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-bold text-white">
-                {pending.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setTab("history")}
-            className={`rounded-2xl px-5 py-2.5 text-sm font-semibold transition ${
-              tab === "history" ? "bg-white text-black" : "border border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
-            }`}
-          >
-            Histórico
-          </button>
-        </div>
-
-        <div className="flex gap-2">
+        <div className="flex justify-end gap-2 w-full">
           <button
             onClick={() => setShowNewModal(true)}
             className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:opacity-90"
@@ -314,10 +337,36 @@ export default function Installations() {
         </div>
       </div>
 
+      {/* Abas por status do portal */}
+      <div className="flex flex-wrap gap-2">
+        {PORTAL_TABS.map((t) => {
+          const count = countFor(t.key);
+          const isActive = tab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => changeTab(t.key)}
+              className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+                isActive ? "bg-white text-black" : "border border-zinc-700 bg-zinc-950 text-zinc-300 hover:bg-zinc-800"
+              }`}
+            >
+              {t.label}
+              {count > 0 && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                  t.key === "AGUARDANDO_AGENDAMENTO" ? "bg-red-500 text-white" : isActive ? "bg-zinc-200 text-zinc-700" : "bg-zinc-800 text-zinc-300"
+                }`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Dashboard summary cards — calculados no browser a partir da
           lista ja carregada (GET /service-orders/dashboard agrega
           TODOS os tipos de OS, nao so' instalacao). */}
-      {tab === "active" && (
+      {showActiveTable && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <SummaryCard
             label="OK (0-1d)"
@@ -348,14 +397,14 @@ export default function Installations() {
             value={closedToday}
             color="text-zinc-300"
             bg="bg-zinc-800/60 border-zinc-700/50"
-            onClick={() => { setTab("history"); }}
+            onClick={() => changeTab("INSTALACAO_CONCLUIDA_SUCESSO")}
             active={false}
           />
         </div>
       )}
 
       {/* Bulk action bar */}
-      {tab === "active" && selected.size > 0 && (
+      {showActiveTable && selected.size > 0 && (
         <div className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3">
           <span className="text-sm text-zinc-300">{selected.size} selecionada(s)</span>
           <button
@@ -375,13 +424,13 @@ export default function Installations() {
       )}
 
       {/* Active tab — pending table */}
-      {tab === "active" && (
+      {showActiveTable && (
         <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
           {loading ? (
             <p className="py-10 text-center text-zinc-500">Carregando...</p>
           ) : displayed.length === 0 ? (
             <p className="py-10 text-center text-zinc-500">
-              {slaFilter !== "ALL" ? "Nenhuma instalação neste filtro" : "Nenhuma instalação aguardando"}
+              {slaFilter !== "ALL" ? "Nenhuma instalação neste filtro" : `Nenhuma instalação em "${currentTab.label}"`}
             </p>
           ) : (
             <div className="overflow-x-auto">
@@ -538,7 +587,7 @@ export default function Installations() {
       )}
 
       {/* History tab */}
-      {tab === "history" && (
+      {currentTab.kind === "done" && (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-3">
             <input
@@ -599,6 +648,52 @@ export default function Installations() {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Outros — OS sem portalStatus conhecido (criada manualmente,
+          sem vinculo com o portal, ou com marcador antigo do sync). As
+          abertas aparecem na tabela com acoes acima; aqui so' as
+          concluidas. */}
+      {showSimpleTable && showActiveTable && (
+        <p className="text-sm font-semibold text-zinc-400">Concluídas</p>
+      )}
+      {showSimpleTable && (
+        <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="border-b border-zinc-800 bg-zinc-950">
+                <tr className="text-left text-xs text-zinc-500">
+                  <th className="px-4 py-3">Cliente</th>
+                  <th className="px-4 py-3">Placa</th>
+                  <th className="px-4 py-3">Cidade/UF</th>
+                  <th className="px-4 py-3">Status Fusion</th>
+                  <th className="px-4 py-3">Status Portal</th>
+                  <th className="px-4 py-3">Solicitado em</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={6} className="py-10 text-center text-zinc-500">Carregando...</td></tr>
+                ) : simpleRows.length === 0 ? (
+                  <tr><td colSpan={6} className="py-10 text-center text-zinc-500">Nenhum registro</td></tr>
+                ) : (
+                  simpleRows.map((so) => (
+                    <tr key={so.id} className="border-t border-zinc-800 transition hover:bg-zinc-800/40">
+                      <td className="px-4 py-3 font-medium">{so.customerName || "—"}</td>
+                      <td className="px-4 py-3 font-mono text-sm text-zinc-300">{so.plate || "—"}</td>
+                      <td className="px-4 py-3 text-zinc-400 text-sm">{so.city ? `${so.city}/${so.state}` : "—"}</td>
+                      <td className="px-4 py-3 text-zinc-400 text-sm">{so.schedulingStatus || "—"}</td>
+                      <td className="px-4 py-3 text-zinc-400 text-sm">{portalStatusLabel(so.portalStatus)}</td>
+                      <td className="px-4 py-3 text-zinc-400 text-sm">
+                        {so.requestedAt ? formatLocalDateTime(so.requestedAt) : "—"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

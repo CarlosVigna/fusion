@@ -2,6 +2,7 @@ package com.fusion.fusion.serviceorder;
 
 import com.fusion.fusion.common.exception.BusinessException;
 import com.fusion.fusion.common.exception.ResourceNotFoundException;
+import com.fusion.fusion.installation.InstallationRepository;
 import com.fusion.fusion.operational.snapshot.OperationalSnapshotRepository;
 import com.fusion.fusion.ors.OrsService;
 import com.fusion.fusion.serviceorder.audit.ServiceOrderAuditLog;
@@ -42,6 +43,7 @@ public class ServiceOrderService {
     private final VehicleOperationalStateRepository operationalStateRepository;
     private final OperationalSnapshotRepository operationalSnapshotRepository;
     private final ServiceOrderAuditLogRepository auditLogRepository;
+    private final InstallationRepository installationRepository;
 
     // Mesmos padrões usados no formulário do frontend (ServiceOrders.jsx) —
     // mantidos aqui só como rede de segurança para quem chamar a API
@@ -60,12 +62,32 @@ public class ServiceOrderService {
     // pra Installations.jsx filtrar so' as OS de instalacao sem
     // precisar buscar tudo e filtrar no browser.
     public List<ServiceOrderResponse> listAll(boolean includeCompleted, ServiceType serviceType) {
-        return repository.findAll().stream()
+        List<ServiceOrder> orders = repository.findAll().stream()
                 .filter(o -> o.getDeletedAt() == null)
                 .filter(o -> includeCompleted || o.getSchedulingStatus() != SchedulingStatus.CONCLUIDO)
                 .filter(o -> serviceType == null || o.getServiceType() == serviceType)
                 .sorted(Comparator.comparing(ServiceOrder::getRequestedAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(this::toResponse)
+                .toList();
+
+        // portalStatus vem da Installation vinculada — uma consulta so' pra
+        // lista inteira (Installations.jsx monta as abas por esse campo).
+        List<String> externalIds = orders.stream()
+                .map(ServiceOrder::getExternalInstallationId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+
+        Map<String, String> portalStatusByExternalId = new HashMap<>();
+        if (!externalIds.isEmpty()) {
+            installationRepository.findByExternalIdIn(externalIds).forEach(i -> {
+                if (i.getPortalStatus() != null) portalStatusByExternalId.put(i.getExternalId(), i.getPortalStatus());
+            });
+        }
+
+        return orders.stream()
+                .map(o -> toResponse(o, o.getExternalInstallationId() != null
+                        ? portalStatusByExternalId.get(o.getExternalInstallationId())
+                        : null))
                 .toList();
     }
 
@@ -769,6 +791,10 @@ public class ServiceOrderService {
     }
 
     ServiceOrderResponse toResponse(ServiceOrder so) {
+        return toResponse(so, null);
+    }
+
+    ServiceOrderResponse toResponse(ServiceOrder so, String portalStatus) {
 
         // Usado pelo botao "Concluir como Legado" no frontend pra nao nem
         // oferecer a acao quando o veiculo nunca mandou posicao — evita um
@@ -820,7 +846,8 @@ public class ServiceOrderService {
                 so.getSlaDays(),
                 so.isLate(),
                 so.getServiceValueChangedAfterScheduling(),
-                hasEverCommunicated
+                hasEverCommunicated,
+                portalStatus
         );
     }
 

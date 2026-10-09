@@ -32,6 +32,8 @@ public interface InstallationRepository
 
     Optional<Installation> findByExternalId(String externalId);
 
+    List<Installation> findByExternalIdIn(List<String> externalIds);
+
     Optional<Installation> findByPlateIgnoreCase(String plate);
 
     List<Installation> findByCreatedAtBeforeAndStatusNot(LocalDateTime date, InstallationStatus status);

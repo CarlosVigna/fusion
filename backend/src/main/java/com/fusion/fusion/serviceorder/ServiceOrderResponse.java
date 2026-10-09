@@ -46,5 +46,9 @@ public record ServiceOrderResponse(
         long slaDays,
         boolean late,
         Boolean serviceValueChangedAfterScheduling,
-        boolean hasEverCommunicated
+        boolean hasEverCommunicated,
+        // Status atual no portal, vindo da Installation vinculada por
+        // externalInstallationId. So' preenchido no listAll (consulta em
+        // lote); null nos demais endpoints e em OS sem vinculo com o portal.
+        String portalStatus
 ) {}
