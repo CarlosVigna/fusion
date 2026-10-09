@@ -17,6 +17,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
@@ -58,6 +59,10 @@ public class InstallationSyncService {
             "INSTALACAO_EM_ANALISE",
             "INSTALACAO_ENVIADA"
     );
+
+    // Limita o sync as instalacoes a partir desta data (inicio/fim da API
+    // do portal), pra nao puxar todo o historico a cada ciclo.
+    private static final String SYNC_START_DATE = "2026-09-01";
 
     private static final String STATUS_AGUARDANDO = "AGUARDANDO_AGENDAMENTO";
     private static final String STATUS_CONCLUIDA = "INSTALACAO_CONCLUIDA_SUCESSO";
@@ -387,7 +392,10 @@ public class InstallationSyncService {
                     + "/ordens-instalacao"
                     + "?page=" + page
                     + "&size=50"
-                    + "&status=" + status;
+                    + "&pesquisa="
+                    + "&status=" + status
+                    + "&inicio=" + SYNC_START_DATE
+                    + "&fim=" + LocalDate.now();
 
             log.info("[INSTALACOES] GET {}", url);
 
