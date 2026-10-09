@@ -386,6 +386,13 @@ public class InstallationSyncService {
         List<Map<String, Object>> all = new ArrayList<>();
         int page = 0;
 
+        // Filtro de data so' nos status finais (onde o historico acumula).
+        // Os status em andamento buscam tudo, senao uma instalacao antiga
+        // ainda em aberto sumiria do sync.
+        String dateFilter = (status.equals(STATUS_CONCLUIDA) || status.equals("INSTALACAO_CONCLUIDA_FALHA"))
+                ? "&inicio=" + SYNC_START_DATE + "&fim=" + LocalDate.now()
+                : "";
+
         while (true) {
 
             String url = portalUrl
@@ -394,8 +401,7 @@ public class InstallationSyncService {
                     + "&size=50"
                     + "&pesquisa="
                     + "&status=" + status
-                    + "&inicio=" + SYNC_START_DATE
-                    + "&fim=" + LocalDate.now();
+                    + dateFilter;
 
             log.info("[INSTALACOES] GET {}", url);
 
