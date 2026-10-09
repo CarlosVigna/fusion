@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 
 import { FileSpreadsheet, FileText, Search } from "lucide-react";
 
-import { getInstallationReport } from "../services/installationService";
+import { getInstallationReport } from "../services/serviceOrderService";
 
 import { exportReportToExcel, exportReportToPdf } from "../utils/reportExport";
 
@@ -12,55 +12,66 @@ import { todayForFilename } from "../utils/exportXlsx";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
-const STATUS_LABELS = {
-  PENDING: "Pendente",
-  SCHEDULED: "Agendado",
-  SENT: "Enviado",
-  CANCELLED: "Cancelado",
+import { PORTAL_STATUSES, portalStatusLabel } from "../utils/portalStatus";
+
+// Relatorio das OS de instalacao (GET /service-orders/installation-report)
+// — mesma fonte da tela de Instalacoes, com portalStatus, tecnico e
+// valores de deslocamento/aprovacao da OS.
+
+const APPROVAL_LABELS = {
+  APROVADO: "Aprovado",
+  REPROVADO: "Reprovado",
+  PENDENTE: "Pendente",
 };
 
 const HEADERS = [
   "Data entrada",
-  "Nome",
+  "Segurado",
   "Placa",
-  "Modelo",
-  "Telefone",
-  "Endereço",
-  "Bairro",
   "Cidade/UF",
-  "CEP",
-  "Status",
-  "Enviado por",
-  "Data envio",
+  "Técnico",
+  "Status portal",
+  "Distância",
+  "Deslocamento",
+  "Aprovação",
+  "Valor total",
 ];
 
-function toRow(inst) {
+function formatBRL(value) {
+  if (value == null) return "--";
+  return Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatKm(value) {
+  return value != null ? `${value} km` : "--";
+}
+
+function cityState(so) {
+  return so.city && so.state ? `${so.city}/${so.state}` : so.city || "--";
+}
+
+function toRow(so) {
   return [
-    inst.portalCreatedAt
-      ? formatLocalDateTime(inst.portalCreatedAt)
-      : inst.createdAt
-      ? formatLocalDateTime(inst.createdAt)
-      : "--",
-    inst.customerName || "--",
-    inst.plate || "--",
-    inst.model || "--",
-    inst.phone || "--",
-    inst.address || "--",
-    inst.neighborhood || "--",
-    inst.city && inst.state ? `${inst.city}/${inst.state}` : inst.city || "--",
-    inst.zipCode || "--",
-    STATUS_LABELS[inst.status] || inst.status,
-    inst.sentBy || "--",
-    inst.sentAt ? formatLocalDateTime(inst.sentAt) : "--",
+    so.createdAt ? formatLocalDateTime(so.createdAt) : "--",
+    so.customerName || "--",
+    so.plate || "--",
+    cityState(so),
+    so.technician?.name || "--",
+    portalStatusLabel(so.portalStatus),
+    formatKm(so.distanceKm),
+    formatBRL(so.displacementValue),
+    APPROVAL_LABELS[so.financialApprovalStatus] || so.financialApprovalStatus || "--",
+    formatBRL(so.totalValue),
   ];
 }
 
 export default function InstallationReports() {
 
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [portalStatus, setPortalStatus] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [approvedOnly, setApprovedOnly] = useState(false);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -68,8 +79,8 @@ export default function InstallationReports() {
   async function handleSearch() {
     setLoading(true);
     try {
-      const data = await getInstallationReport({ search, status, startDate, endDate });
-      setResults(data);
+      const data = await getInstallationReport({ search, portalStatus, startDate, endDate });
+      setResults(Array.isArray(data) ? data : []);
       setSearched(true);
     } catch (error) {
       console.error(error);
@@ -83,15 +94,30 @@ export default function InstallationReports() {
     if (e.key === "Enter") handleSearch();
   }
 
+  // "Apenas deslocamentos aprovados" filtra no browser sobre o resultado
+  // ja buscado — totalizadores e exportacao usam essa lista filtrada.
+  const rows = approvedOnly
+    ? results.filter((so) => so.financialApprovalStatus === "APROVADO")
+    : results;
+
+  const approved = rows.filter((so) => so.financialApprovalStatus === "APROVADO");
+  const totals = {
+    count: rows.length,
+    approvedCount: approved.length,
+    approvedDisplacement: approved.reduce((sum, so) => sum + Number(so.displacementValue ?? 0), 0),
+    totalValue: rows.reduce((sum, so) => sum + Number(so.totalValue ?? 0), 0),
+  };
+
   const filters = {
     ...(search ? { Busca: search } : {}),
-    ...(status ? { Status: STATUS_LABELS[status] || status } : {}),
+    ...(portalStatus ? { "Status portal": portalStatusLabel(portalStatus) } : {}),
     ...(startDate ? { De: startDate } : {}),
     ...(endDate ? { Até: endDate } : {}),
+    ...(approvedOnly ? { Deslocamentos: "Apenas aprovados" } : {}),
   };
 
   async function handleExcelExport() {
-    if (results.length === 0) {
+    if (rows.length === 0) {
       toast.error("Nenhum resultado para exportar");
       return;
     }
@@ -99,7 +125,7 @@ export default function InstallationReports() {
       await exportReportToExcel({
         title: "Relatório de Instalações",
         headers: HEADERS,
-        rows: results.map(toRow),
+        rows: rows.map(toRow),
         filters,
         filename: `instalacoes-${todayForFilename()}.xlsx`,
       });
@@ -110,7 +136,7 @@ export default function InstallationReports() {
   }
 
   function handlePdfExport() {
-    if (results.length === 0) {
+    if (rows.length === 0) {
       toast.error("Nenhum resultado para exportar");
       return;
     }
@@ -118,7 +144,7 @@ export default function InstallationReports() {
       exportReportToPdf({
         title: "Relatório de Instalações",
         headers: HEADERS,
-        rows: results.map(toRow),
+        rows: rows.map(toRow),
         filters,
         filename: `instalacoes-${todayForFilename()}.pdf`,
       });
@@ -152,22 +178,21 @@ export default function InstallationReports() {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs text-zinc-500">Status</label>
+            <label className="mb-1.5 block text-xs text-zinc-500">Status do portal</label>
             <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              value={portalStatus}
+              onChange={(e) => setPortalStatus(e.target.value)}
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
             >
               <option value="">Todos</option>
-              <option value="PENDING">Pendentes</option>
-              <option value="SENT">Enviados</option>
-              <option value="CANCELLED">Cancelados</option>
-              <option value="SCHEDULED">Agendados</option>
+              {PORTAL_STATUSES.map((s) => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
             </select>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-xs text-zinc-500">Período</label>
+            <label className="mb-1.5 block text-xs text-zinc-500">Período (entrada da OS)</label>
             <div className="flex items-center gap-2">
               <input
                 type="date"
@@ -187,6 +212,16 @@ export default function InstallationReports() {
 
         </div>
 
+        <label className="mt-4 flex w-fit cursor-pointer items-center gap-2 text-sm text-zinc-300">
+          <input
+            type="checkbox"
+            checked={approvedOnly}
+            onChange={(e) => setApprovedOnly(e.target.checked)}
+            className="h-4 w-4 accent-white"
+          />
+          Apenas deslocamentos aprovados
+        </label>
+
         <div className="mt-4 flex flex-wrap items-center gap-3">
 
           <button
@@ -197,7 +232,7 @@ export default function InstallationReports() {
             {loading ? "Buscando..." : "Buscar"}
           </button>
 
-          {results.length > 0 && (
+          {rows.length > 0 && (
             <div className="flex gap-2">
               <button
                 onClick={handleExcelExport}
@@ -220,11 +255,21 @@ export default function InstallationReports() {
 
       </div>
 
+      {/* Totalizadores — sobre os resultados filtrados */}
+      {searched && (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <TotalCard label="Total de OS" value={totals.count} />
+          <TotalCard label="Deslocamentos aprovados" value={totals.approvedCount} />
+          <TotalCard label="Valor deslocamentos aprovados" value={formatBRL(totals.approvedDisplacement)} />
+          <TotalCard label="Valor total geral" value={formatBRL(totals.totalValue)} />
+        </div>
+      )}
+
       {/* Resultados */}
       {searched && (
         <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
 
-          {results.length === 0 ? (
+          {rows.length === 0 ? (
 
             <p className="py-10 text-center text-zinc-500">Nenhum resultado encontrado</p>
 
@@ -232,7 +277,7 @@ export default function InstallationReports() {
             <>
               <div className="border-b border-zinc-800 px-5 py-3">
                 <p className="text-sm text-zinc-400">
-                  {results.length} resultado{results.length !== 1 ? "s" : ""}
+                  {rows.length} resultado{rows.length !== 1 ? "s" : ""}
                 </p>
               </div>
 
@@ -248,52 +293,40 @@ export default function InstallationReports() {
                     </tr>
                   </thead>
                   <tbody>
-                    {results.map((inst) => (
+                    {rows.map((so) => (
                       <tr
-                        key={inst.id}
+                        key={so.id}
                         className="border-t border-zinc-800 transition hover:bg-zinc-800/40"
                       >
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                          {inst.portalCreatedAt
-                            ? formatLocalDateTime(inst.portalCreatedAt)
-                            : inst.createdAt
-                            ? formatLocalDateTime(inst.createdAt)
-                            : "--"}
+                          {so.createdAt ? formatLocalDateTime(so.createdAt) : "--"}
                         </td>
                         <td className="px-4 py-3 text-sm font-medium">
-                          {inst.customerName || "--"}
+                          {so.customerName || "--"}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 font-mono text-sm">
-                          {inst.plate || "--"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-zinc-400">
-                          {inst.model || "--"}
+                          {so.plate || "--"}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                          {inst.phone || "--"}
+                          {cityState(so)}
                         </td>
                         <td className="px-4 py-3 text-sm text-zinc-400">
-                          {inst.address || "--"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-zinc-400">
-                          {inst.neighborhood || "--"}
+                          {so.technician?.name || "--"}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                          {inst.city && inst.state
-                            ? `${inst.city}/${inst.state}`
-                            : inst.city || "--"}
+                          {portalStatusLabel(so.portalStatus)}
                         </td>
                         <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                          {inst.zipCode || "--"}
+                          {formatKm(so.distanceKm)}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
+                          {formatBRL(so.displacementValue)}
                         </td>
                         <td className="px-4 py-3">
-                          <StatusBadge status={inst.status} />
+                          <ApprovalBadge status={so.financialApprovalStatus} />
                         </td>
-                        <td className="px-4 py-3 text-sm text-zinc-400">
-                          {inst.sentBy || "--"}
-                        </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-400">
-                          {inst.sentAt ? formatLocalDateTime(inst.sentAt) : "--"}
+                        <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-300">
+                          {formatBRL(so.totalValue)}
                         </td>
                       </tr>
                     ))}
@@ -311,16 +344,24 @@ export default function InstallationReports() {
 
 }
 
-function StatusBadge({ status }) {
+function TotalCard({ label, value }) {
+  return (
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4">
+      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="mt-1 text-xs text-zinc-500">{label}</p>
+    </div>
+  );
+}
+
+function ApprovalBadge({ status }) {
 
   const map = {
-    PENDING:   { label: "Pendente",  cls: "bg-yellow-500/15 text-yellow-400" },
-    SCHEDULED: { label: "Agendado",  cls: "bg-blue-500/15 text-blue-400" },
-    SENT:      { label: "Enviado",   cls: "bg-green-500/15 text-green-400" },
-    CANCELLED: { label: "Cancelado", cls: "bg-zinc-700/40 text-zinc-400" },
+    APROVADO:  { label: "Aprovado",  cls: "bg-green-500/15 text-green-400" },
+    REPROVADO: { label: "Reprovado", cls: "bg-red-500/15 text-red-400" },
+    PENDENTE:  { label: "Pendente",  cls: "bg-yellow-500/15 text-yellow-400" },
   };
 
-  const { label, cls } = map[status] || { label: status, cls: "bg-zinc-700/40 text-zinc-400" };
+  const { label, cls } = map[status] || { label: status || "—", cls: "bg-zinc-700/40 text-zinc-400" };
 
   return (
     <span className={`rounded-full px-3 py-1 text-xs font-semibold ${cls}`}>

@@ -75,18 +75,6 @@ public class InstallationController {
         return service.dismissAlert(id);
     }
 
-    @GetMapping("/report")
-    public List<InstallationResponse> report(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate
-    ) {
-        LocalDate start = (startDate != null && !startDate.isBlank()) ? LocalDate.parse(startDate) : null;
-        LocalDate end = (endDate != null && !endDate.isBlank()) ? LocalDate.parse(endDate) : null;
-        return service.report(search, status, start, end);
-    }
-
     @PutMapping("/{id}/sent")
     public InstallationResponse markSent(@PathVariable Long id) {
         return service.markSent(id);

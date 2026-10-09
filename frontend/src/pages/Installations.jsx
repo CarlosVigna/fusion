@@ -27,6 +27,8 @@ import SchedulingModal from "../components/installations/SchedulingModal";
 
 import { formatLocalDateTime } from "../utils/dateUtils";
 
+import { PORTAL_STATUSES, portalStatusLabel } from "../utils/portalStatus";
+
 // Tela migrada pra trabalhar com ServiceOrder (serviceType=INSTALACAO)
 // em vez da entidade Installation — abas por portalStatus (ver
 // PORTAL_TABS); sem campo de modelo do veiculo; sem conceito de
@@ -70,27 +72,17 @@ function slaLabel(so) {
 // "active" = tabela com acoes/SLA, "done" = tabela de historico,
 // "other" = OS manual sem portal / marcadores antigos (abertas usam a
 // tabela com acoes, concluidas a tabela simples).
+const DONE_PORTAL_STATUSES = new Set(["INSTALACAO_CONCLUIDA_SUCESSO", "INSTALACAO_CONCLUIDA_FALHA"]);
+
 const PORTAL_TABS = [
-  { key: "AGUARDANDO_AGENDAMENTO",       label: "Aguardando Agendamento", kind: "active" },
-  { key: "AGENDADO_AGUARDANDO_ATIVACAO", label: "Ag. Ativação",           kind: "active" },
-  { key: "AGUARDANDO_INSTALACAO",        label: "Aguardando Instalação",  kind: "active" },
-  { key: "PENDENTE_INSTALACAO",          label: "Pendente",               kind: "active" },
-  { key: "INSTALACAO_EM_ANALISE",        label: "Em Análise",             kind: "active" },
-  { key: "INSTALACAO_ENVIADA",           label: "Enviada",                kind: "active" },
-  { key: "INSTALACAO_CONCLUIDA_SUCESSO", label: "Concluída ✅",           kind: "done" },
-  { key: "INSTALACAO_CONCLUIDA_FALHA",   label: "Falha ❌",               kind: "done" },
-  { key: "OUTROS",                       label: "Outros",                 kind: "other" },
+  ...PORTAL_STATUSES.map((s) => ({ ...s, kind: DONE_PORTAL_STATUSES.has(s.key) ? "done" : "active" })),
+  { key: "OUTROS", label: "Outros", kind: "other" },
 ];
 
-const KNOWN_PORTAL_STATUSES = new Set(PORTAL_TABS.filter((t) => t.key !== "OUTROS").map((t) => t.key));
+const KNOWN_PORTAL_STATUSES = new Set(PORTAL_STATUSES.map((s) => s.key));
 
 function tabKeyOf(so) {
   return KNOWN_PORTAL_STATUSES.has(so.portalStatus) ? so.portalStatus : "OUTROS";
-}
-
-function portalStatusLabel(status) {
-  if (!status) return "—";
-  return PORTAL_TABS.find((t) => t.key === status)?.label ?? status;
 }
 
 function isToday(dateStr) {

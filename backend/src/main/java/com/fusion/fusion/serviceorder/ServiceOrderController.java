@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -38,6 +39,17 @@ public class ServiceOrderController {
     @GetMapping("/completed")
     public List<ServiceOrderResponse> listCompleted() {
         return service.listCompleted();
+    }
+
+    // Relatorio de instalacoes (InstallationReports.jsx). Datas filtram
+    // createdAt da OS (dia em Sao Paulo), ordenado por createdAt desc.
+    @GetMapping("/installation-report")
+    public List<ServiceOrderResponse> installationReport(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String portalStatus,
+            @RequestParam(required = false) LocalDate startDate,
+            @RequestParam(required = false) LocalDate endDate) {
+        return service.installationReport(search, portalStatus, startDate, endDate);
     }
 
     // Chamado pelo bot do WhatsApp (approvalFlow.js, fusion-etl), nao por

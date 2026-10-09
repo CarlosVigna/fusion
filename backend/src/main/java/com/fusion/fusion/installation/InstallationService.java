@@ -12,17 +12,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.criteria.Predicate;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -355,60 +350,6 @@ public class InstallationService {
 
     }
 
-    public List<InstallationResponse> report(String search, String status, LocalDate startDate, LocalDate endDate) {
-
-        InstallationStatus statusEnum = null;
-        if (status != null && !status.isBlank()) {
-            statusEnum = InstallationStatus.valueOf(status.toUpperCase());
-        }
-
-        Specification<Installation> spec = buildReportSpec(search, statusEnum, startDate, endDate);
-
-        return repository.findAll(spec, Sort.by(Sort.Direction.DESC, "createdAt"))
-                .stream()
-                .map(InstallationResponse::from)
-                .toList();
-
-    }
-
-    private Specification<Installation> buildReportSpec(
-            String search, InstallationStatus status, LocalDate startDate, LocalDate endDate
-    ) {
-        return (root, query, cb) -> {
-
-            List<Predicate> predicates = new ArrayList<>();
-
-            if (search != null && !search.isBlank()) {
-                String like = "%" + search.toLowerCase() + "%";
-                predicates.add(cb.or(
-                        cb.like(cb.lower(root.get("customerName")), like),
-                        cb.like(cb.lower(root.get("plate")), like),
-                        cb.like(cb.lower(root.get("city")), like)
-                ));
-            }
-
-            if (status != null) {
-                predicates.add(cb.equal(root.get("status"), status));
-            } else {
-                predicates.add(cb.notEqual(root.get("status"), InstallationStatus.ARCHIVED));
-            }
-
-            if (startDate != null) {
-                predicates.add(cb.greaterThanOrEqualTo(
-                        root.get("portalCreatedAt"), startDate.atStartOfDay()
-                ));
-            }
-
-            if (endDate != null) {
-                predicates.add(cb.lessThanOrEqualTo(
-                        root.get("portalCreatedAt"), endDate.atTime(23, 59, 59)
-                ));
-            }
-
-            return cb.and(predicates.toArray(new Predicate[0]));
-
-        };
-    }
 
     public Map<String, Long> countByPortalStatus() {
         Map<String, Long> result = new LinkedHashMap<>();

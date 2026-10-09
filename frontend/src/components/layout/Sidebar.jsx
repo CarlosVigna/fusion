@@ -115,7 +115,7 @@ const GROUPS = [
         label: "Instalações",
         icon: ClipboardList,
         items: [
-            { label: "Instalações",               icon: ClipboardList, path: "/installations", badgeKey: "installations" },
+            { label: "Instalações",               icon: ClipboardList, path: "/installations", end: true, badgeKey: "installations" },
             { label: "Relatórios de Instalações", icon: FileText,      path: "/installations/reports" },
             { label: "Técnicos",                  icon: UserCog,       path: "/technicians" },
         ],

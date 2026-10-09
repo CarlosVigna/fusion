@@ -27,6 +27,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -69,8 +70,53 @@ public class ServiceOrderService {
                 .sorted(Comparator.comparing(ServiceOrder::getRequestedAt, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
 
-        // portalStatus vem da Installation vinculada — uma consulta so' pra
-        // lista inteira (Installations.jsx monta as abas por esse campo).
+        return toResponsesWithPortalStatus(orders);
+    }
+
+    // Relatorio de instalacoes (InstallationReports.jsx) — OS de instalacao
+    // nao excluidas, com portalStatus. startDate/endDate sao dias em Sao
+    // Paulo comparados com createdAt (gravado em UTC).
+    public List<ServiceOrderResponse> installationReport(
+            String search, String portalStatus, LocalDate startDate, LocalDate endDate) {
+
+        ZoneId tz = ZoneId.of("America/Sao_Paulo");
+        LocalDateTime from = startDate != null
+                ? startDate.atStartOfDay(tz).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
+                : null;
+        LocalDateTime to = endDate != null
+                ? endDate.plusDays(1).atStartOfDay(tz).withZoneSameInstant(ZoneOffset.UTC).toLocalDateTime()
+                : null;
+
+        String term = search != null && !search.isBlank() ? search.trim().toLowerCase() : null;
+
+        List<ServiceOrder> orders = repository.findAll().stream()
+                .filter(o -> o.getDeletedAt() == null)
+                .filter(o -> o.getServiceType() == ServiceType.INSTALACAO)
+                .filter(o -> from == null || (o.getCreatedAt() != null && !o.getCreatedAt().isBefore(from)))
+                .filter(o -> to == null || (o.getCreatedAt() != null && o.getCreatedAt().isBefore(to)))
+                .filter(o -> term == null
+                        || containsIgnoreCase(o.getCustomerName(), term)
+                        || containsIgnoreCase(o.getPlate(), term)
+                        || containsIgnoreCase(o.getCity(), term))
+                .sorted(Comparator.comparing(ServiceOrder::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder())))
+                .toList();
+
+        List<ServiceOrderResponse> responses = toResponsesWithPortalStatus(orders);
+
+        if (portalStatus == null || portalStatus.isBlank()) return responses;
+
+        return responses.stream()
+                .filter(r -> portalStatus.equals(r.portalStatus()))
+                .toList();
+    }
+
+    private static boolean containsIgnoreCase(String value, String lowerTerm) {
+        return value != null && value.toLowerCase().contains(lowerTerm);
+    }
+
+    // portalStatus vem da Installation vinculada — uma consulta so' pra
+    // lista inteira (Installations.jsx monta as abas por esse campo).
+    private List<ServiceOrderResponse> toResponsesWithPortalStatus(List<ServiceOrder> orders) {
         List<String> externalIds = orders.stream()
                 .map(ServiceOrder::getExternalInstallationId)
                 .filter(Objects::nonNull)

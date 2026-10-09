@@ -7,6 +7,16 @@ export async function getServiceOrders({ includeCompleted = false, serviceType }
   return apiClient.get(`/service-orders?${params.toString()}`);
 }
 
+export async function getInstallationReport({ search, portalStatus, startDate, endDate } = {}) {
+  const params = new URLSearchParams();
+  if (search) params.append("search", search);
+  if (portalStatus) params.append("portalStatus", portalStatus);
+  if (startDate) params.append("startDate", startDate);
+  if (endDate) params.append("endDate", endDate);
+  const qs = params.toString();
+  return apiClient.get(`/service-orders/installation-report${qs ? `?${qs}` : ""}`);
+}
+
 export async function getCompletedServiceOrders() {
   return apiClient.get("/service-orders/completed");
 }
