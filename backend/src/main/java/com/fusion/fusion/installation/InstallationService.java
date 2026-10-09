@@ -101,8 +101,10 @@ public class InstallationService {
 
     public List<InstallationResponse> findAll(String status) {
 
+        // ARCHIVED fica fora da listagem padrao — so' aparece pedindo
+        // status=ARCHIVED explicitamente.
         if (status == null || status.isBlank()) {
-            return repository.findAllByOrderByCreatedAtDesc()
+            return repository.findByStatusNotOrderByCreatedAtDesc(InstallationStatus.ARCHIVED)
                     .stream()
                     .map(InstallationResponse::from)
                     .toList();
@@ -158,7 +160,8 @@ public class InstallationService {
                 InstallationStatus.SCHEDULED, startOfDay, endOfDay);
 
         List<InstallationResponse> recentlyClosed = repository
-                .findTop5ByStatusNotOrderByClosedAtDesc(InstallationStatus.PENDING)
+                .findTop5ByStatusNotInOrderByClosedAtDesc(
+                        List.of(InstallationStatus.PENDING, InstallationStatus.ARCHIVED))
                 .stream()
                 .map(InstallationResponse::from)
                 .toList();
@@ -386,6 +389,8 @@ public class InstallationService {
 
             if (status != null) {
                 predicates.add(cb.equal(root.get("status"), status));
+            } else {
+                predicates.add(cb.notEqual(root.get("status"), InstallationStatus.ARCHIVED));
             }
 
             if (startDate != null) {

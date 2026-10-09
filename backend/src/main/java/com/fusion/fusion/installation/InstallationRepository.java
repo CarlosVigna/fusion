@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,10 @@ public interface InstallationRepository
     long countByStatusAndClosedAtBetween(InstallationStatus status, LocalDateTime from, LocalDateTime to);
 
     List<Installation> findTop5ByStatusNotOrderByClosedAtDesc(InstallationStatus status);
+
+    List<Installation> findByStatusNotOrderByCreatedAtDesc(InstallationStatus status);
+
+    List<Installation> findTop5ByStatusNotInOrderByClosedAtDesc(Collection<InstallationStatus> statuses);
 
     Optional<Installation> findByExternalId(String externalId);
 
