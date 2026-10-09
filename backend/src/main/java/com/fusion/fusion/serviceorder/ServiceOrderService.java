@@ -585,6 +585,32 @@ public class ServiceOrderService {
         return result;
     }
 
+    // Chamado pelo InstallationSyncService quando o portal marca a
+    // instalacao como INSTALACAO_CONCLUIDA_SUCESSO. Nao usa
+    // confirmCompletion() porque ele exige tecnico/valor preenchidos —
+    // aqui o portal ja' e' a prova da conclusao. Retorna true so' se a OS
+    // existia aberta e foi fechada agora.
+    @Transactional
+    public boolean completeFromPortal(String externalInstallationId) {
+        Optional<ServiceOrder> opt = repository.findFirstByExternalInstallationIdAndDeletedAtIsNull(externalInstallationId);
+        if (opt.isEmpty()) return false;
+
+        ServiceOrder so = opt.get();
+        if (so.getSchedulingStatus() == SchedulingStatus.CONCLUIDO) return false;
+
+        String oldStatus = so.getSchedulingStatus() != null ? so.getSchedulingStatus().name() : null;
+
+        so.setSchedulingStatus(SchedulingStatus.CONCLUIDO);
+        so.setCompletionConfirmed(true);
+        if (so.getClosedAt() == null) so.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
+
+        repository.save(so);
+
+        audit(so, "CONCLUIDA_PORTAL", "schedulingStatus", oldStatus, "CONCLUIDO");
+        log.info("[OS] Concluída pelo portal: OS={} externalId={} plate={}", so.getId(), externalInstallationId, so.getPlate());
+        return true;
+    }
+
     public List<ServiceOrder> findPendingInstallations() {
         return repository.findByServiceTypeAndSchedulingStatusNotAndCompletionConfirmedFalseAndDeletedAtIsNull(
                 ServiceType.INSTALACAO, SchedulingStatus.CONCLUIDO);

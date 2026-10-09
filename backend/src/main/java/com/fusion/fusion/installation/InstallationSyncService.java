@@ -20,7 +20,6 @@ import org.springframework.web.client.RestTemplate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -46,6 +45,24 @@ public class InstallationSyncService {
     private String ntfyTopic;
 
     private volatile InstallationSyncResult lastResult;
+
+    // Os 8 status do portal — o sync busca todos (uma chamada paginada por
+    // status) pra espelhar o portal, em vez de so' a fila de agendamento.
+    private static final List<String> PORTAL_STATUSES = List.of(
+            "AGUARDANDO_AGENDAMENTO",
+            "AGENDADO_AGUARDANDO_ATIVACAO",
+            "AGUARDANDO_INSTALACAO",
+            "INSTALACAO_CONCLUIDA_SUCESSO",
+            "INSTALACAO_CONCLUIDA_FALHA",
+            "PENDENTE_INSTALACAO",
+            "INSTALACAO_EM_ANALISE",
+            "INSTALACAO_ENVIADA"
+    );
+
+    private static final String STATUS_AGUARDANDO = "AGUARDANDO_AGENDAMENTO";
+    private static final String STATUS_CONCLUIDA = "INSTALACAO_CONCLUIDA_SUCESSO";
+
+    private record PortalItem(Map<String, Object> item, String portalStatus) {}
 
     @Scheduled(cron = "0 0/30 * * * *")
     public void scheduledSync() {
@@ -87,8 +104,8 @@ public class InstallationSyncService {
 
         }
 
-        log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas, {} fechadas, {} reabertas",
-                result.found(), result.inserted(), result.skipped(), result.closed(), result.reopened());
+        log.info("[INSTALACOES] Sync concluído: {} encontradas, {} inseridas, {} ignoradas, {} fechadas, {} reabertas, {} concluídas",
+                result.found(), result.inserted(), result.skipped(), result.closed(), result.reopened(), result.concluded());
 
     }
 
@@ -112,44 +129,116 @@ public class InstallationSyncService {
 
             String token = getPortalToken();
 
-            List<Map<String, Object>> allItems = fetchAllPages(token);
-
-            int found = allItems.size();
-            int inserted = 0;
             int skipped = 0;
-            int closed = 0;
-            int reopened = 0;
 
-            // externalIds presentes no portal neste ciclo (todos AGUARDANDO_AGENDAMENTO)
-            Set<String> externalIdsNoPortal = allItems.stream()
-                    .map(o -> extractString(o, "externalId"))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toSet());
+            // Uma chamada paginada por status. Indexado por externalId pra
+            // nao processar duas vezes um item que mudou de status no meio
+            // da busca (fica o ultimo visto).
+            Map<String, PortalItem> portalItems = new LinkedHashMap<>();
 
-            for (Map<String, Object> item : allItems) {
+            // Falha num status nao derruba o ciclo inteiro (ex.: nome de
+            // status recusado pelo portal) — como ausencia no portal nao
+            // dispara mais nenhuma acao, processar parcial e' seguro. So'
+            // falha (e cai no retry do scheduledSync) se todos falharem.
+            Exception lastFetchError = null;
+            int failedStatuses = 0;
 
-                String externalId = extractString(item, "externalId");
-
-                if (externalId == null) {
-                    log.warn("[INSTALACOES] externalId nulo, ignorando item id={}", item.get("id"));
-                    skipped++;
+            for (String status : PORTAL_STATUSES) {
+                List<Map<String, Object>> items;
+                try {
+                    items = fetchAllPages(token, status);
+                } catch (Exception e) {
+                    log.error("[INSTALACOES] Falha ao buscar status {}: {}", status, e.getMessage());
+                    lastFetchError = e;
+                    failedStatuses++;
                     continue;
                 }
+                log.info("[INSTALACOES] Status {}: {} itens", status, items.size());
+                for (Map<String, Object> item : items) {
+                    String externalId = extractString(item, "externalId");
+                    if (externalId == null) {
+                        log.warn("[INSTALACOES] externalId nulo, ignorando item id={}", item.get("id"));
+                        skipped++;
+                        continue;
+                    }
+                    String itemStatus = extractString(item, "statusAtual", "status");
+                    portalItems.put(externalId, new PortalItem(item, itemStatus != null ? itemStatus : status));
+                }
+            }
+
+            if (failedStatuses == PORTAL_STATUSES.size()) {
+                throw new IllegalStateException("Falha ao buscar todos os status do portal", lastFetchError);
+            }
+
+            int found = portalItems.size();
+            int inserted = 0;
+            int closed = 0;
+            int reopened = 0;
+            int concluded = 0;
+
+            for (Map.Entry<String, PortalItem> entry : portalItems.entrySet()) {
+
+                String externalId = entry.getKey();
+                Map<String, Object> item = entry.getValue().item();
+                String portalStatus = entry.getValue().portalStatus();
 
                 Optional<Installation> existingOpt = installationRepository.findByExternalId(externalId);
                 if (existingOpt.isPresent()) {
                     Installation inst = existingOpt.get();
-                    if (inst.getStatus() != InstallationStatus.PENDING) {
-                        // Voltou para AGUARDANDO_AGENDAMENTO no portal — reabrir
+                    String previousPortalStatus = inst.getPortalStatus();
+                    boolean changed = !Objects.equals(previousPortalStatus, portalStatus);
+
+                    inst.setPortalStatus(portalStatus);
+
+                    // Status interno do Fusion continua significando "esta
+                    // na fila de agendamento do portal" (PENDING) ou nao —
+                    // e' o que badge/dashboard/backfill de OS usam. Antes era
+                    // deduzido por ausencia na lista; agora vem do status real.
+                    if (STATUS_AGUARDANDO.equals(portalStatus) && inst.getStatus() != InstallationStatus.PENDING) {
+                        log.info("[INSTALACOES] {} reaberta no portal (era {})", inst.getPlate(), inst.getStatus());
                         inst.setStatus(InstallationStatus.PENDING);
-                        inst.setPortalStatus("AGUARDANDO_AGENDAMENTO");
                         inst.setClosedAt(null);
-                        installationRepository.save(inst);
-                        log.info("[INSTALACOES] {} reaberta no portal (era {})",
-                                inst.getPlate(), inst.getStatus());
                         reopened++;
+                        changed = true;
+                    } else if (!STATUS_AGUARDANDO.equals(portalStatus) && inst.getStatus() == InstallationStatus.PENDING) {
+                        log.info("[INSTALACOES] {} saiu de AGUARDANDO_AGENDAMENTO → {} (externalId={})",
+                                inst.getPlate(), portalStatus, externalId);
+                        inst.setStatus(InstallationStatus.SCHEDULED);
+                        if (inst.getClosedAt() == null) {
+                            inst.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
+                        }
+                        closed++;
+                        changed = true;
+                    }
+
+                    if (changed) {
+                        installationRepository.save(inst);
                     } else {
                         skipped++;
+                    }
+
+                    // Transicao pra concluida: fecha a OS e notifica uma vez
+                    // so' (na mudanca — nos ciclos seguintes o portalStatus
+                    // anterior ja' e' CONCLUIDA e nao entra aqui).
+                    if (STATUS_CONCLUIDA.equals(portalStatus) && !STATUS_CONCLUIDA.equals(previousPortalStatus)) {
+                        concluded++;
+                        try {
+                            serviceOrderService.completeFromPortal(externalId);
+                        } catch (Exception e) {
+                            log.warn("[INSTALACOES] Falha ao concluir OS de externalId={}: {}", externalId, e.getMessage());
+                        }
+                        // So' notifica se o status anterior era um status real
+                        // do portal. Registros antigos (null ou o marcador
+                        // SAIU_DE_AGUARDANDO_AGENDAMENTO do sync anterior)
+                        // fecham a OS em silencio — senao a primeira rodada
+                        // depois do deploy mandaria uma mensagem por
+                        // instalacao concluida no passado.
+                        if (PORTAL_STATUSES.contains(previousPortalStatus)) {
+                            queueWhatsAppText(montarMensagemConclusao(inst), inst.getPlate());
+                        } else {
+                            log.info("[INSTALACOES] {} concluída (status anterior={}) — OS fechada sem notificação",
+                                    inst.getPlate(), previousPortalStatus);
+                        }
                     }
                     continue;
                 }
@@ -174,8 +263,25 @@ public class InstallationSyncService {
                         .numeroProposta(extractNestedLong(item, "proposta", "numeroProposta"))
                         .portalCreatedAt(extractDateTime(item, "dataCriacao", "data_criacao"))
                         .serviceType(extractString(item, "tipoServico", "tipo_servico"))
-                        .portalStatus(extractString(item, "statusAtual", "status"))
+                        .portalStatus(portalStatus)
                         .build();
+
+                // Nova de verdade = entrou na fila de agendamento. Item que
+                // ja' chega em outro status e' historico do portal que o
+                // Fusion nao tinha (anterior ao Fusion ou apagado pelo
+                // purge): entra so' como espelho, ARCHIVED (fora das
+                // listagens/dashboard/backfill), sem OS e sem notificacao —
+                // senao a primeira rodada criaria uma OS + uma mensagem por
+                // instalacao antiga. Se voltar pra AGUARDANDO_AGENDAMENTO,
+                // a reabertura acima o trata como PENDING normal.
+                if (!STATUS_AGUARDANDO.equals(portalStatus)) {
+                    installation.setStatus(InstallationStatus.ARCHIVED);
+                    installationRepository.save(installation);
+                    inserted++;
+                    log.info("[INSTALACOES] Histórico espelhado como ARCHIVED: externalId={} plate={} status={}",
+                            externalId, installation.getPlate(), portalStatus);
+                    continue;
+                }
 
                 log.info("[INSTALACOES] Tentando inserir: externalId={}, plate={}, customerName={}",
                         installation.getExternalId(), installation.getPlate(), installation.getCustomerName());
@@ -203,27 +309,13 @@ public class InstallationSyncService {
 
             }
 
-            // Instalações que estavam PENDING no banco mas não apareceram mais
-            // na lista do portal = saíram de AGUARDANDO_AGENDAMENTO
+            // Instalacoes do Fusion que nao vieram em nenhum dos 8 status
+            // (deletadas no portal, raro) ficam como estao — sem acao.
+
+            log.info("[INSTALACOES] Fechadas neste ciclo: {}, concluídas: {}", closed, concluded);
+
             List<Installation> pendingNoBank =
                     installationRepository.findByStatusOrderByCreatedAtDesc(InstallationStatus.PENDING);
-
-            for (Installation inst : pendingNoBank) {
-                if (inst.getExternalId() == null) continue;
-                if (!externalIdsNoPortal.contains(inst.getExternalId())) {
-                    inst.setPortalStatus("SAIU_DE_AGUARDANDO_AGENDAMENTO");
-                    inst.setStatus(InstallationStatus.SCHEDULED);
-                    if (inst.getClosedAt() == null) {
-                        inst.setClosedAt(LocalDateTime.now(ZoneOffset.UTC));
-                    }
-                    installationRepository.save(inst);
-                    log.info("[INSTALACOES] {} saiu de AGUARDANDO_AGENDAMENTO (externalId={})",
-                            inst.getPlate(), inst.getExternalId());
-                    closed++;
-                }
-            }
-
-            log.info("[INSTALACOES] Fechadas neste ciclo: {}", closed);
 
             // Backfill: PENDING sem OS vinculada → criar agora
             int backfilled = 0;
@@ -259,7 +351,7 @@ public class InstallationSyncService {
             ));
 
             InstallationSyncResult result = new InstallationSyncResult(
-                    found, inserted, skipped, closed, reopened, LocalDateTime.now(ZoneOffset.UTC)
+                    found, inserted, skipped, closed, reopened, concluded, LocalDateTime.now(ZoneOffset.UTC)
             );
             lastResult = result;
             return result;
@@ -284,7 +376,7 @@ public class InstallationSyncService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> fetchAllPages(String token) {
+    private List<Map<String, Object>> fetchAllPages(String token, String status) {
 
         List<Map<String, Object>> all = new ArrayList<>();
         int page = 0;
@@ -295,7 +387,7 @@ public class InstallationSyncService {
                     + "/ordens-instalacao"
                     + "?page=" + page
                     + "&size=50"
-                    + "&status=AGUARDANDO_AGENDAMENTO";
+                    + "&status=" + status;
 
             log.info("[INSTALACOES] GET {}", url);
 
@@ -489,13 +581,27 @@ public class InstallationSyncService {
     // ciclo de sync (a segunda sobrescrevia a primeira antes do ETL
     // local reivindicar).
     private void queueWhatsAppMessage(Installation installation) {
+        queueWhatsAppText(montarMensagemInstalacao(installation), installation.getPlate());
+    }
+
+    private void queueWhatsAppText(String message, String plate) {
         try {
-            String message = montarMensagemInstalacao(installation);
             etlTriggerService.requestWhatsApp(message);
-            log.info("[WHATSAPP] Mensagem de instalação enfileirada para {}", installation.getPlate());
+            log.info("[WHATSAPP] Mensagem de instalação enfileirada para {}", plate);
         } catch (Exception e) {
             log.warn("[WHATSAPP] Falha ao enfileirar mensagem: {}", e.getMessage());
         }
+    }
+
+    private String montarMensagemConclusao(Installation installation) {
+        return "✅ INSTALAÇÃO CONCLUÍDA\n\n"
+                + "PLACA: " + orDash(installation.getPlate()) + "\n"
+                + "SEGURADO: " + orDash(installation.getCustomerName()) + "\n"
+                + "CIDADE: " + orDash(installation.getCity());
+    }
+
+    private String orDash(String value) {
+        return hasValue(value) ? value : "--";
     }
 
     private String montarMensagemInstalacao(Installation installation) {

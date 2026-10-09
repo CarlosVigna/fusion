@@ -36,6 +36,8 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
 
     boolean existsByExternalInstallationId(String externalInstallationId);
 
+    Optional<ServiceOrder> findFirstByExternalInstallationIdAndDeletedAtIsNull(String externalInstallationId);
+
     // TEMPORARIO — usados por DELETE /etl/diag/purge-before
     long countByServiceTypeAndRequestedAtBefore(ServiceType serviceType, LocalDateTime cutoff);
 
