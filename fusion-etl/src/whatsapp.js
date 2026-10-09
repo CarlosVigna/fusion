@@ -44,14 +44,6 @@ async function connectWhatsApp() {
         // mensagem nova de verdade).
         sock.ev.on('messages.upsert', async ({ messages, type }) => {
 
-            // TEMPORARIO — loga toda mensagem recebida, antes de qualquer
-            // filtro, pra diagnosticar se o Baileys esta recebendo algo.
-            // Remover depois do diagnostico.
-            for (const msg of messages) {
-                const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-                log(`[WHATSAPP-DEBUG] upsert type=${type} jid=${msg.key.remoteJid} fromMe=${msg.key.fromMe} text=${JSON.stringify(text)}`);
-            }
-
             if (type !== 'notify' || !APPROVAL_GROUP_ID) return;
 
             for (const msg of messages) {
