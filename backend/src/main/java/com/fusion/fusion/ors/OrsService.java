@@ -26,50 +26,63 @@ public class OrsService {
     @Value("${ors.api-key:}")
     private String apiKey;
 
+    @Value("${opencage.api.key}")
+    private String openCageApiKey;
+
     private static final double FREE_KM = 40.0;
     private static final double RATE_PER_KM = 1.20;
 
     public double[] geocode(String address, String city, String state) {
-        // Tentativa 1: endereço completo via Nominatim (OpenStreetMap)
+        // Tentativa 1: endereço completo via OpenCage
         String query = address + ", " + city + ", " + (state != null ? state : "") + ", Brasil";
         double[] result = geocodeQuery(query);
 
         // Fallback: só cidade + estado (útil para cidades pequenas)
         if (result == null && city != null && state != null && !state.isBlank()) {
-            log.info("[NOMINATIM] Fallback cidade/estado: {}, {}", city, state);
+            log.info("[OPENCAGE] Fallback cidade/estado: {}, {}", city, state);
             result = geocodeQuery(city + ", " + state + ", Brasil");
         }
 
         return result;
     }
 
+    // OpenCage em vez de Nominatim — o Nominatim público bloqueava as
+    // requisições vindas do Railway (IP de datacenter).
     private double[] geocodeQuery(String query) {
-        try {
-            String url = "https://nominatim.openstreetmap.org/search?q="
-                    + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
-                    + "&format=json&countrycodes=br&limit=1";
+        if (openCageApiKey == null || openCageApiKey.isBlank()) {
+            log.warn("[OPENCAGE] OPENCAGE_API_KEY não configurada — geocode de '{}' ignorado", query);
+            return null;
+        }
 
-            log.info("[NOMINATIM] Geocodificando: {}", query);
+        try {
+            // A URL leva a key — não logar a URL inteira.
+            String url = "https://api.opencagedata.com/geocode/v1/json?q="
+                    + java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8)
+                    + "&key=" + openCageApiKey
+                    + "&language=pt&countrycode=br&limit=1";
+
+            log.info("[OPENCAGE] Geocodificando: {}", query);
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Accept", "application/json");
-            headers.set("User-Agent", "Fusion/1.0 (garcia.carlosfilho@gmail.com)");
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, new HttpEntity<>(headers), String.class);
 
             String responseBody = response.getBody();
-            JsonNode root = objectMapper.readTree(responseBody);
-            if (root.isArray() && root.size() > 0) {
-                double lat = root.get(0).path("lat").asDouble();
-                double lon = root.get(0).path("lon").asDouble();
-                log.info("[NOMINATIM] Resultado: lat={}, lon={}", lat, lon);
+            JsonNode results = objectMapper.readTree(responseBody).path("results");
+            if (results.isArray() && results.size() > 0) {
+                JsonNode geometry = results.get(0).path("geometry");
+                double lat = geometry.path("lat").asDouble();
+                double lon = geometry.path("lng").asDouble();
+                log.info("[OPENCAGE] Resultado: lat={}, lon={}", lat, lon);
                 return new double[]{lat, lon};
             } else {
-                log.warn("[NOMINATIM] Retornou vazio para: {} | Response: {}", query, responseBody);
+                log.warn("[OPENCAGE] Retornou vazio para: {} | Response: {}", query, responseBody);
             }
         } catch (HttpClientErrorException e) {
-            log.debug("[NOMINATIM] HTTP {} para '{}' — deslocamento ficará em branco", e.getStatusCode(), query);
+            // 401 = key inválida, 402 = cota diária esgotada, 403 = key suspensa
+            log.warn("[OPENCAGE] HTTP {} para '{}' — body: {}", e.getStatusCode(), query, e.getResponseBodyAsString());
         } catch (Exception e) {
-            log.warn("[NOMINATIM] Falhou para '{}': {}", query, e.getMessage());
+            log.warn("[OPENCAGE] Falhou para '{}': {}", query, e.getMessage());
         }
         return null;
     }
