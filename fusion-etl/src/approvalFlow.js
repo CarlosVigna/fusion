@@ -59,9 +59,17 @@ function normalizeNumber(raw) {
     return String(raw).replace(/\D/g, '');
 }
 
+// Em grupo, msg.key.participant e' o JID de quem enviou — mas o WhatsApp
+// passou a entregar como LID (ex.: 86625228967979@lid), cujos digitos
+// NAO sao o telefone. Nesse caso o Baileys 7 traz o JID de telefone em
+// participantAlt (5517996230262@s.whatsapp.net), que e' o que bate com
+// WHATSAPP_*_NUMBER. Tira tambem o sufixo de device (":12") antes de
+// extrair os digitos, senao ele vira parte do numero.
 function senderNumber(msg) {
-    const jid = msg.key.participant || msg.key.remoteJid || '';
-    return normalizeNumber(jid.split('@')[0]);
+    const candidates = [msg.key.participant, msg.key.participantAlt, msg.key.remoteJid]
+        .filter(Boolean);
+    const jid = candidates.find(j => j.endsWith('@s.whatsapp.net')) || candidates[0] || '';
+    return normalizeNumber(jid.split('@')[0].split(':')[0]);
 }
 
 function extractText(msg) {
