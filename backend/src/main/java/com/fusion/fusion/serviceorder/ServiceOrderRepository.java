@@ -1,9 +1,12 @@
 package com.fusion.fusion.serviceorder;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,4 +35,12 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
             ServiceType serviceType, SchedulingStatus status);
 
     boolean existsByExternalInstallationId(String externalInstallationId);
+
+    // TEMPORARIO — usados por DELETE /etl/diag/purge-before
+    long countByServiceTypeAndRequestedAtBefore(ServiceType serviceType, LocalDateTime cutoff);
+
+    @Modifying
+    @Query("DELETE FROM ServiceOrder so WHERE so.serviceType = :serviceType AND so.requestedAt < :cutoff")
+    int purgeByServiceTypeAndRequestedAtBefore(@Param("serviceType") ServiceType serviceType,
+                                               @Param("cutoff") LocalDateTime cutoff);
 }

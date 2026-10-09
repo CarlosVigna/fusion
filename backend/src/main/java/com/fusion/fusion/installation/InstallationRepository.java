@@ -2,6 +2,9 @@ package com.fusion.fusion.installation;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -32,5 +35,12 @@ public interface InstallationRepository
     Optional<Installation> findByPlateIgnoreCase(String plate);
 
     List<Installation> findByCreatedAtBeforeAndStatusNot(LocalDateTime date, InstallationStatus status);
+
+    // TEMPORARIO — usados por DELETE /etl/diag/purge-before
+    long countByCreatedAtBefore(LocalDateTime cutoff);
+
+    @Modifying
+    @Query("DELETE FROM Installation i WHERE i.createdAt < :cutoff")
+    int purgeByCreatedAtBefore(@Param("cutoff") LocalDateTime cutoff);
 
 }

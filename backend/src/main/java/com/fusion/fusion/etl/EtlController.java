@@ -2,18 +2,25 @@ package com.fusion.fusion.etl;
 
 import com.fusion.fusion.importation.ImportType;
 import com.fusion.fusion.installation.Installation;
+import com.fusion.fusion.installation.InstallationObservationRepository;
 import com.fusion.fusion.installation.InstallationRepository;
 import com.fusion.fusion.installation.InstallationStatus;
+import com.fusion.fusion.serviceorder.ServiceOrderRepository;
+import com.fusion.fusion.serviceorder.ServiceType;
 import com.fusion.fusion.sinistro.SinistroAnalysisService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -37,6 +44,10 @@ public class EtlController {
     private final SinistroAnalysisService sinistroAnalysisService;
 
     private final InstallationRepository installationRepository;
+
+    private final InstallationObservationRepository installationObservationRepository;
+
+    private final ServiceOrderRepository serviceOrderRepository;
 
     @Value("${fusion.etl.api-key:}")
     private String etlApiKey;
@@ -219,6 +230,51 @@ public class EtlController {
         body.put("knownPlates", DIAG_KNOWN_PLATES);
         body.put("pendingOutsideKnownPlatesCount", pendingOutsideKnownPlates.size());
         body.put("pendingOutsideKnownPlates", pendingOutsideKnownPlates);
+
+        return ResponseEntity.ok(body);
+
+    }
+
+    // TEMPORARIO — hard delete de OS de instalacao e de instalacoes
+    // anteriores a date (dia em Sao Paulo, convertido pra UTC como em
+    // /installations/archive-before). dryRun=true so' conta, nao apaga.
+    // Remover depois (junto com a entrada em SecurityConfig e os metodos
+    // purge*/count* nos repositorios).
+    @DeleteMapping("/diag/purge-before")
+    @Transactional
+    public ResponseEntity<?> purgeBefore(
+            @RequestHeader(value = "X-ETL-Key", required = false) String providedKey,
+            @RequestParam LocalDate date,
+            @RequestParam(defaultValue = "false") boolean dryRun
+    ) {
+
+        if (!isValidKey(providedKey)) {
+            return unauthorized();
+        }
+
+        LocalDateTime cutoff = date.atStartOfDay(ZoneId.of("America/Sao_Paulo"))
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
+
+        long serviceOrders;
+        long installations;
+
+        if (dryRun) {
+            serviceOrders = serviceOrderRepository.countByServiceTypeAndRequestedAtBefore(ServiceType.INSTALACAO, cutoff);
+            installations = installationRepository.countByCreatedAtBefore(cutoff);
+        } else {
+            serviceOrders = serviceOrderRepository.purgeByServiceTypeAndRequestedAtBefore(ServiceType.INSTALACAO, cutoff);
+            int observations = installationObservationRepository.purgeByInstallationCreatedAtBefore(cutoff);
+            installations = installationRepository.purgeByCreatedAtBefore(cutoff);
+            log.warn("[PURGE] cutoff={} UTC — {} OS de instalação, {} instalações e {} observações apagadas",
+                    cutoff, serviceOrders, installations, observations);
+        }
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("dryRun", dryRun);
+        body.put("cutoffUtc", cutoff);
+        body.put("serviceOrdersDeleted", serviceOrders);
+        body.put("installationsDeleted", installations);
 
         return ResponseEntity.ok(body);
 

@@ -95,6 +95,7 @@ public class SecurityConfig {
                                 "/etl/poll",
                                 "/etl/poll-whatsapp",
                                 "/etl/diag/installations-summary", // TEMPORARIO
+                                "/etl/diag/purge-before", // TEMPORARIO
                                 "/installations/sync",
                                 "/sinistro/upload"
                         ).permitAll()
