@@ -5,9 +5,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
@@ -101,6 +105,17 @@ public class InstallationController {
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id) {
         service.delete(id);
+    }
+
+    // date = dia no fuso de Sao Paulo; convertido pra UTC porque createdAt
+    // e' gravado em UTC (ex.: 2026-09-01 -> 2026-09-01T03:00 UTC).
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/archive-before")
+    public Map<String, Integer> archiveBefore(@RequestParam LocalDate date) {
+        LocalDateTime cutoff = date.atStartOfDay(ZoneId.of("America/Sao_Paulo"))
+                .withZoneSameInstant(ZoneOffset.UTC)
+                .toLocalDateTime();
+        return Map.of("archived", service.archiveOlderThan(cutoff));
     }
 
     // ─── Fase 2: endpoints para ETL (X-ETL-Key) ─────────────────────────────

@@ -5,5 +5,6 @@ public enum InstallationStatus {
     SCHEDULED,
     SENT,
     CANCELLED,
-    APPROVED_FOR_PAYMENT
+    APPROVED_FOR_PAYMENT,
+    ARCHIVED
 }

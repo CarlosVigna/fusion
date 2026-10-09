@@ -221,6 +221,28 @@ public class InstallationService {
 
     }
 
+    // Arquiva em lote as instalacoes criadas antes de cutoff (UTC, mesmo
+    // fuso do createdAt gravado no @PrePersist). PENDING fica de fora —
+    // ainda esta aguardando agendamento no portal.
+    @Transactional
+    public int archiveOlderThan(LocalDateTime cutoff) {
+
+        List<Installation> toArchive = repository
+                .findByCreatedAtBeforeAndStatusNot(cutoff, InstallationStatus.ARCHIVED)
+                .stream()
+                .filter(i -> i.getStatus() != InstallationStatus.PENDING)
+                .toList();
+
+        toArchive.forEach(i -> i.setStatus(InstallationStatus.ARCHIVED));
+
+        repository.saveAll(toArchive);
+
+        log.info("[INSTALACOES] {} instalações arquivadas (createdAt < {} UTC)", toArchive.size(), cutoff);
+
+        return toArchive.size();
+
+    }
+
     @Transactional
     public void delete(Long id) {
         Installation installation = findOrThrow(id);
